@@ -1,0 +1,169 @@
+x-service-common: &service-common
+  restart: unless-stopped
+  environment: &service-environment
+    NODE_ENV: development
+    DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_identity?schema=public
+    REDIS_URL: redis://redis:6379
+    AWS_ENDPOINT_URL: http://localstack:4566
+    AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+    S3_BUCKET: ${S3_BUCKET:-lifehelper-local}
+    SQS_QUEUE_NAME: ${SQS_QUEUE_NAME:-lifehelper-events}
+    LOG_LEVEL: info
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    localstack:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lifehelper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lifehelper}
+      POSTGRES_DB: ${POSTGRES_DB:-lifehelper}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init-databases.sh:/docker-entrypoint-initdb.d/01-init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lifehelper} -d ${POSTGRES_DB:-lifehelper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:4.8
+    restart: unless-stopped
+    ports:
+      - "${LOCALSTACK_PORT:-4566}:4566"
+    environment:
+      SERVICES: s3,sqs
+      AWS_DEFAULT_REGION: ${AWS_REGION:-ap-southeast-1}
+      S3_BUCKET: ${S3_BUCKET:-lifehelper-local}
+      SQS_QUEUE_NAME: ${SQS_QUEUE_NAME:-lifehelper-events}
+      SQS_DLQ_NAME: ${SQS_DLQ_NAME:-lifehelper-events-dlq}
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - ./infrastructure/localstack/init:/etc/localstack/init/ready.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:4566/_localstack/health | grep -q '\"s3\": \"running\"' && curl -fs http://localhost:4566/_localstack/health | grep -q '\"sqs\": \"running\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  identity-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: apps/identity-service/Dockerfile
+    environment:
+      <<: *service-environment
+      SERVICE_NAME: identity-service
+      IDENTITY_PORT: 3001
+    ports: ["${IDENTITY_PORT:-3001}:3001"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  productivity-service:
+    <<: *service-common
+    build: { context: ., dockerfile: apps/productivity-service/Dockerfile }
+    environment:
+      <<: *service-environment
+      SERVICE_NAME: productivity-service
+      PRODUCTIVITY_PORT: 3002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_productivity?schema=public
+    ports: ["${PRODUCTIVITY_PORT:-3002}:3002"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ai-service:
+    <<: *service-common
+    build: { context: ., dockerfile: apps/ai-service/Dockerfile }
+    environment:
+      <<: *service-environment
+      SERVICE_NAME: ai-service
+      AI_PORT: 3003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_ai?schema=public
+    ports: ["${AI_PORT:-3003}:3003"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3003/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  document-service:
+    <<: *service-common
+    build: { context: ., dockerfile: apps/document-service/Dockerfile }
+    environment:
+      <<: *service-environment
+      SERVICE_NAME: document-service
+      DOCUMENT_PORT: 3004
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_document?schema=public
+    ports: ["${DOCUMENT_PORT:-3004}:3004"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3004/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  notification-service:
+    <<: *service-common
+    build: { context: ., dockerfile: apps/notification-service/Dockerfile }
+    environment:
+      <<: *service-environment
+      SERVICE_NAME: notification-service
+      NOTIFICATION_PORT: 3005
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_notification?schema=public
+    ports: ["${NOTIFICATION_PORT:-3005}:3005"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  analytics-service:
+    <<: *service-common
+    build: { context: ., dockerfile: apps/analytics-service/Dockerfile }
+    environment:
+      <<: *service-environment
+      SERVICE_NAME: analytics-service
+      ANALYTICS_PORT: 3006
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_analytics?schema=public
+    ports: ["${ANALYTICS_PORT:-3006}:3006"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
+  localstack-data:

@@ -1,0 +1,16 @@
+{
+  "name": "@lifehelper/logger",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": { "build": "tsc -p tsconfig.json", "lint": "tsc -p tsconfig.json --noEmit" },
+  "dependencies": {
+    "nestjs-pino": "^4.4.1",
+    "pino-http": "^10.5.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^11.0.0"
+  }
+}
