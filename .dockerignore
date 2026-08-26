@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+apps/mobile
+.env

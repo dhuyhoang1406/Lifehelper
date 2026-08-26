@@ -1,0 +1,20 @@
+{
+  "name": "lifehelper",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "build": "pnpm --filter './packages/**' --filter './apps/**' --if-present build",
+    "test": "pnpm --filter './apps/**' --if-present test",
+    "test:e2e": "pnpm --filter './apps/**' --if-present test:e2e",
+    "lint": "pnpm --filter './packages/**' --filter './apps/**' --if-present lint",
+    "format": "prettier --write \"{apps,packages}/**/*.{ts,js,json,yaml,yml,md}\" \"*.{json,yaml,yml,md}\"",
+    "prisma:generate": "pnpm --filter './apps/*-service' --if-present prisma:generate",
+    "compose:up": "docker compose up -d --build",
+    "compose:down": "docker compose down"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  }
+}

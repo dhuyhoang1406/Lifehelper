@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - packages/*
+
+injectWorkspacePackages: true
+
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  unrs-resolver: true

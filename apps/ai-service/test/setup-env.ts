@@ -1,0 +1,11 @@
+process.env.NODE_ENV='test';
+process.env.SERVICE_NAME='ai-service';
+process.env.AI_PORT='3003';
+process.env.DATABASE_URL='postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_ai?schema=public';
+process.env.REDIS_URL='redis://localhost:6379';
+process.env.AWS_ENDPOINT_URL='http://localhost:4566';
+process.env.AWS_REGION='ap-southeast-1';
+process.env.AWS_ACCESS_KEY_ID='test';
+process.env.AWS_SECRET_ACCESS_KEY='test';
+process.env.S3_BUCKET='lifehelper-local';
+process.env.SQS_QUEUE_NAME='lifehelper-events';
