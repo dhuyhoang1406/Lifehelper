@@ -13,3 +13,6 @@ export type UUID = string;
 
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export type { PersistenceMapper, OutboxEventInput } from "./persistence";
+export { DEMO_IDS } from "./seed-identifiers";
