@@ -1,0 +1,99 @@
+import type { OAuthProvider as PrismaOAuthProvider } from "../../generated/client";
+import { PrismaService } from "../prisma.service";
+import type {
+  UserRepository,
+  OAuthAccountRepository,
+  DeviceSessionRepository,
+  RefreshTokenRepository,
+} from "../application/repositories/identity.repositories";
+import type { User } from "../modules/identity/domain/entities/user.entity";
+import type { OAuthAccount } from "../modules/identity/domain/entities/oauth-account.entity";
+import type { DeviceSession } from "../modules/identity/domain/entities/device-session.entity";
+import type { RefreshToken } from "../modules/identity/domain/entities/refresh-token.entity";
+import {
+  UserMapper,
+  OAuthAccountMapper,
+  DeviceSessionMapper,
+  RefreshTokenMapper,
+} from "./identity.mappers";
+export class PrismaUserRepository implements UserRepository {
+  constructor(private readonly db: PrismaService) {}
+  async findById(id: string) {
+    const r = await this.db.user.findUnique({ where: { id } });
+    return r ? UserMapper.toDomain(r) : null;
+  }
+  async findByEmail(email: string) {
+    const r = await this.db.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+    return r ? UserMapper.toDomain(r) : null;
+  }
+  async save(e: User) {
+    const data = UserMapper.toPersistence(e);
+    await this.db.user.upsert({
+      where: { id: e.state.id },
+      create: data,
+      update: data,
+    });
+  }
+}
+export class PrismaOAuthAccountRepository implements OAuthAccountRepository {
+  constructor(private readonly db: PrismaService) {}
+  async findByProviderIdentity(provider: string, providerUserId: string) {
+    const r = await this.db.oAuthAccount.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: provider as PrismaOAuthProvider,
+          providerUserId,
+        },
+      },
+    });
+    return r ? OAuthAccountMapper.toDomain(r) : null;
+  }
+  async save(e: OAuthAccount) {
+    const data = OAuthAccountMapper.toPersistence(e);
+    await this.db.oAuthAccount.upsert({
+      where: { id: e.state.id },
+      create: data,
+      update: data,
+    });
+  }
+}
+export class PrismaDeviceSessionRepository implements DeviceSessionRepository {
+  constructor(private readonly db: PrismaService) {}
+  async findById(id: string) {
+    const r = await this.db.deviceSession.findUnique({ where: { id } });
+    return r ? DeviceSessionMapper.toDomain(r) : null;
+  }
+  async findByUserId(userId: string) {
+    return (
+      await this.db.deviceSession.findMany({
+        where: { userId },
+        orderBy: { lastActiveAt: "desc" },
+      })
+    ).map(DeviceSessionMapper.toDomain);
+  }
+  async save(e: DeviceSession) {
+    const data = DeviceSessionMapper.toPersistence(e);
+    await this.db.deviceSession.upsert({
+      where: { id: e.state.id },
+      create: data,
+      update: data,
+    });
+  }
+}
+export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
+  constructor(private readonly db: PrismaService) {}
+  async findByTokenHash(tokenHash: string) {
+    const r = await this.db.refreshToken.findUnique({ where: { tokenHash } });
+    return r ? RefreshTokenMapper.toDomain(r) : null;
+  }
+  async save(e: RefreshToken) {
+    const data = RefreshTokenMapper.toPersistence(e);
+    await this.db.refreshToken.upsert({
+      where: { id: e.state.id },
+      create: data,
+      update: data,
+    });
+  }
+}
