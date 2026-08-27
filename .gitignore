@@ -14,6 +14,8 @@ coverage/
 # Prisma
 apps/*/prisma/*.db
 apps/*/prisma/*.db-journal
+apps/*/generated/
+apps/*/src/generated/prisma/
 
 # Flutter / Dart
 apps/mobile/.dart_tool/
