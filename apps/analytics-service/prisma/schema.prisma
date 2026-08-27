@@ -1,7 +1,51 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/client"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model DailyProductivityMetric {
+  id             String   @id @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  metricDate     DateTime @map("metric_date") @db.Date
+  tasksCreated   Int      @default(0) @map("tasks_created")
+  tasksCompleted Int      @default(0) @map("tasks_completed")
+  habitCheckins  Int      @default(0) @map("habit_checkins")
+  calendarEvents Int      @default(0) @map("calendar_events")
+  aiRequests     Int      @default(0) @map("ai_requests")
+  aiToolActions  Int      @default(0) @map("ai_tool_actions")
+  updatedAt      DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, metricDate])
+  @@index([userId, metricDate])
+  @@map("daily_productivity_metrics")
+}
+
+model EventProcessingLog {
+  eventId     String   @id @map("event_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(120)
+  consumer    String   @db.VarChar(120)
+  processedAt DateTime @map("processed_at") @db.Timestamptz(6)
+
+  @@index([consumer, processedAt])
+  @@map("event_processing_logs")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(120)
+  aggregateType String    @map("aggregate_type") @db.VarChar(120)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastError     String?   @map("last_error")
+
+  @@index([processedAt, occurredAt])
+  @@map("outbox_events")
 }
