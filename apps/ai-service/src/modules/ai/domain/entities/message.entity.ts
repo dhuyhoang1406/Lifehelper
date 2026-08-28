@@ -22,7 +22,8 @@ export class Message {
         >
       >,
   ): Message {
-    if (!input.content) throw new AIDomainError("Message content is required");
+    if (!input.content.trim())
+      throw new AIDomainError("Message content is required");
     for (const count of [input.inputTokens, input.outputTokens])
       if (count != null && count < 0)
         throw new AIDomainError("Token count cannot be negative");

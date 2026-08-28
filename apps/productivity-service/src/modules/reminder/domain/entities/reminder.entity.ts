@@ -56,8 +56,8 @@ export class Reminder {
     this.props.updatedAt = at;
   }
   markSent(at = new Date()): void {
-    if (this.props.status === ReminderStatus.CANCELLED)
-      throw new ReminderDomainError("Cancelled reminder cannot be sent");
+    if (this.props.status !== ReminderStatus.QUEUED)
+      throw new ReminderDomainError("Only queued reminders can be sent");
     this.props.status = ReminderStatus.SENT;
     this.props.updatedAt = at;
   }

@@ -21,4 +21,9 @@ describe("Document", () => {
     ));
   it("enforces processing transitions", () =>
     expect(() => Document.create(input).startProcessing()).toThrow("uploaded"));
+  it("only marks a pending-upload document as uploaded", () => {
+    const document = Document.create(input);
+    document.markUploaded();
+    expect(() => document.markUploaded()).toThrow("pending-upload");
+  });
 });

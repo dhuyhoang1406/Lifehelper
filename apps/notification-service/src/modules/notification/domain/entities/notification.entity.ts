@@ -26,13 +26,14 @@ export class Notification {
     > &
       Partial<Pick<NotificationProps, "data" | "sourceEventId" | "createdAt">>,
   ): Notification {
-    if (!input.title.trim() || !input.body)
+    if (!input.title.trim() || !input.body.trim())
       throw new NotificationDomainError(
         "Notification title and body are required",
       );
     return new Notification({
       ...input,
       title: input.title.trim(),
+      body: input.body.trim(),
       data: input.data ?? null,
       sourceEventId: input.sourceEventId ?? null,
       status: NotificationStatus.PENDING,
@@ -55,6 +56,10 @@ export class Notification {
     this.props.status = NotificationStatus.PROCESSING;
   }
   markSent(at = new Date()): void {
+    if (this.props.status !== NotificationStatus.PROCESSING)
+      throw new NotificationDomainError(
+        "Only processing notifications can be sent",
+      );
     this.props.status = NotificationStatus.SENT;
     this.props.sentAt = at;
     this.props.failedAt = null;

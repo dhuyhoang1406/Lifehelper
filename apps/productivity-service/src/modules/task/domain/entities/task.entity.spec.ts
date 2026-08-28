@@ -34,4 +34,13 @@ describe("Task", () => {
     task.complete();
     expect(() => task.cancel()).toThrow("cannot be cancelled");
   });
+  it("does not complete an already completed task", () => {
+    const task = Task.create(base);
+    const completedAt = new Date("2026-01-01T00:00:00Z");
+    task.complete(completedAt);
+    expect(() => task.complete(new Date("2026-01-02T00:00:00Z"))).toThrow(
+      "Only todo or in-progress",
+    );
+    expect(task.state.completedAt).toBe(completedAt);
+  });
 });

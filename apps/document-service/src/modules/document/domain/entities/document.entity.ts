@@ -62,6 +62,10 @@ export class Document {
     return this.props;
   }
   markUploaded(at = new Date()): void {
+    if (this.props.status !== DocumentStatus.PENDING_UPLOAD)
+      throw new DocumentDomainError(
+        "Only pending-upload documents can be marked uploaded",
+      );
     this.transition(DocumentStatus.UPLOADED, at);
   }
   startProcessing(at = new Date()): void {

@@ -62,6 +62,7 @@ export class AIActionLog {
     this.props.errorCode = errorCode;
   }
   private ensureDuration(ms: number): void {
-    if (ms < 0) throw new AIDomainError("Duration cannot be negative");
+    if (!Number.isFinite(ms) || ms < 0)
+      throw new AIDomainError("Duration must be a finite non-negative number");
   }
 }

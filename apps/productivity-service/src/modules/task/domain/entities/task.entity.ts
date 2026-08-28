@@ -67,8 +67,13 @@ export class Task {
     this.props.updatedAt = at;
   }
   complete(at = new Date()): void {
-    if (this.props.status === TaskStatus.CANCELLED)
-      throw new TaskDomainError("Cancelled task cannot complete");
+    if (
+      this.props.status !== TaskStatus.TODO &&
+      this.props.status !== TaskStatus.IN_PROGRESS
+    )
+      throw new TaskDomainError(
+        "Only todo or in-progress tasks can be completed",
+      );
     this.props.status = TaskStatus.COMPLETED;
     this.props.completedAt = at;
     this.props.updatedAt = at;
