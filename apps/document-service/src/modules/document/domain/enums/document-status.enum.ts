@@ -1,0 +1,8 @@
+export enum DocumentStatus {
+  PENDING_UPLOAD = "PENDING_UPLOAD",
+  UPLOADED = "UPLOADED",
+  PROCESSING = "PROCESSING",
+  READY = "READY",
+  FAILED = "FAILED",
+  DELETED = "DELETED",
+}
