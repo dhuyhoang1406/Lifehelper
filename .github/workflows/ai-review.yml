@@ -332,19 +332,51 @@ jobs:
               body = ['## AI Review (Gemini)', '', raw].join('\n');
             }
 
+            // GitHub allows only one pending review per user per PR. Previous
+            // runs may have left a pending review behind (createReview without
+            // an event stays pending), which would 422 new reviews. Delete our
+            // stale pending reviews first, then submit with event COMMENT so
+            // the review is never left pending.
+            const { owner, repo } = context.repo;
+            const pr = context.issue.number;
+            try {
+              const { data: reviews } = await github.rest.pulls.listReviews({ owner, repo, pull_number: pr });
+              for (const r of reviews) {
+                if (r.user && r.user.login === 'github-actions[bot]') {
+                  try {
+                    await github.rest.pulls.deletePendingReview({ owner, repo, pull_number: pr, review_id: r.id });
+                    console.log(`Deleted stale pending review ${r.id}`);
+                  } catch (e2) {
+                    console.log(`Could not delete review ${r.id} (${e2.message}); ignoring.`);
+                  }
+                }
+              }
+            } catch (e) {
+              console.log(`Review cleanup failed: ${e.message}`);
+            }
+
             try {
               const r = await github.rest.pulls.createReview({
-                ...context.repo,
-                pull_number: context.issue.number,
+                owner,
+                repo,
+                pull_number: pr,
                 body,
                 comments,
+                event: 'COMMENT',
               });
               console.log(`Review created: ${r.data.id}`);
             } catch (e) {
               console.log(`Inline review failed (${e.message}); posting summary only.`);
-              await github.rest.pulls.createReview({
-                ...context.repo,
-                pull_number: context.issue.number,
-                body,
-              });
+              try {
+                await github.rest.pulls.createReview({
+                  owner,
+                  repo,
+                  pull_number: pr,
+                  body,
+                  event: 'COMMENT',
+                });
+              } catch (e2) {
+                console.log(`Summary review also failed: ${e2.message}`);
+                throw new Error(`Could not publish AI review: ${e2.message}`);
+              }
             }
