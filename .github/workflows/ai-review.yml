@@ -23,6 +23,7 @@ jobs:
     name: Review pull request
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    environment: Gemini
     timeout-minutes: 20
     steps:
       - name: Check out pull request

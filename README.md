@@ -59,8 +59,8 @@ pull request branch. Pushing a fix starts a fresh AI review; it does not start C
 
 The repository administrator must configure the following outside this repository:
 
-1. Add `GEMINI_API_KEY` as a repository Actions secret (Settings → Secrets and
-   variables → Actions). Create a free key at Google AI Studio
+1. Add `GEMINI_API_KEY` as a secret in the `Gemini` GitHub Environment (or as a
+   repository Actions secret). Create a free key at Google AI Studio
    (https://aistudio.google.com/apikey). Do not add the value to repository files.
 2. Create a ruleset for `dev` that restricts deletion and force pushes and requires
    a pull request. Require the `Backend quality checks` and `Flutter quality checks`
