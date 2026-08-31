@@ -43,4 +43,4 @@ Flutter client, and small shared technical packages.
 - TypeScript changes should pass lint, type checking, relevant unit tests, Prisma
   validation/generation where applicable, build, and relevant integration tests.
 - Flutter changes should pass `flutter analyze` and `flutter test`.
-- CI is manually dispatched only after a developer has evaluated the AI review.
+- CI runs automatically on pushes to pull request branches; the AI review is informational and does not gate merging.

@@ -53,9 +53,10 @@ Android emulators use `10.0.2.2` to reach the host. For iOS simulators or deskto
 ## Pull request quality gates
 
 Pull requests into `dev` receive an automatic AI review powered by Google Gemini
-(free tier). A developer evaluates the findings and pushes any fixes before
-manually starting **Technical Verification** from the GitHub Actions page for the
-pull request branch. Pushing a fix starts a fresh AI review; it does not start CI.
+(free tier) and automatic **Technical Verification** (lint, typecheck, Prisma
+validation, unit/integration tests, build, Flutter analyze/test) on every push.
+The AI review is informational; the CI checks gate merging through the `dev`
+ruleset.
 
 The repository administrator must configure the following outside this repository:
 
@@ -66,5 +67,4 @@ The repository administrator must configure the following outside this repositor
    a pull request. Require the `Backend quality checks` and `Flutter quality checks`
    statuses from the **Technical Verification** workflow.
 3. Keep the AI review informational; do not configure it as a required status
-   check. After review is satisfactory, run CI from Actions and select the PR's
-   feature branch so the checks attach to its current head commit.
+   check.
