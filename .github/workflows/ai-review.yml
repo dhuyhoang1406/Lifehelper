@@ -102,7 +102,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python3 - <<'PY'
-          import json, os, re, subprocess, urllib.error, urllib.request
+          import json, os, re, subprocess, time, urllib.error, urllib.request
 
           with open("AGENTS.md", encoding="utf-8", errors="replace") as f:
               agents = f.read()
@@ -166,13 +166,33 @@ jobs:
               url, data=json.dumps(body).encode("utf-8"),
               headers={"Content-Type": "application/json"},
           )
-          try:
-              with urllib.request.urlopen(req, timeout=180) as resp:
-                  data = json.load(resp)
-          except urllib.error.HTTPError as e:
-              print("::error::Gemini API error " + str(e.code) + ": "
-                    + e.read().decode("utf-8", "replace")[:500])
-              raise SystemExit(1)
+          attempts = 5
+          data = None
+          for attempt in range(1, attempts + 1):
+              try:
+                  with urllib.request.urlopen(req, timeout=180) as resp:
+                      data = json.load(resp)
+                  break
+              except urllib.error.HTTPError as e:
+                  if e.code in (429, 500, 503) and attempt < attempts:
+                      retry_after = e.headers.get("Retry-After")
+                      wait = (int(retry_after) if retry_after and retry_after.isdigit()
+                              else 20 * attempt)
+                      print(f"Gemini busy ({e.code}); retry {attempt}/{attempts} in {wait}s")
+                      time.sleep(wait)
+                  else:
+                      print("::error::Gemini API error " + str(e.code) + ": "
+                            + e.read().decode("utf-8", "replace")[:500])
+                      raise SystemExit(1)
+              except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                  if attempt < attempts:
+                      wait = 15 * attempt
+                      print(f"Network error ({e}); retry {attempt}/{attempts} in {wait}s")
+                      time.sleep(wait)
+                  else:
+                      print("::error::Gemini request failed after " + str(attempts)
+                            + " attempts: " + str(e))
+                      raise SystemExit(1)
 
           try:
               text = data["candidates"][0]["content"]["parts"][0]["text"]
