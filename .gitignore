@@ -16,6 +16,7 @@ apps/*/prisma/*.db
 apps/*/prisma/*.db-journal
 apps/*/generated/
 apps/*/src/generated/prisma/
+apps/*-service/generated/
 
 # Flutter / Dart
 apps/mobile/.dart_tool/
