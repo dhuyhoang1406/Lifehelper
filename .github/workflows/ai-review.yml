@@ -97,7 +97,7 @@ jobs:
           }
           url = (
               "https://generativelanguage.googleapis.com/v1beta/models/"
-              "gemini-2.5-flash:generateContent?key="
+              "gemini-3.6-flash:generateContent?key="
               + os.environ["GEMINI_API_KEY"]
           )
           req = urllib.request.Request(
