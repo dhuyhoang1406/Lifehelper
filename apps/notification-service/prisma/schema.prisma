@@ -1,7 +1,90 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/client"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum NotificationType {
+  REMINDER
+  TASK
+  CALENDAR
+  HABIT
+  AI
+  SYSTEM
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum NotificationProvider {
+  FCM
+}
+
+model Notification {
+  id            String                 @id @db.Uuid
+  userId        String                 @map("user_id") @db.Uuid
+  type          NotificationType
+  title         String                 @db.VarChar(255)
+  body          String
+  data          Json?
+  sourceEventId String?                @map("source_event_id") @db.Uuid
+  status        NotificationStatus
+  createdAt     DateTime               @map("created_at") @db.Timestamptz(6)
+  sentAt        DateTime?              @map("sent_at") @db.Timestamptz(6)
+  failedAt      DateTime?              @map("failed_at") @db.Timestamptz(6)
+  deliveries    NotificationDelivery[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([sourceEventId])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id                String               @id @db.Uuid
+  notificationId    String               @map("notification_id") @db.Uuid
+  deviceSessionId   String               @map("device_session_id") @db.Uuid
+  provider          NotificationProvider
+  providerMessageId String?              @map("provider_message_id") @db.VarChar(255)
+  status            DeliveryStatus
+  attemptCount      Int                  @default(0) @map("attempt_count")
+  lastError         String?              @map("last_error")
+  sentAt            DateTime?            @map("sent_at") @db.Timestamptz(6)
+  createdAt         DateTime             @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @map("updated_at") @db.Timestamptz(6)
+  notification      Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, deviceSessionId])
+  @@index([status, updatedAt])
+  @@map("notification_deliveries")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(120)
+  aggregateType String    @map("aggregate_type") @db.VarChar(120)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastError     String?   @map("last_error")
+
+  @@index([processedAt, occurredAt])
+  @@map("outbox_events")
 }

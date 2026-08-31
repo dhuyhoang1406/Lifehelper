@@ -1,7 +1,88 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/client"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AIActionStatus {
+  REQUESTED
+  SUCCESS
+  FAILED
+  REJECTED
+}
+
+model Conversation {
+  id        String        @id @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  title     String?       @db.VarChar(255)
+  createdAt DateTime      @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  messages  Message[]
+  actions   AIActionLog[]
+
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String        @id @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
+  role           MessageRole
+  content        String
+  model          String?       @db.VarChar(100)
+  inputTokens    Int?          @map("input_tokens")
+  outputTokens   Int?          @map("output_tokens")
+  createdAt      DateTime      @map("created_at") @db.Timestamptz(6)
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  actions        AIActionLog[]
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model AIActionLog {
+  id             String         @id @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  conversationId String?        @map("conversation_id") @db.Uuid
+  messageId      String?        @map("message_id") @db.Uuid
+  toolName       String         @map("tool_name") @db.VarChar(100)
+  inputPayload   Json           @map("input_payload")
+  outputPayload  Json?          @map("output_payload")
+  status         AIActionStatus
+  errorCode      String?        @map("error_code") @db.VarChar(100)
+  durationMs     Int?           @map("duration_ms")
+  createdAt      DateTime       @map("created_at") @db.Timestamptz(6)
+  conversation   Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  message        Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([conversationId])
+  @@map("ai_action_logs")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(120)
+  aggregateType String    @map("aggregate_type") @db.VarChar(120)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastError     String?   @map("last_error")
+
+  @@index([processedAt, occurredAt])
+  @@map("outbox_events")
 }

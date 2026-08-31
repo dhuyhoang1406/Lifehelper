@@ -1,7 +1,80 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/client"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum DocumentStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+model Document {
+  id               String          @id @db.Uuid
+  userId           String          @map("user_id") @db.Uuid
+  originalFilename String          @map("original_filename") @db.VarChar(255)
+  storageFilename  String          @map("storage_filename") @db.VarChar(255)
+  mimeType         String          @map("mime_type") @db.VarChar(120)
+  sizeBytes        BigInt          @map("size_bytes")
+  s3Bucket         String          @map("s3_bucket") @db.VarChar(255)
+  s3Key            String          @unique @map("s3_key")
+  status           DocumentStatus
+  checksumSha256   String?         @map("checksum_sha256") @db.VarChar(64)
+  processingError  String?         @map("processing_error")
+  createdAt        DateTime        @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  chunks           DocumentChunk[]
+
+  @@index([userId, status])
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String             @id @db.Uuid
+  documentId String             @map("document_id") @db.Uuid
+  chunkIndex Int                @map("chunk_index")
+  content    String
+  tokenCount Int?               @map("token_count")
+  metadata   Json?
+  createdAt  DateTime           @map("created_at") @db.Timestamptz(6)
+  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  embedding  DocumentEmbedding?
+
+  @@unique([documentId, chunkIndex])
+  @@map("document_chunks")
+}
+
+model DocumentEmbedding {
+  id             String                @id @db.Uuid
+  chunkId        String                @unique @map("chunk_id") @db.Uuid
+  embeddingModel String                @map("embedding_model") @db.VarChar(100)
+  embedding      Unsupported("vector")
+  createdAt      DateTime              @map("created_at") @db.Timestamptz(6)
+  chunk          DocumentChunk         @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@map("document_embeddings")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(120)
+  aggregateType String    @map("aggregate_type") @db.VarChar(120)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastError     String?   @map("last_error")
+
+  @@index([processedAt, occurredAt])
+  @@map("outbox_events")
 }

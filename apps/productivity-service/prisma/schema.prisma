@@ -1,7 +1,211 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/client"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CalendarEventType {
+  PERSONAL
+  WORK
+  STUDY
+  INTERVIEW
+  MEETING
+  OTHER
+}
+
+enum HabitFrequency {
+  DAILY
+  WEEKLY
+  CUSTOM
+}
+
+enum ReminderResourceType {
+  TASK
+  CALENDAR_EVENT
+  HABIT
+  CUSTOM
+}
+
+enum ReminderStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model Task {
+  id               String       @id @db.Uuid
+  userId           String       @map("user_id") @db.Uuid
+  title            String       @db.VarChar(255)
+  description      String?
+  status           TaskStatus
+  priority         TaskPriority
+  dueAt            DateTime?    @map("due_at") @db.Timestamptz(6)
+  estimatedMinutes Int?         @map("estimated_minutes")
+  completedAt      DateTime?    @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime     @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  subtasks         Subtask[]
+  taskTags         TaskTag[]
+
+  @@index([userId, status])
+  @@index([userId, dueAt])
+  @@map("tasks")
+}
+
+model Subtask {
+  id          String    @id @db.Uuid
+  taskId      String    @map("task_id") @db.Uuid
+  title       String    @db.VarChar(255)
+  position    Int       @default(0)
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @map("updated_at") @db.Timestamptz(6)
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, position])
+  @@map("subtasks")
+}
+
+model Tag {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  name      String    @db.VarChar(80)
+  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
+  taskTags  TaskTag[]
+
+  @@unique([userId, name])
+  @@map("tags")
+}
+
+model TaskTag {
+  taskId String @map("task_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+  @@map("task_tags")
+}
+
+model CalendarEvent {
+  id             String            @id @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  title          String            @db.VarChar(255)
+  description    String?
+  eventType      CalendarEventType @map("event_type")
+  startAt        DateTime          @map("start_at") @db.Timestamptz(6)
+  endAt          DateTime          @map("end_at") @db.Timestamptz(6)
+  timezone       String            @db.VarChar(64)
+  location       String?           @db.VarChar(255)
+  recurrenceRule String?           @map("recurrence_rule")
+  createdAt      DateTime          @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId, startAt])
+  @@map("calendar_events")
+}
+
+model Habit {
+  id            String          @id @db.Uuid
+  userId        String          @map("user_id") @db.Uuid
+  name          String          @db.VarChar(180)
+  description   String?
+  frequencyType HabitFrequency  @map("frequency_type")
+  targetCount   Int             @default(1) @map("target_count")
+  startDate     DateTime        @map("start_date") @db.Date
+  endDate       DateTime?       @map("end_date") @db.Date
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  schedules     HabitSchedule[]
+  logs          HabitLog[]
+
+  @@index([userId, isActive])
+  @@map("habits")
+}
+
+model HabitSchedule {
+  id        String    @id @db.Uuid
+  habitId   String    @map("habit_id") @db.Uuid
+  dayOfWeek Int?      @map("day_of_week") @db.SmallInt
+  timeOfDay DateTime? @map("time_of_day") @db.Time(6)
+  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
+  habit     Habit     @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@index([habitId])
+  @@map("habit_schedules")
+}
+
+model HabitLog {
+  id             String   @id @db.Uuid
+  habitId        String   @map("habit_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  logDate        DateTime @map("log_date") @db.Date
+  completedCount Int      @default(1) @map("completed_count")
+  completedAt    DateTime @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+  habit          Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, logDate])
+  @@index([userId, logDate])
+  @@map("habit_logs")
+}
+
+model Reminder {
+  id           String               @id @db.Uuid
+  userId       String               @map("user_id") @db.Uuid
+  resourceType ReminderResourceType @map("resource_type")
+  resourceId   String?              @map("resource_id") @db.Uuid
+  title        String               @db.VarChar(255)
+  remindAt     DateTime             @map("remind_at") @db.Timestamptz(6)
+  timezone     String               @db.VarChar(64)
+  status       ReminderStatus
+  createdAt    DateTime             @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime             @map("updated_at") @db.Timestamptz(6)
+  cancelledAt  DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+
+  @@index([userId, status, remindAt])
+  @@index([resourceType, resourceId])
+  @@map("reminders")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(120)
+  aggregateType String    @map("aggregate_type") @db.VarChar(120)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastError     String?   @map("last_error")
+
+  @@index([processedAt, occurredAt])
+  @@index([aggregateType, aggregateId])
+  @@map("outbox_events")
 }
