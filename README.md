@@ -59,7 +59,7 @@ fix starts a fresh Codex review; it does not start CI.
 
 The repository administrator must configure the following outside this repository:
 
-1. Create the `codex-review` GitHub Environment and add `OPENAI_API_KEY` as an
+1. Create the `Codex` GitHub Environment and add `OPENAI_API_KEY` as an
    environment secret. Do not add the value to repository files.
 2. Create a ruleset for `dev` that restricts deletion and force pushes and requires
    a pull request. Require the `Backend quality checks` and `Flutter quality checks`
