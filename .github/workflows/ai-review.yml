@@ -43,13 +43,11 @@ jobs:
           fi
           echo "GEMINI_API_KEY is configured."
 
-      - name: Fetch base commit and build diff
+      - name: Build pull request diff
         env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git fetch --no-tags origin "$BASE_REF"
           git diff "$BASE_SHA...$HEAD_SHA" > /tmp/review.diff
           size=$(wc -c < /tmp/review.diff)
           echo "Diff size: $size bytes"
