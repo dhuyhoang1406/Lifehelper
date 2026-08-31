@@ -1,6 +1,14 @@
 name: Technical Verification
 
 on:
+  pull_request:
+    branches:
+      - dev
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   workflow_dispatch:
 
 concurrency:
@@ -42,14 +50,14 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Build backend and shared packages
+        run: pnpm build
+
       - name: Type check
         run: pnpm typecheck
 
       - name: Run unit tests
         run: pnpm test
-
-      - name: Build backend and shared packages
-        run: pnpm build
 
       - name: Run integration tests
         run: pnpm test:e2e
