@@ -38,28 +38,63 @@ jobs:
           HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
         run: |
           if [ "$HAS_KEY" != "true" ]; then
-            echo "::error::GEMINI_API_KEY is missing. Add it under Settings > Secrets and variables > Actions (free key from https://aistudio.google.com/apikey)."
+            echo "::error::GEMINI_API_KEY is missing. Add it as a secret in the 'Gemini' environment (free key from https://aistudio.google.com/apikey)."
             exit 1
           fi
           echo "GEMINI_API_KEY is configured."
 
-      - name: Build pull request diff
+      - name: Build numbered diff and valid comment positions
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git diff "$BASE_SHA...$HEAD_SHA" > /tmp/review.diff
-          size=$(wc -c < /tmp/review.diff)
-          echo "Diff size: $size bytes"
-          if [ "$size" -gt 60000 ]; then
-            head -c 60000 /tmp/review.diff > /tmp/review.truncated.diff
-            printf '\n... (diff truncated at 60000 bytes)\n' >> /tmp/review.truncated.diff
-            mv /tmp/review.truncated.diff /tmp/review.diff
-            echo "Diff truncated."
-          fi
+          python3 - <<'PY'
+          import json, os, re, subprocess
+
+          base = os.environ["BASE_SHA"]
+          head = os.environ["HEAD_SHA"]
+
+          raw = subprocess.run(
+              ["git", "diff", f"{base}...{head}"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          with open("/tmp/review.diff", "w", encoding="utf-8") as f:
+              f.write(raw)
+
+          numbered = []
+          valid = {}
+          current_path = None
+          new_line = None
+          for line in raw.splitlines():
+              if line.startswith("diff --git "):
+                  m = re.search(r" b/(.+)$", line)
+                  current_path = m.group(1) if m else None
+                  valid.setdefault(current_path, set())
+                  continue
+              m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
+              if m:
+                  new_line = int(m.group(1))
+                  continue
+              if current_path is None or new_line is None:
+                  continue
+              if line.startswith("+") or line.startswith(" "):
+                  numbered.append(f"{current_path}:{new_line}:\t{line[1:]}")
+                  valid[current_path].add(new_line)
+                  new_line += 1
+              # deleted lines (-) and "\ No newline" markers are skipped
+
+          numbered_text = "\n".join(numbered)
+          if len(numbered_text) > 60000:
+              numbered_text = numbered_text[:60000] + "\n... (numbered diff truncated)"
+          with open("/tmp/numbered.diff", "w", encoding="utf-8") as f:
+              f.write(numbered_text)
+          with open("/tmp/valid-lines.json", "w", encoding="utf-8") as f:
+              json.dump({k: sorted(v) for k, v in valid.items()}, f)
+          print(f"Diff {len(raw)} bytes, {len(numbered)} numbered lines, "
+                f"{sum(len(v) for v in valid.values())} valid comment positions")
+          PY
 
       - name: Review changes with Gemini
-        id: gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -67,61 +102,151 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python3 - <<'PY'
-          import json
-          import os
-          import urllib.error
-          import urllib.request
+          import json, os, re, subprocess, urllib.error, urllib.request
 
           with open("AGENTS.md", encoding="utf-8", errors="replace") as f:
               agents = f.read()
-          with open("/tmp/review.diff", encoding="utf-8", errors="replace") as f:
-              diff = f.read()
+          with open("/tmp/numbered.diff", encoding="utf-8", errors="replace") as f:
+              numbered = f.read()
+          with open("/tmp/valid-lines.json", encoding="utf-8") as f:
+              valid = json.load(f)
 
-          prompt = f"""You are reviewing pull request #{os.environ['PR_NUMBER']} for the Lifehelper repository.
+          tree = subprocess.run(
+              ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+              capture_output=True, text=True, check=True,
+          ).stdout.splitlines()
+          tree_text = "\n".join(tree[:120])
+          if len(tree) > 120:
+              tree_text += f"\n... ({len(tree) - 120} more paths)"
 
-          Repository review guidelines (AGENTS.md):
-          {agents}
+          schema = '''{
+            "summary": "2-3 sentence overall assessment",
+            "findings": [
+              {
+                "severity": "critical or high or medium or low",
+                "file": "path exactly as in the numbered diff",
+                "line": <new-file line number, or null if unsure>,
+                "title": "short title",
+                "detail": "why it matters",
+                "suggestion": "concrete fix"
+              }
+            ]
+          }'''
 
-          Focus on the changes between {os.environ['BASE_SHA']} and {os.environ['HEAD_SHA']} (diff below). Read related code when context is necessary, but do not review the entire monorepo from scratch.
-
-          Look for correctness bugs, runtime and security risks, architecture or service-boundary violations, hardcoded configuration, duplication, weak error handling, unnecessary coupling, maintainability or scalability problems, and missing important tests.
-
-          Return concise, actionable findings. Include file and line references where possible, order findings by severity, and explain why each issue matters. Do not approve, merge, or modify the pull request. If there are no findings, return a short summary of what was reviewed.
-
-          Diff:
-          {diff}"""
+          prompt = (
+              "You are reviewing pull request #" + os.environ["PR_NUMBER"]
+              + " for the Lifehelper repository.\n\n"
+              + "Repository review guidelines (AGENTS.md):\n" + agents + "\n\n"
+              + "Repository layout:\n" + tree_text + "\n\n"
+              + "Changed files with NEW-file line numbers (format: path:line:\\tcontent). "
+              + "Use these exact paths and line numbers when reporting findings:\n"
+              + numbered + "\n\n"
+              + "Review the changes between " + os.environ["BASE_SHA"] + " and "
+              + os.environ["HEAD_SHA"] + ". Look for correctness bugs, runtime and "
+              + "security risks, architecture or service-boundary violations, hardcoded "
+              + "configuration, duplication, weak error handling, unnecessary coupling, "
+              + "maintainability or scalability problems, and missing important tests.\n\n"
+              + "Return ONLY valid JSON with this exact schema (no markdown fences, no commentary):\n"
+              + schema + "\n\n"
+              + "Rules:\n"
+              + "- severity: critical = security/data-loss/merge blocker; high = clear bug or risk; "
+              + "medium = should improve; low = nit/style.\n"
+              + "- file/line MUST come from the numbered diff above; use null when you cannot pin a line.\n"
+              + "- Order findings by severity (critical first).\n"
+              + "- Do not invent findings; if none, return findings: [] with a short summary.\n"
+          )
 
           body = {
               "contents": [{"parts": [{"text": prompt}]}],
-              "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4096},
+              "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
           }
-          url = (
-              "https://generativelanguage.googleapis.com/v1beta/models/"
-              "gemini-3.6-flash:generateContent?key="
-              + os.environ["GEMINI_API_KEY"]
-          )
+          url = ("https://generativelanguage.googleapis.com/v1beta/models/"
+                 "gemini-3.6-flash:generateContent?key=" + os.environ["GEMINI_API_KEY"])
           req = urllib.request.Request(
-              url,
-              data=json.dumps(body).encode("utf-8"),
+              url, data=json.dumps(body).encode("utf-8"),
               headers={"Content-Type": "application/json"},
           )
           try:
-              with urllib.request.urlopen(req, timeout=120) as resp:
+              with urllib.request.urlopen(req, timeout=180) as resp:
                   data = json.load(resp)
           except urllib.error.HTTPError as e:
-              print(f"::error::Gemini API error {e.code}: {e.read().decode('utf-8', 'replace')[:500]}")
+              print("::error::Gemini API error " + str(e.code) + ": "
+                    + e.read().decode("utf-8", "replace")[:500])
               raise SystemExit(1)
 
           try:
               text = data["candidates"][0]["content"]["parts"][0]["text"]
           except (KeyError, IndexError):
-              print(f"::error::Unexpected Gemini response: {json.dumps(data)[:500]}")
+              print("::error::Unexpected Gemini response: " + json.dumps(data)[:500])
               raise SystemExit(1)
 
-          with open("/tmp/review.md", "w", encoding="utf-8") as f:
-              f.write(text)
+          def parse_json(s):
+              s = s.strip()
+              if s.startswith("```"):
+                  s = re.sub(r"^```(?:json)?\s*", "", s)
+                  s = re.sub(r"\s*```$", "", s)
+              return json.loads(s)
+
+          try:
+              parsed = parse_json(text)
+              assert isinstance(parsed.get("findings"), list)
+          except Exception:
+              with open("/tmp/review.md", "w", encoding="utf-8") as f:
+                  f.write(text)
+              with open("/tmp/review.json", "w", encoding="utf-8") as f:
+                  json.dump({"fallback": True}, f)
+              print("Gemini did not return valid JSON; falling back to text review.")
+              raise SystemExit(0)
+
+          sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+          badge = {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low"}
+          findings = []
+          for f in parsed.get("findings", []):
+              sev = f.get("severity", "low")
+              if sev not in sev_rank:
+                  sev = "low"
+              findings.append({
+                  "severity": sev,
+                  "file": str(f.get("file", "")),
+                  "line": f.get("line"),
+                  "title": str(f.get("title", "")),
+                  "detail": str(f.get("detail", "")),
+                  "suggestion": str(f.get("suggestion", "")),
+              })
+          findings.sort(key=lambda x: (sev_rank[x["severity"]], x["file"], x.get("line") or 0))
+
+          merged = {}
+          for f in findings:
+              merged.setdefault((f["file"], f.get("line")), []).append(f)
+
+          comments = []
+          for (path, line), items in merged.items():
+              if not path or line is None or path not in valid or line not in valid[path]:
+                  continue
+              if len(comments) >= 30:
+                  break
+              parts = [
+                  "**[{b}] {t}**\n\n{d}".format(b=badge[it["severity"]], t=it["title"], d=it["detail"])
+                  + ("\n\n**Suggestion:** " + it["suggestion"] if it["suggestion"] else "")
+                  for it in items
+              ]
+              comments.append({"file": path, "line": line, "body": "\n\n---\n\n".join(parts)})
+
+          inline_keys = {(c["file"], c["line"]) for c in comments}
+          remaining = [f for f in findings if (f["file"], f.get("line")) not in inline_keys]
+
+          with open("/tmp/review.json", "w", encoding="utf-8") as f:
+              json.dump({
+                  "fallback": False,
+                  "summary": parsed.get("summary", ""),
+                  "findings": remaining,
+                  "comments": comments,
+                  "inlineCount": len(comments),
+                  "totalFindings": len(findings),
+              }, f, ensure_ascii=False)
+          print(f"Gemini returned {len(findings)} findings; "
+                f"{len(comments)} inlined, {len(remaining)} in summary")
           PY
-          echo "Review generated ($(wc -c < /tmp/review.md) bytes)"
 
       - name: Publish review result
         uses: actions/github-script@v7
@@ -129,18 +254,77 @@ jobs:
           github-token: ${{ github.token }}
           script: |
             const fs = require('fs');
-            const review = fs.readFileSync('/tmp/review.md', 'utf8');
-            const body = [
-              '## AI Review (Gemini)',
-              '',
-              review || 'Gemini completed without returning a review summary.',
-              '',
-              `_Reviewed commit \`${context.payload.pull_request.head.sha.slice(0, 7)}\`._`,
-            ].join('\n');
+            let data;
+            try {
+              data = JSON.parse(fs.readFileSync('/tmp/review.json', 'utf8'));
+            } catch (e) {
+              data = null;
+            }
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
+            const badge = { critical: '🔴 Critical', high: '🟠 High', medium: '🟡 Medium', low: '🔵 Low' };
+            let body;
+            let comments = [];
+
+            if (data && !data.fallback) {
+              const counts = {};
+              for (const f of data.findings || []) counts[f.severity] = (counts[f.severity] || 0) + 1;
+              const total = data.totalFindings || 0;
+              const severityLine = ['critical', 'high', 'medium', 'low']
+                .filter(s => counts[s])
+                .map(s => `${badge[s]}: ${counts[s]}`)
+                .join(' · ');
+
+              const head = [
+                '## AI Review (Gemini)',
+                '',
+                total === 0
+                  ? '**Không có vấn đề nào được phát hiện.** ✅'
+                  : `**${total} finding(s)**${severityLine ? `\n\n${severityLine}` : ''}`,
+                '',
+                data.summary || '',
+                '',
+              ];
+
+              const inlineNote = data.inlineCount > 0
+                ? `**${data.inlineCount} finding(s) đã được comment trực tiếp trên diff.**`
+                : '';
+
+              const list = (data.findings || []).map((f, i) =>
+                `${i + 1}. [${badge[f.severity]}] **${f.title}** — \`${f.file}${f.line ? ':' + f.line : ''}\`` +
+                (f.detail ? `\n   ${f.detail}` : '') +
+                (f.suggestion ? `\n   💡 *Suggestion:* ${f.suggestion}` : '')
+              );
+
+              const bodyParts = [...head, inlineNote];
+              if (list.length) bodyParts.push('', '### Findings chưa gắn inline', ...list);
+              body = bodyParts.filter(Boolean).join('\n');
+
+              comments = (data.comments || []).map(c => ({
+                path: c.file,
+                line: c.line,
+                side: 'RIGHT',
+                body: c.body,
+              }));
+            } else {
+              const raw = fs.existsSync('/tmp/review.md')
+                ? fs.readFileSync('/tmp/review.md', 'utf8')
+                : 'Gemini completed without returning a review summary.';
+              body = ['## AI Review (Gemini)', '', raw].join('\n');
+            }
+
+            try {
+              const r = await github.rest.pulls.createReview({
+                ...context.repo,
+                pull_number: context.issue.number,
+                body,
+                comments,
+              });
+              console.log(`Review created: ${r.data.id}`);
+            } catch (e) {
+              console.log(`Inline review failed (${e.message}); posting summary only.`);
+              await github.rest.pulls.createReview({
+                ...context.repo,
+                pull_number: context.issue.number,
+                body,
+              });
+            }
