@@ -2,13 +2,11 @@ import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type {
-  DeviceSessionRepository,
-  RefreshTokenRepository,
+  IdentityUnitOfWork,
   UserRepository,
 } from "../../../../application/repositories/identity.repositories";
 import {
-  DEVICE_SESSION_REPOSITORY,
-  REFRESH_TOKEN_REPOSITORY,
+  IDENTITY_UNIT_OF_WORK,
   USER_REPOSITORY,
 } from "../../../../application/repositories/identity.repositories";
 import { DeviceSession } from "../../domain/entities/device-session.entity";
@@ -23,8 +21,8 @@ import type { AuthResult, DeviceInput } from "../auth.types";
 export class RegisterUserUseCase {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
-    @Inject(DEVICE_SESSION_REPOSITORY) private readonly sessions: DeviceSessionRepository,
-    @Inject(REFRESH_TOKEN_REPOSITORY) private readonly refreshTokens: RefreshTokenRepository,
+    @Inject(IDENTITY_UNIT_OF_WORK)
+    private readonly unitOfWork: IdentityUnitOfWork,
     @Inject(PASSWORD_HASHER) private readonly passwords: PasswordHasher,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenService,
     private readonly config: ConfigService,
@@ -38,9 +36,11 @@ export class RegisterUserUseCase {
     const session = DeviceSession.create({ id: randomUUID(), userId: user.state.id, ...input.device, createdAt: now });
     const generated = this.tokens.createRefreshToken();
     const refresh = RefreshToken.create({ id: randomUUID(), userId: user.state.id, deviceSessionId: session.state.id, tokenHash: generated.hash, tokenFamilyId: randomUUID(), expiresAt: new Date(now.getTime() + this.config.getOrThrow<number>("REFRESH_TOKEN_TTL_SECONDS") * 1000), createdAt: now });
-    await this.users.save(user);
-    await this.sessions.save(session);
-    await this.refreshTokens.save(refresh);
+    await this.unitOfWork.run(async ({ users, sessions, refreshTokens }) => {
+      await users.save(user);
+      await sessions.save(session);
+      await refreshTokens.save(refresh);
+    });
     return {
       user: { id: user.state.id, email: user.state.email, displayName: user.state.displayName, avatarUrl: user.state.avatarUrl },
       accessToken: await this.tokens.createAccessToken({ sub: user.state.id, sessionId: session.state.id, tokenType: "access" }),

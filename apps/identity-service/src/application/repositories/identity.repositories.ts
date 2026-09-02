@@ -24,7 +24,18 @@ export interface RefreshTokenRepository {
   findByTokenHash(hash: string): Promise<RefreshToken | null>;
   save(token: RefreshToken): Promise<void>;
 }
+export interface IdentityTransactionRepositories {
+  users: UserRepository;
+  sessions: DeviceSessionRepository;
+  refreshTokens: RefreshTokenRepository;
+}
+export interface IdentityUnitOfWork {
+  run<T>(
+    work: (repositories: IdentityTransactionRepositories) => Promise<T>,
+  ): Promise<T>;
+}
 export const USER_REPOSITORY = Symbol("USER_REPOSITORY");
 export const OAUTH_ACCOUNT_REPOSITORY = Symbol("OAUTH_ACCOUNT_REPOSITORY");
 export const DEVICE_SESSION_REPOSITORY = Symbol("DEVICE_SESSION_REPOSITORY");
 export const REFRESH_TOKEN_REPOSITORY = Symbol("REFRESH_TOKEN_REPOSITORY");
+export const IDENTITY_UNIT_OF_WORK = Symbol("IDENTITY_UNIT_OF_WORK");
