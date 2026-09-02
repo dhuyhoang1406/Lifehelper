@@ -4,6 +4,7 @@ import { StructuredLoggerModule } from "@lifehelper/logger";
 import { HealthController } from "./health.controller";
 import { PrismaService } from "./prisma.service";
 import { validateEnvironment } from "./env.validation";
+import { IdentityModule } from "./modules/identity/identity.module";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -12,6 +13,7 @@ import { validateEnvironment } from "./env.validation";
       validate: validateEnvironment,
     }),
     StructuredLoggerModule,
+    IdentityModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService],
