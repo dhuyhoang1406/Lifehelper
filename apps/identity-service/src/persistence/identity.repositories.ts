@@ -1,8 +1,9 @@
-import type {
-  OAuthProvider as PrismaOAuthProvider,
+import {
   Prisma,
+  type OAuthProvider as PrismaOAuthProvider,
 } from "../../generated/client";
 import { PrismaService } from "../prisma.service";
+import { IdentityApplicationError, IdentityErrorCode } from "../modules/identity/application/errors/identity.errors";
 import type {
   UserRepository,
   OAuthAccountRepository,
@@ -39,11 +40,22 @@ export class PrismaUserRepository implements UserRepository {
   }
   async save(e: User) {
     const data = UserMapper.toPersistence(e);
-    await this.db.user.upsert({
-      where: { id: e.state.id },
-      create: data,
-      update: data,
-    });
+    try {
+      await this.db.user.upsert({
+        where: { id: e.state.id },
+        create: data,
+        update: data,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const target = error.meta?.target;
+        const fields = Array.isArray(target) ? target.map(String) : [String(target)];
+        if (fields.includes("email")) {
+          throw new IdentityApplicationError(IdentityErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered", 409);
+        }
+      }
+      throw error;
+    }
   }
 }
 export class PrismaOAuthAccountRepository implements OAuthAccountRepository {

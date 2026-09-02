@@ -1,4 +1,4 @@
-import { HttpException } from "@nestjs/common";
+import { HttpException, Logger } from "@nestjs/common";
 import type { ArgumentsHost } from "@nestjs/common";
 import { IdentityApplicationError, IdentityErrorCode } from "../application/errors/identity.errors";
 import { IdentityExceptionFilter } from "./identity-exception.filter";
@@ -14,8 +14,14 @@ describe("IdentityExceptionFilter", () => {
       getRequest: () => request,
     }),
   } as unknown as ArgumentsHost;
+  let loggerError: jest.SpyInstance;
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    loggerError = jest.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => loggerError.mockRestore());
 
   it("maps application errors to the stable error envelope", () => {
     new IdentityExceptionFilter().catch(
@@ -44,7 +50,7 @@ describe("IdentityExceptionFilter", () => {
     expect(json).toHaveBeenCalledWith({ code: "BAD_REQUEST" });
   });
 
-  it("hides unexpected error details", () => {
+  it("hides unexpected error details and logs the cause", () => {
     new IdentityExceptionFilter().catch(new Error("database password"), host);
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({
@@ -53,5 +59,6 @@ describe("IdentityExceptionFilter", () => {
       message: "Internal server error",
       correlationId: "correlation-1",
     });
+    expect(loggerError).toHaveBeenCalledWith(expect.stringContaining("database password"));
   });
 });

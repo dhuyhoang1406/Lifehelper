@@ -24,4 +24,18 @@ describe("RegisterDto", () => {
     const errors = await validate(dto);
     expect(errors[0]?.children?.[0]?.property).toBe("deviceName");
   });
+
+  it("rejects a payload that omits device", async () => {
+    const withoutDevice: Record<string, unknown> = { ...validRequest };
+    delete withoutDevice.device;
+    const errors = await validate(plainToInstance(RegisterDto, withoutDevice));
+    expect(errors.some((error) => error.property === "device")).toBe(true);
+  });
+
+  it("rejects a device that is not an object", async () => {
+    const errors = await validate(
+      plainToInstance(RegisterDto, { ...validRequest, device: "phone" }),
+    );
+    expect(errors.some((error) => error.property === "device")).toBe(true);
+  });
 });

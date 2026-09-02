@@ -16,7 +16,6 @@ const repository = (provide: symbol, useClass: new (db: PrismaService) => unknow
   imports: [JwtModule.register({})],
   controllers: [AuthController],
   providers: [
-    PrismaService,
     RegisterUserUseCase,
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
