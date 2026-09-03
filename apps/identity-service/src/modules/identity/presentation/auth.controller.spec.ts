@@ -11,6 +11,7 @@ describe("AuthController", () => {
     const controller = new AuthController(
       registerUser,
       loginUser,
+      undefined as never,
     );
     const dto = {
       email: "user@example.com",
@@ -30,6 +31,7 @@ describe("AuthController", () => {
     const controller = new AuthController(
       registerUser,
       loginUser,
+      undefined as never,
     );
     const dto = {
       email: "user@example.com",

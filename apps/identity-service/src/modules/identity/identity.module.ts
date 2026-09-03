@@ -7,6 +7,7 @@ import { DEVICE_SESSION_REPOSITORY, IDENTITY_UNIT_OF_WORK, OAUTH_ACCOUNT_REPOSIT
 import { PASSWORD_HASHER, TOKEN_SERVICE } from "./application/ports/auth.ports";
 import { RegisterUserUseCase } from "./application/use-cases/register-user.use-case";
 import { LoginUserUseCase } from "./application/use-cases/login-user.use-case";
+import { RefreshAccessTokenUseCase } from "./application/use-cases/refresh-access-token.use-case";
 import { Argon2PasswordHasher } from "./infrastructure/security/argon2-password-hasher";
 import { JwtTokenService } from "./infrastructure/security/jwt-token.service";
 import { AuthController } from "./presentation/auth.controller";
@@ -19,6 +20,7 @@ const repository = (provide: symbol, useClass: new (db: PrismaService) => unknow
   providers: [
     RegisterUserUseCase,
     LoginUserUseCase,
+    RefreshAccessTokenUseCase,
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
     repository(USER_REPOSITORY, PrismaUserRepository),
