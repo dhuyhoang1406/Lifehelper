@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { RegisterUserUseCase } from "../application/use-cases/register-user.use-case";
 import { LoginUserUseCase } from "../application/use-cases/login-user.use-case";
 import { RefreshAccessTokenUseCase } from "../application/use-cases/refresh-access-token.use-case";
@@ -13,7 +13,7 @@ export class AuthController {
   @Post("login") login(@Body() dto: LoginDto) {
     return this.loginUser.execute(dto);
   }
-  @Post("refresh") refresh(@Body() dto: RefreshDto) {
+  @Post("refresh") @HttpCode(HttpStatus.OK) refresh(@Body() dto: RefreshDto) {
     return this.refreshAccessToken.execute(dto.refreshToken);
   }
 }
