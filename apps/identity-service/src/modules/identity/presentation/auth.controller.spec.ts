@@ -6,7 +6,10 @@ describe("AuthController", () => {
   it("delegates registration to the use case", async () => {
     const response = { accessToken: "access-token" };
     const registerUser = { execute: jest.fn().mockResolvedValue(response) } as unknown as RegisterUserUseCase;
-    const controller = new AuthController(registerUser);
+    const controller = new AuthController(
+      registerUser,
+      undefined as never,
+    );
     const dto = {
       email: "user@example.com",
       password: "StrongPass123",

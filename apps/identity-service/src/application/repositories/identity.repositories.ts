@@ -18,6 +18,7 @@ export interface OAuthAccountRepository {
 export interface DeviceSessionRepository {
   findById(id: UUID): Promise<DeviceSession | null>;
   findByUserId(userId: UUID): Promise<DeviceSession[]>;
+  findByUserAndDevice(userId: UUID, deviceId: string): Promise<DeviceSession | null>;
   save(session: DeviceSession): Promise<void>;
 }
 export interface RefreshTokenRepository {

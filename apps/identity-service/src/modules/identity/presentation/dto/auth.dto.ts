@@ -13,3 +13,8 @@ export class RegisterDto {
   @IsString() @Length(1, 100) displayName!: string;
   @IsDefined() @IsObject() @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
 }
+export class LoginDto {
+  @IsEmail() email!: string;
+  @IsString() @Length(1, 128) password!: string;
+  @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
+}
