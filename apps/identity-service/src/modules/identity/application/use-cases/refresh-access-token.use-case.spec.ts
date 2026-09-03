@@ -148,4 +148,24 @@ describe("RefreshAccessTokenUseCase", () => {
     expect(sessions.save).toHaveBeenCalledWith(session);
     expect(unitOfWork.run).not.toHaveBeenCalled();
   });
+
+  it("revokes the session when a spent token is replayed after expiry", async () => {
+    const current = createToken();
+    current.use("previous-replacement");
+    const expiredAndSpent = RefreshToken.restore({
+      ...current.state,
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+    const session = createSession();
+    (refreshTokens.findByTokenHash as jest.Mock).mockResolvedValue(expiredAndSpent);
+    (sessions.findById as jest.Mock).mockResolvedValue(session);
+
+    await expect(build().execute("expired-replay")).rejects.toMatchObject({
+      code: IdentityErrorCode.REFRESH_TOKEN_INVALID,
+      message: "Refresh token reuse detected",
+      statusCode: 401,
+    });
+    expect(session.isActive()).toBe(false);
+    expect(sessions.save).toHaveBeenCalledWith(session);
+  });
 });

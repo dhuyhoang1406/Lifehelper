@@ -24,13 +24,13 @@ export class RefreshAccessTokenUseCase {
     const session = await this.sessions.findById(current.state.deviceSessionId);
     if (!session?.isActive())
       throw new IdentityApplicationError(IdentityErrorCode.SESSION_REVOKED, "Session has been revoked", 401);
-    if (current.isExpired())
-      throw new IdentityApplicationError(IdentityErrorCode.REFRESH_TOKEN_EXPIRED, "Refresh token has expired", 401);
-    if (!current.isActive()) {
+    if (current.state.usedAt || current.state.revokedAt) {
       session.revoke();
       await this.sessions.save(session);
       throw new IdentityApplicationError(IdentityErrorCode.REFRESH_TOKEN_INVALID, "Refresh token reuse detected", 401);
     }
+    if (current.isExpired())
+      throw new IdentityApplicationError(IdentityErrorCode.REFRESH_TOKEN_EXPIRED, "Refresh token has expired", 401);
     const now = new Date();
     const generated = this.tokens.createRefreshToken();
     const replacement = RefreshToken.create({ id: randomUUID(), userId: current.state.userId, deviceSessionId: current.state.deviceSessionId, tokenHash: generated.hash, tokenFamilyId: current.state.tokenFamilyId, expiresAt: new Date(now.getTime() + this.config.getOrThrow<number>("REFRESH_TOKEN_TTL_SECONDS") * 1000), createdAt: now });
