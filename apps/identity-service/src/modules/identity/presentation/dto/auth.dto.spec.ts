@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { DevicePlatform } from "../../domain/enums/identity.enums";
-import { RegisterDto } from "./auth.dto";
+import { LoginDto, RegisterDto } from "./auth.dto";
 
 describe("RegisterDto", () => {
   const validRequest = {
@@ -35,6 +35,32 @@ describe("RegisterDto", () => {
   it("rejects a device that is not an object", async () => {
     const errors = await validate(
       plainToInstance(RegisterDto, { ...validRequest, device: "phone" }),
+    );
+    expect(errors.some((error) => error.property === "device")).toBe(true);
+  });
+});
+
+describe("LoginDto", () => {
+  const validRequest = {
+    email: "user@example.com",
+    password: "StrongPass123",
+    device: { deviceId: "phone", platform: DevicePlatform.ANDROID },
+  };
+
+  it("accepts a valid login payload", async () => {
+    await expect(validate(plainToInstance(LoginDto, validRequest))).resolves.toHaveLength(0);
+  });
+
+  it("rejects a login payload that omits device", async () => {
+    const withoutDevice: Record<string, unknown> = { ...validRequest };
+    delete withoutDevice.device;
+    const errors = await validate(plainToInstance(LoginDto, withoutDevice));
+    expect(errors.some((error) => error.property === "device")).toBe(true);
+  });
+
+  it("rejects a device that is not an object", async () => {
+    const errors = await validate(
+      plainToInstance(LoginDto, { ...validRequest, device: "phone" }),
     );
     expect(errors.some((error) => error.property === "device")).toBe(true);
   });

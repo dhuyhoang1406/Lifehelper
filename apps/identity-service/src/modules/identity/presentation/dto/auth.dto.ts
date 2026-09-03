@@ -16,5 +16,5 @@ export class RegisterDto {
 export class LoginDto {
   @IsEmail() email!: string;
   @IsString() @Length(1, 128) password!: string;
-  @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
+  @IsDefined() @IsObject() @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
 }
