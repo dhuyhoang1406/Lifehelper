@@ -21,3 +21,7 @@ export class LoginDto {
 export class RefreshDto {
   @IsString() @IsNotEmpty() refreshToken!: string;
 }
+export class GoogleLoginDto {
+  @IsString() @IsNotEmpty() idToken!: string;
+  @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
+}

@@ -14,14 +14,15 @@ import { LoginUserUseCase } from "../application/use-cases/login-user.use-case";
 import { RefreshAccessTokenUseCase } from "../application/use-cases/refresh-access-token.use-case";
 import { GetCurrentUserUseCase } from "../application/use-cases/get-current-user.use-case";
 import type { AuthenticatedUser } from "../application/auth.types";
-import { LoginDto, RefreshDto, RegisterDto } from "./dto/auth.dto";
+import { GoogleLoginDto, LoginDto, RefreshDto, RegisterDto } from "./dto/auth.dto";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "../application/use-cases/session-management.use-cases";
+import { GoogleLoginUseCase } from "../application/use-cases/google-login.use-case";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly registerUser: RegisterUserUseCase, private readonly loginUser: LoginUserUseCase, private readonly refreshAccessToken: RefreshAccessTokenUseCase, private readonly getCurrentUser: GetCurrentUserUseCase, private readonly logoutUser: LogoutUseCase, private readonly logoutAll: LogoutAllSessionsUseCase, private readonly listSessions: ListDeviceSessionsUseCase, private readonly revokeSession: RevokeDeviceSessionUseCase) {}
+  constructor(private readonly registerUser: RegisterUserUseCase, private readonly loginUser: LoginUserUseCase, private readonly refreshAccessToken: RefreshAccessTokenUseCase, private readonly getCurrentUser: GetCurrentUserUseCase, private readonly logoutUser: LogoutUseCase, private readonly logoutAll: LogoutAllSessionsUseCase, private readonly listSessions: ListDeviceSessionsUseCase, private readonly revokeSession: RevokeDeviceSessionUseCase, private readonly googleLogin: GoogleLoginUseCase) {}
   @Post("register") register(@Body() dto: RegisterDto) {
     return this.registerUser.execute(dto);
   }
@@ -31,6 +32,7 @@ export class AuthController {
   @Post("refresh") @HttpCode(HttpStatus.OK) refresh(@Body() dto: RefreshDto) {
     return this.refreshAccessToken.execute(dto.refreshToken);
   }
+  @Post("oauth/google") google(@Body() dto: GoogleLoginDto) { return this.googleLogin.execute(dto); }
   @Get("me") @UseGuards(JwtAuthGuard) me(@CurrentUser() auth: AuthenticatedUser) {
     return this.getCurrentUser.execute(auth.userId);
   }

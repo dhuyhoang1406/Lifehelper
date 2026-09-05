@@ -2,6 +2,7 @@ import type { LoginUserUseCase } from "../application/use-cases/login-user.use-c
 import type { RegisterUserUseCase } from "../application/use-cases/register-user.use-case";
 import type { RefreshAccessTokenUseCase } from "../application/use-cases/refresh-access-token.use-case";
 import type { GetCurrentUserUseCase } from "../application/use-cases/get-current-user.use-case";
+import type { GoogleLoginUseCase } from "../application/use-cases/google-login.use-case";
 import type {
   ListDeviceSessionsUseCase,
   LogoutAllSessionsUseCase,
@@ -16,6 +17,7 @@ describe("AuthController", () => {
   const logoutAll = { execute: jest.fn() } as unknown as LogoutAllSessionsUseCase;
   const listSessions = { execute: jest.fn() } as unknown as ListDeviceSessionsUseCase;
   const revokeSession = { execute: jest.fn() } as unknown as RevokeDeviceSessionUseCase;
+  const googleLogin = { execute: jest.fn() } as unknown as GoogleLoginUseCase;
   const createController = () =>
     new AuthController(
       { execute: jest.fn() } as unknown as RegisterUserUseCase,
@@ -26,6 +28,7 @@ describe("AuthController", () => {
       logoutAll,
       listSessions,
       revokeSession,
+      googleLogin,
     );
 
   beforeEach(() => jest.clearAllMocks());
@@ -45,6 +48,7 @@ describe("AuthController", () => {
       logoutAll,
       listSessions,
       revokeSession,
+      googleLogin,
     );
     const dto = {
       email: "user@example.com",
@@ -72,6 +76,7 @@ describe("AuthController", () => {
       logoutAll,
       listSessions,
       revokeSession,
+      googleLogin,
     );
     const dto = {
       email: "user@example.com",
@@ -100,6 +105,7 @@ describe("AuthController", () => {
       logoutAll,
       listSessions,
       revokeSession,
+      googleLogin,
     );
 
     await expect(
@@ -125,6 +131,7 @@ describe("AuthController", () => {
       logoutAll,
       listSessions,
       revokeSession,
+      googleLogin,
     );
 
     await expect(
