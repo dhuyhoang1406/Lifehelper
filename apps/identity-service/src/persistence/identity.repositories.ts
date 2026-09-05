@@ -115,6 +115,12 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
     const r = await this.db.refreshToken.findUnique({ where: { tokenHash } });
     return r ? RefreshTokenMapper.toDomain(r) : null;
   }
+  async findBySessionId(deviceSessionId: string) {
+    return (await this.db.refreshToken.findMany({ where: { deviceSessionId } })).map(RefreshTokenMapper.toDomain);
+  }
+  async findByUserId(userId: string) {
+    return (await this.db.refreshToken.findMany({ where: { userId } })).map(RefreshTokenMapper.toDomain);
+  }
   async save(e: RefreshToken) {
     const data = RefreshTokenMapper.toPersistence(e);
     await this.db.refreshToken.upsert({

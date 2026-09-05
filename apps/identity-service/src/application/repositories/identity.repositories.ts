@@ -23,6 +23,8 @@ export interface DeviceSessionRepository {
 }
 export interface RefreshTokenRepository {
   findByTokenHash(hash: string): Promise<RefreshToken | null>;
+  findBySessionId(sessionId: UUID): Promise<RefreshToken[]>;
+  findByUserId(userId: UUID): Promise<RefreshToken[]>;
   save(token: RefreshToken): Promise<void>;
 }
 export interface IdentityTransactionRepositories {

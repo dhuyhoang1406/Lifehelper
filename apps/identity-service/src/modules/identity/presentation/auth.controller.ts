@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   UseGuards,
 } from "@nestjs/common";
@@ -15,10 +17,11 @@ import type { AuthenticatedUser } from "../application/auth.types";
 import { LoginDto, RefreshDto, RegisterDto } from "./dto/auth.dto";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "../application/use-cases/session-management.use-cases";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly registerUser: RegisterUserUseCase, private readonly loginUser: LoginUserUseCase, private readonly refreshAccessToken: RefreshAccessTokenUseCase, private readonly getCurrentUser: GetCurrentUserUseCase) {}
+  constructor(private readonly registerUser: RegisterUserUseCase, private readonly loginUser: LoginUserUseCase, private readonly refreshAccessToken: RefreshAccessTokenUseCase, private readonly getCurrentUser: GetCurrentUserUseCase, private readonly logoutUser: LogoutUseCase, private readonly logoutAll: LogoutAllSessionsUseCase, private readonly listSessions: ListDeviceSessionsUseCase, private readonly revokeSession: RevokeDeviceSessionUseCase) {}
   @Post("register") register(@Body() dto: RegisterDto) {
     return this.registerUser.execute(dto);
   }
@@ -31,4 +34,8 @@ export class AuthController {
   @Get("me") @UseGuards(JwtAuthGuard) me(@CurrentUser() auth: AuthenticatedUser) {
     return this.getCurrentUser.execute(auth.userId);
   }
+  @Post("logout") @HttpCode(204) @UseGuards(JwtAuthGuard) logout(@CurrentUser() auth: AuthenticatedUser) { return this.logoutUser.execute(auth); }
+  @Post("logout-all") @HttpCode(204) @UseGuards(JwtAuthGuard) logoutEverywhere(@CurrentUser() auth: AuthenticatedUser) { return this.logoutAll.execute(auth.userId); }
+  @Get("sessions") @UseGuards(JwtAuthGuard) sessions(@CurrentUser() auth: AuthenticatedUser) { return this.listSessions.execute(auth.userId); }
+  @Delete("sessions/:sessionId") @HttpCode(204) @UseGuards(JwtAuthGuard) revoke(@CurrentUser() auth: AuthenticatedUser, @Param("sessionId") sessionId: string) { return this.revokeSession.execute(auth, sessionId); }
 }

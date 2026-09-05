@@ -2,10 +2,21 @@ import type { LoginUserUseCase } from "../application/use-cases/login-user.use-c
 import type { RegisterUserUseCase } from "../application/use-cases/register-user.use-case";
 import type { RefreshAccessTokenUseCase } from "../application/use-cases/refresh-access-token.use-case";
 import type { GetCurrentUserUseCase } from "../application/use-cases/get-current-user.use-case";
+import type {
+  ListDeviceSessionsUseCase,
+  LogoutAllSessionsUseCase,
+  LogoutUseCase,
+  RevokeDeviceSessionUseCase,
+} from "../application/use-cases/session-management.use-cases";
 import { DevicePlatform } from "../domain/enums/identity.enums";
 import { AuthController } from "./auth.controller";
 
 describe("AuthController", () => {
+  const logoutUser = { execute: jest.fn() } as unknown as LogoutUseCase;
+  const logoutAll = { execute: jest.fn() } as unknown as LogoutAllSessionsUseCase;
+  const listSessions = { execute: jest.fn() } as unknown as ListDeviceSessionsUseCase;
+  const revokeSession = { execute: jest.fn() } as unknown as RevokeDeviceSessionUseCase;
+
   it("delegates registration to the use case", async () => {
     const response = { accessToken: "access-token" };
     const registerUser = { execute: jest.fn().mockResolvedValue(response) } as unknown as RegisterUserUseCase;
@@ -17,6 +28,10 @@ describe("AuthController", () => {
       loginUser,
       refreshAccessToken,
       getCurrentUser,
+      logoutUser,
+      logoutAll,
+      listSessions,
+      revokeSession,
     );
     const dto = {
       email: "user@example.com",
@@ -40,6 +55,10 @@ describe("AuthController", () => {
       loginUser,
       refreshAccessToken,
       getCurrentUser,
+      logoutUser,
+      logoutAll,
+      listSessions,
+      revokeSession,
     );
     const dto = {
       email: "user@example.com",
@@ -64,6 +83,10 @@ describe("AuthController", () => {
       loginUser,
       refreshAccessToken,
       getCurrentUser,
+      logoutUser,
+      logoutAll,
+      listSessions,
+      revokeSession,
     );
 
     await expect(
@@ -85,6 +108,10 @@ describe("AuthController", () => {
       loginUser,
       refreshAccessToken,
       getCurrentUser,
+      logoutUser,
+      logoutAll,
+      listSessions,
+      revokeSession,
     );
 
     await expect(
