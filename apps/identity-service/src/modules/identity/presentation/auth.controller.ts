@@ -19,20 +19,21 @@ import { CurrentUser } from "./decorators/current-user.decorator";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "../application/use-cases/session-management.use-cases";
 import { GoogleLoginUseCase } from "../application/use-cases/google-login.use-case";
+import { Throttle } from "@nestjs/throttler";
 
 @Controller("auth")
 export class AuthController {
   constructor(private readonly registerUser: RegisterUserUseCase, private readonly loginUser: LoginUserUseCase, private readonly refreshAccessToken: RefreshAccessTokenUseCase, private readonly getCurrentUser: GetCurrentUserUseCase, private readonly logoutUser: LogoutUseCase, private readonly logoutAll: LogoutAllSessionsUseCase, private readonly listSessions: ListDeviceSessionsUseCase, private readonly revokeSession: RevokeDeviceSessionUseCase, private readonly googleLogin: GoogleLoginUseCase) {}
-  @Post("register") register(@Body() dto: RegisterDto) {
+  @Post("register") @Throttle({ auth: {} }) register(@Body() dto: RegisterDto) {
     return this.registerUser.execute(dto);
   }
-  @Post("login") login(@Body() dto: LoginDto) {
+  @Post("login") @Throttle({ auth: {} }) login(@Body() dto: LoginDto) {
     return this.loginUser.execute(dto);
   }
-  @Post("refresh") @HttpCode(HttpStatus.OK) refresh(@Body() dto: RefreshDto) {
+  @Post("refresh") @HttpCode(HttpStatus.OK) @Throttle({ auth: {} }) refresh(@Body() dto: RefreshDto) {
     return this.refreshAccessToken.execute(dto.refreshToken);
   }
-  @Post("oauth/google") google(@Body() dto: GoogleLoginDto) { return this.googleLogin.execute(dto); }
+  @Post("oauth/google") @Throttle({ auth: {} }) google(@Body() dto: GoogleLoginDto) { return this.googleLogin.execute(dto); }
   @Get("me") @UseGuards(JwtAuthGuard) me(@CurrentUser() auth: AuthenticatedUser) {
     return this.getCurrentUser.execute(auth.userId);
   }

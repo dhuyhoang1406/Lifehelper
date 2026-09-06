@@ -15,3 +15,5 @@ process.env.JWT_ISSUER='lifehelper-identity-test';
 process.env.JWT_AUDIENCE='lifehelper-test';
 process.env.REFRESH_TOKEN_TTL_SECONDS='2592000';
 process.env.GOOGLE_CLIENT_ID='test-client.apps.googleusercontent.com';
+process.env.AUTH_RATE_LIMIT_TTL_MS='60000';
+process.env.AUTH_RATE_LIMIT_MAX='100';
