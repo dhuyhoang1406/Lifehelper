@@ -46,6 +46,12 @@ export class RefreshToken {
   get state(): Readonly<RefreshTokenProps> {
     return this.props;
   }
+  isExpired(at = new Date()): boolean {
+    return this.props.expiresAt <= at;
+  }
+  isActive(at = new Date()): boolean {
+    return !this.props.usedAt && !this.props.revokedAt && !this.isExpired(at);
+  }
   use(replacedById: UUID, at = new Date()): void {
     if (this.props.usedAt || this.props.revokedAt || this.props.expiresAt <= at)
       throw new IdentityDomainError("Refresh token is not active");

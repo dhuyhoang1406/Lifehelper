@@ -66,6 +66,9 @@ export class User {
     this.props.lastLoginAt = at;
     this.touch(at);
   }
+  canAuthenticate(): boolean {
+    return this.props.status === UserStatus.ACTIVE && !this.props.deletedAt;
+  }
   verifyEmail(at = new Date()): void {
     this.props.emailVerifiedAt = at;
     this.touch(at);

@@ -42,6 +42,9 @@ export class DeviceSession {
   get state(): Readonly<DeviceSessionProps> {
     return this.props;
   }
+  isActive(): boolean {
+    return this.props.revokedAt === null;
+  }
   recordActivity(at = new Date()): void {
     if (this.props.revokedAt)
       throw new IdentityDomainError("Session is revoked");
@@ -53,6 +56,7 @@ export class DeviceSession {
     this.props.updatedAt = at;
   }
   revoke(at = new Date()): void {
+    if (this.props.revokedAt) return;
     this.props.revokedAt = at;
     this.props.updatedAt = at;
   }
