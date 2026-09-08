@@ -2,8 +2,9 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { StructuredLoggerModule } from "@lifehelper/logger";
 import { HealthController } from "./health.controller";
-import { PrismaService } from "./prisma.service";
 import { validateEnvironment } from "./env.validation";
+import { IdentityModule } from "./modules/identity/identity.module";
+import { PrismaModule } from "./prisma.module";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -12,8 +13,9 @@ import { validateEnvironment } from "./env.validation";
       validate: validateEnvironment,
     }),
     StructuredLoggerModule,
+    PrismaModule,
+    IdentityModule,
   ],
   controllers: [HealthController],
-  providers: [PrismaService],
 })
 export class AppModule {}

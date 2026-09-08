@@ -1,10 +1,16 @@
-import type { OAuthProvider as PrismaOAuthProvider } from "../../generated/client";
+import {
+  Prisma,
+  type OAuthProvider as PrismaOAuthProvider,
+} from "../../generated/client";
 import { PrismaService } from "../prisma.service";
+import { IdentityApplicationError, IdentityErrorCode } from "../modules/identity/application/errors/identity.errors";
 import type {
   UserRepository,
   OAuthAccountRepository,
   DeviceSessionRepository,
   RefreshTokenRepository,
+  IdentityTransactionRepositories,
+  IdentityUnitOfWork,
 } from "../application/repositories/identity.repositories";
 import type { User } from "../modules/identity/domain/entities/user.entity";
 import type { OAuthAccount } from "../modules/identity/domain/entities/oauth-account.entity";
@@ -16,8 +22,12 @@ import {
   DeviceSessionMapper,
   RefreshTokenMapper,
 } from "./identity.mappers";
+type IdentityDatabase = Pick<
+  Prisma.TransactionClient,
+  "user" | "oAuthAccount" | "deviceSession" | "refreshToken"
+>;
 export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: IdentityDatabase) {}
   async findById(id: string) {
     const r = await this.db.user.findUnique({ where: { id } });
     return r ? UserMapper.toDomain(r) : null;
@@ -30,15 +40,26 @@ export class PrismaUserRepository implements UserRepository {
   }
   async save(e: User) {
     const data = UserMapper.toPersistence(e);
-    await this.db.user.upsert({
-      where: { id: e.state.id },
-      create: data,
-      update: data,
-    });
+    try {
+      await this.db.user.upsert({
+        where: { id: e.state.id },
+        create: data,
+        update: data,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const target = error.meta?.target;
+        const fields = Array.isArray(target) ? target.map(String) : [String(target)];
+        if (fields.includes("email")) {
+          throw new IdentityApplicationError(IdentityErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered", 409);
+        }
+      }
+      throw error;
+    }
   }
 }
 export class PrismaOAuthAccountRepository implements OAuthAccountRepository {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: IdentityDatabase) {}
   async findByProviderIdentity(provider: string, providerUserId: string) {
     const r = await this.db.oAuthAccount.findUnique({
       where: {
@@ -60,7 +81,7 @@ export class PrismaOAuthAccountRepository implements OAuthAccountRepository {
   }
 }
 export class PrismaDeviceSessionRepository implements DeviceSessionRepository {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: IdentityDatabase) {}
   async findById(id: string) {
     const r = await this.db.deviceSession.findUnique({ where: { id } });
     return r ? DeviceSessionMapper.toDomain(r) : null;
@@ -83,7 +104,7 @@ export class PrismaDeviceSessionRepository implements DeviceSessionRepository {
   }
 }
 export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: IdentityDatabase) {}
   async findByTokenHash(tokenHash: string) {
     const r = await this.db.refreshToken.findUnique({ where: { tokenHash } });
     return r ? RefreshTokenMapper.toDomain(r) : null;
@@ -95,5 +116,19 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
       create: data,
       update: data,
     });
+  }
+}
+export class PrismaIdentityUnitOfWork implements IdentityUnitOfWork {
+  constructor(private readonly db: PrismaService) {}
+  run<T>(
+    work: (repositories: IdentityTransactionRepositories) => Promise<T>,
+  ): Promise<T> {
+    return this.db.$transaction((transaction) =>
+      work({
+        users: new PrismaUserRepository(transaction),
+        sessions: new PrismaDeviceSessionRepository(transaction),
+        refreshTokens: new PrismaRefreshTokenRepository(transaction),
+      }),
+    );
   }
 }
