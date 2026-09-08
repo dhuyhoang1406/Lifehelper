@@ -2,7 +2,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
-import { DEVICE_SESSION_REPOSITORY, OAUTH_ACCOUNT_REPOSITORY, REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from "../src/application/repositories/identity.repositories";
+import { DEVICE_SESSION_REPOSITORY, IDENTITY_UNIT_OF_WORK, OAUTH_ACCOUNT_REPOSITORY, REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from "../src/application/repositories/identity.repositories";
 import type { DeviceSession } from "../src/modules/identity/domain/entities/device-session.entity";
 import type { OAuthAccount } from "../src/modules/identity/domain/entities/oauth-account.entity";
 import type { RefreshToken } from "../src/modules/identity/domain/entities/refresh-token.entity";
@@ -38,11 +38,18 @@ class MemoryAccounts {
 describe("Authentication flow (e2e)", () => {
   let app: INestApplication;
   beforeAll(async () => {
+    const users = new MemoryUsers();
+    const sessions = new MemorySessions();
+    const refreshTokens = new MemoryTokens();
     const ref = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService).useValue({ isHealthy: jest.fn().mockResolvedValue(true) })
-      .overrideProvider(USER_REPOSITORY).useValue(new MemoryUsers())
-      .overrideProvider(DEVICE_SESSION_REPOSITORY).useValue(new MemorySessions())
-      .overrideProvider(REFRESH_TOKEN_REPOSITORY).useValue(new MemoryTokens())
+      .overrideProvider(USER_REPOSITORY).useValue(users)
+      .overrideProvider(DEVICE_SESSION_REPOSITORY).useValue(sessions)
+      .overrideProvider(REFRESH_TOKEN_REPOSITORY).useValue(refreshTokens)
+      .overrideProvider(IDENTITY_UNIT_OF_WORK).useValue({
+        run: (work: (repositories: unknown) => Promise<unknown>) =>
+          work({ users, sessions, refreshTokens }),
+      })
       .overrideProvider(OAUTH_ACCOUNT_REPOSITORY).useValue(new MemoryAccounts())
       .compile();
     app = ref.createNestApplication();
