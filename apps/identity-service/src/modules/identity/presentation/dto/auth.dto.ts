@@ -18,3 +18,6 @@ export class LoginDto {
   @IsString() @Length(1, 128) password!: string;
   @IsDefined() @IsObject() @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
 }
+export class RefreshDto {
+  @IsString() @IsNotEmpty() refreshToken!: string;
+}

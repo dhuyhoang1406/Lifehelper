@@ -1,5 +1,6 @@
 import type { LoginUserUseCase } from "../application/use-cases/login-user.use-case";
 import type { RegisterUserUseCase } from "../application/use-cases/register-user.use-case";
+import type { RefreshAccessTokenUseCase } from "../application/use-cases/refresh-access-token.use-case";
 import { DevicePlatform } from "../domain/enums/identity.enums";
 import { AuthController } from "./auth.controller";
 
@@ -11,6 +12,7 @@ describe("AuthController", () => {
     const controller = new AuthController(
       registerUser,
       loginUser,
+      undefined as never,
     );
     const dto = {
       email: "user@example.com",
@@ -30,6 +32,7 @@ describe("AuthController", () => {
     const controller = new AuthController(
       registerUser,
       loginUser,
+      undefined as never,
     );
     const dto = {
       email: "user@example.com",
@@ -39,5 +42,24 @@ describe("AuthController", () => {
 
     await expect(controller.login(dto)).resolves.toBe(response);
     expect(loginUser.execute).toHaveBeenCalledWith(dto);
+  });
+
+  it("delegates token refresh to the use case", async () => {
+    const response = { accessToken: "new-access", refreshToken: "new-refresh" };
+    const registerUser = { execute: jest.fn() } as unknown as RegisterUserUseCase;
+    const loginUser = { execute: jest.fn() } as unknown as LoginUserUseCase;
+    const refreshAccessToken = {
+      execute: jest.fn().mockResolvedValue(response),
+    } as unknown as RefreshAccessTokenUseCase;
+    const controller = new AuthController(
+      registerUser,
+      loginUser,
+      refreshAccessToken,
+    );
+
+    await expect(
+      controller.refresh({ refreshToken: "current-refresh" }),
+    ).resolves.toBe(response);
+    expect(refreshAccessToken.execute).toHaveBeenCalledWith("current-refresh");
   });
 });
