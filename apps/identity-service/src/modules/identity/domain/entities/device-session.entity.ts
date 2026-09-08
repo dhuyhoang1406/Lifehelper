@@ -60,4 +60,9 @@ export class DeviceSession {
     this.props.revokedAt = at;
     this.props.updatedAt = at;
   }
+  resume(at = new Date()): void {
+    this.props.revokedAt = null;
+    this.props.lastActiveAt = at;
+    this.props.updatedAt = at;
+  }
 }

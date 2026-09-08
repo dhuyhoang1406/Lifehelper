@@ -94,6 +94,12 @@ export class PrismaDeviceSessionRepository implements DeviceSessionRepository {
       })
     ).map(DeviceSessionMapper.toDomain);
   }
+  async findByUserAndDevice(userId: string, deviceId: string) {
+    const r = await this.db.deviceSession.findUnique({
+      where: { userId_deviceId: { userId, deviceId: deviceId.trim() } },
+    });
+    return r ? DeviceSessionMapper.toDomain(r) : null;
+  }
   async save(e: DeviceSession) {
     const data = DeviceSessionMapper.toPersistence(e);
     await this.db.deviceSession.upsert({
