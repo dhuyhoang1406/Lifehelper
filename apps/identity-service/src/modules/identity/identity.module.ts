@@ -10,6 +10,7 @@ import { LoginUserUseCase } from "./application/use-cases/login-user.use-case";
 import { RefreshAccessTokenUseCase } from "./application/use-cases/refresh-access-token.use-case";
 import { GetCurrentUserUseCase } from "./application/use-cases/get-current-user.use-case";
 import { JwtAuthGuard } from "./presentation/guards/jwt-auth.guard";
+import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "./application/use-cases/session-management.use-cases";
 import { Argon2PasswordHasher } from "./infrastructure/security/argon2-password-hasher";
 import { JwtTokenService } from "./infrastructure/security/jwt-token.service";
 import { AuthController } from "./presentation/auth.controller";
@@ -25,6 +26,10 @@ const repository = (provide: symbol, useClass: new (db: PrismaService) => unknow
     RefreshAccessTokenUseCase,
     GetCurrentUserUseCase,
     JwtAuthGuard,
+    LogoutUseCase,
+    LogoutAllSessionsUseCase,
+    ListDeviceSessionsUseCase,
+    RevokeDeviceSessionUseCase,
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
     repository(USER_REPOSITORY, PrismaUserRepository),
