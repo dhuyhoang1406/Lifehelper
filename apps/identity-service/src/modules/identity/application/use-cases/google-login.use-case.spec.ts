@@ -94,11 +94,13 @@ describe("GoogleLoginUseCase", () => {
   });
 
   it("rejects an invalid Google token before opening a transaction", async () => {
-    (google.verifyToken as jest.Mock).mockRejectedValue(new Error("invalid"));
+    const cause = new Error("Google key endpoint unavailable");
+    (google.verifyToken as jest.Mock).mockRejectedValue(cause);
 
     await expect(build().execute(input)).rejects.toMatchObject({
       code: IdentityErrorCode.OAUTH_TOKEN_INVALID,
       statusCode: 401,
+      cause,
     });
     expect(unitOfWork.run).not.toHaveBeenCalled();
   });

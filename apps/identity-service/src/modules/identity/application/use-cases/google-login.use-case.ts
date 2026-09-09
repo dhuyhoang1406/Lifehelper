@@ -26,11 +26,12 @@ export class GoogleLoginUseCase {
     let identity;
     try {
       identity = await this.google.verifyToken(input.idToken);
-    } catch {
+    } catch (error) {
       throw new IdentityApplicationError(
         IdentityErrorCode.OAUTH_TOKEN_INVALID,
         "Google token is invalid",
         401,
+        error,
       );
     }
     if (!identity.emailVerified) {

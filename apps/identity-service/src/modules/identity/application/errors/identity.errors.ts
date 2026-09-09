@@ -15,6 +15,7 @@ export class IdentityApplicationError extends Error {
     readonly code: IdentityErrorCode,
     message: string,
     readonly statusCode: number,
+    readonly cause?: unknown,
   ) {
     super(message);
   }

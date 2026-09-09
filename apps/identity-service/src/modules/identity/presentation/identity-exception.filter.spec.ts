@@ -50,6 +50,29 @@ describe("IdentityExceptionFilter", () => {
     expect(json).toHaveBeenCalledWith({ code: "BAD_REQUEST" });
   });
 
+  it("logs an application error cause without exposing it in the response", () => {
+    const cause = new Error("Google key endpoint unavailable");
+    new IdentityExceptionFilter().catch(
+      new IdentityApplicationError(
+        IdentityErrorCode.OAUTH_TOKEN_INVALID,
+        "Google token is invalid",
+        401,
+        cause,
+      ),
+      host,
+    );
+
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.stringContaining("Google key endpoint unavailable"),
+    );
+    expect(json).toHaveBeenCalledWith({
+      statusCode: 401,
+      code: IdentityErrorCode.OAUTH_TOKEN_INVALID,
+      message: "Google token is invalid",
+      correlationId: "correlation-1",
+    });
+  });
+
   it("hides unexpected error details and logs the cause", () => {
     new IdentityExceptionFilter().catch(new Error("database password"), host);
     expect(status).toHaveBeenCalledWith(500);
