@@ -11,14 +11,16 @@ abstract class SessionAction {
     if (!session || session.state.userId !== userId)
       throw new IdentityApplicationError(IdentityErrorCode.SESSION_NOT_FOUND, "Session not found", 404);
     const now = new Date();
-    session.revoke(now);
+    if (session.isActive()) {
+      session.revoke(now);
+      await this.sessions.save(session);
+    }
     for (const token of await this.tokens.findBySessionId(sessionId)) {
       if (token.isActive(now)) {
         token.revoke(now);
         await this.tokens.save(token);
       }
     }
-    await this.sessions.save(session);
   }
 }
 

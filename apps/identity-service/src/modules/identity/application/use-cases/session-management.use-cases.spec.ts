@@ -63,6 +63,21 @@ describe("Session management use cases", () => {
     expect(sessions.save).toHaveBeenCalledWith(session);
   });
 
+  it("keeps the original revocation time and does not rewrite an inactive session", async () => {
+    const session = createSession();
+    const originalRevokedAt = new Date("2026-09-05T10:00:00.000Z");
+    session.revoke(originalRevokedAt);
+    const activeToken = createToken("active-token");
+    (sessions.findById as jest.Mock).mockResolvedValue(session);
+    (tokens.findBySessionId as jest.Mock).mockResolvedValue([activeToken]);
+
+    await new LogoutUseCase(sessions, tokens).execute(auth);
+
+    expect(session.state.revokedAt).toEqual(originalRevokedAt);
+    expect(sessions.save).not.toHaveBeenCalled();
+    expect(tokens.save).toHaveBeenCalledWith(activeToken);
+  });
+
   it("returns SESSION_NOT_FOUND without revealing another user's session", async () => {
     const session = createSession();
     (sessions.findById as jest.Mock).mockResolvedValue(session);
