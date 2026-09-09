@@ -9,12 +9,14 @@ abstract class SessionAction {
   protected async revoke(sessionId: string, userId: string): Promise<void> {
     const session = await this.sessions.findById(sessionId);
     if (!session || session.state.userId !== userId)
-      throw new IdentityApplicationError(IdentityErrorCode.FORBIDDEN, "Session not found", 404);
+      throw new IdentityApplicationError(IdentityErrorCode.SESSION_NOT_FOUND, "Session not found", 404);
     const now = new Date();
     session.revoke(now);
     for (const token of await this.tokens.findBySessionId(sessionId)) {
-      if (token.isActive(now)) token.revoke(now);
-      await this.tokens.save(token);
+      if (token.isActive(now)) {
+        token.revoke(now);
+        await this.tokens.save(token);
+      }
     }
     await this.sessions.save(session);
   }
@@ -35,8 +37,18 @@ export class LogoutAllSessionsUseCase {
   constructor(@Inject(DEVICE_SESSION_REPOSITORY) private readonly sessions: DeviceSessionRepository, @Inject(REFRESH_TOKEN_REPOSITORY) private readonly tokens: RefreshTokenRepository) {}
   async execute(userId: string): Promise<void> {
     const now = new Date();
-    for (const session of await this.sessions.findByUserId(userId)) { session.revoke(now); await this.sessions.save(session); }
-    for (const token of await this.tokens.findByUserId(userId)) { if (token.isActive(now)) token.revoke(now); await this.tokens.save(token); }
+    for (const session of await this.sessions.findByUserId(userId)) {
+      if (session.isActive()) {
+        session.revoke(now);
+        await this.sessions.save(session);
+      }
+    }
+    for (const token of await this.tokens.findByUserId(userId)) {
+      if (token.isActive(now)) {
+        token.revoke(now);
+        await this.tokens.save(token);
+      }
+    }
   }
 }
 @Injectable()
