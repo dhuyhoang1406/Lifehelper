@@ -138,6 +138,7 @@ export class PrismaIdentityUnitOfWork implements IdentityUnitOfWork {
     return this.db.$transaction((transaction) =>
       work({
         users: new PrismaUserRepository(transaction),
+        accounts: new PrismaOAuthAccountRepository(transaction),
         sessions: new PrismaDeviceSessionRepository(transaction),
         refreshTokens: new PrismaRefreshTokenRepository(transaction),
       }),

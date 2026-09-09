@@ -29,6 +29,7 @@ export interface RefreshTokenRepository {
 }
 export interface IdentityTransactionRepositories {
   users: UserRepository;
+  accounts: OAuthAccountRepository;
   sessions: DeviceSessionRepository;
   refreshTokens: RefreshTokenRepository;
 }

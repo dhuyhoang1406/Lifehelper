@@ -9,6 +9,12 @@ export class IdentityExceptionFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<Response>();
     const request = host.switchToHttp().getRequest<Request>();
     if (error instanceof IdentityApplicationError) {
+      if (error.cause !== undefined) {
+        const cause = error.cause;
+        this.logger.error(
+          cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+        );
+      }
       response.status(error.statusCode).json({ statusCode: error.statusCode, code: error.code, message: error.message, correlationId: request.headers["x-correlation-id"] ?? null });
       return;
     }

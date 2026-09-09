@@ -4,13 +4,15 @@ import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "../../prisma.service";
 import { PrismaDeviceSessionRepository, PrismaIdentityUnitOfWork, PrismaOAuthAccountRepository, PrismaRefreshTokenRepository, PrismaUserRepository } from "../../persistence/identity.repositories";
 import { DEVICE_SESSION_REPOSITORY, IDENTITY_UNIT_OF_WORK, OAUTH_ACCOUNT_REPOSITORY, REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from "../../application/repositories/identity.repositories";
-import { PASSWORD_HASHER, TOKEN_SERVICE } from "./application/ports/auth.ports";
+import { OAUTH_IDENTITY_PROVIDER, PASSWORD_HASHER, TOKEN_SERVICE } from "./application/ports/auth.ports";
 import { RegisterUserUseCase } from "./application/use-cases/register-user.use-case";
 import { LoginUserUseCase } from "./application/use-cases/login-user.use-case";
 import { RefreshAccessTokenUseCase } from "./application/use-cases/refresh-access-token.use-case";
 import { GetCurrentUserUseCase } from "./application/use-cases/get-current-user.use-case";
 import { JwtAuthGuard } from "./presentation/guards/jwt-auth.guard";
 import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "./application/use-cases/session-management.use-cases";
+import { GoogleLoginUseCase } from "./application/use-cases/google-login.use-case";
+import { GoogleOAuthIdentityProvider } from "./infrastructure/security/google-oauth.provider";
 import { Argon2PasswordHasher } from "./infrastructure/security/argon2-password-hasher";
 import { JwtTokenService } from "./infrastructure/security/jwt-token.service";
 import { AuthController } from "./presentation/auth.controller";
@@ -30,8 +32,10 @@ const repository = (provide: symbol, useClass: new (db: PrismaService) => unknow
     LogoutAllSessionsUseCase,
     ListDeviceSessionsUseCase,
     RevokeDeviceSessionUseCase,
+    GoogleLoginUseCase,
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
+    { provide: OAUTH_IDENTITY_PROVIDER, useClass: GoogleOAuthIdentityProvider },
     repository(USER_REPOSITORY, PrismaUserRepository),
     repository(OAUTH_ACCOUNT_REPOSITORY, PrismaOAuthAccountRepository),
     repository(DEVICE_SESSION_REPOSITORY, PrismaDeviceSessionRepository),
