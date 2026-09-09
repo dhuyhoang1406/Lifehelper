@@ -1,5 +1,7 @@
 import type {
   DeviceSessionRepository,
+  IdentityTransactionRepositories,
+  IdentityUnitOfWork,
   RefreshTokenRepository,
 } from "../../../../application/repositories/identity.repositories";
 import { DeviceSession } from "../../domain/entities/device-session.entity";
@@ -24,6 +26,17 @@ describe("Session management use cases", () => {
     findByUserId: jest.fn(),
     save: jest.fn(),
   } as unknown as RefreshTokenRepository;
+  const transactional = {
+    users: { save: jest.fn() },
+    sessions,
+    refreshTokens: tokens,
+  } as unknown as IdentityTransactionRepositories;
+  const unitOfWork = {
+    run: jest.fn(
+      (work: (repositories: IdentityTransactionRepositories) => Promise<unknown>) =>
+        work(transactional),
+    ),
+  } as unknown as IdentityUnitOfWork;
   const auth = { userId: "user-1", sessionId: "session-1" };
 
   const createSession = (id = "session-1") =>
@@ -54,7 +67,7 @@ describe("Session management use cases", () => {
     (sessions.findById as jest.Mock).mockResolvedValue(session);
     (tokens.findBySessionId as jest.Mock).mockResolvedValue([active, inactive]);
 
-    await new LogoutUseCase(sessions, tokens).execute(auth);
+    await new LogoutUseCase(unitOfWork).execute(auth);
 
     expect(session.isActive()).toBe(false);
     expect(active.isActive()).toBe(false);
@@ -71,7 +84,7 @@ describe("Session management use cases", () => {
     (sessions.findById as jest.Mock).mockResolvedValue(session);
     (tokens.findBySessionId as jest.Mock).mockResolvedValue([activeToken]);
 
-    await new LogoutUseCase(sessions, tokens).execute(auth);
+    await new LogoutUseCase(unitOfWork).execute(auth);
 
     expect(session.state.revokedAt).toEqual(originalRevokedAt);
     expect(sessions.save).not.toHaveBeenCalled();
@@ -83,7 +96,7 @@ describe("Session management use cases", () => {
     (sessions.findById as jest.Mock).mockResolvedValue(session);
 
     await expect(
-      new RevokeDeviceSessionUseCase(sessions, tokens).execute(
+      new RevokeDeviceSessionUseCase(unitOfWork).execute(
         { userId: "different-user", sessionId: "other-current-session" },
         session.state.id,
       ),
@@ -95,10 +108,29 @@ describe("Session management use cases", () => {
     expect(sessions.save).not.toHaveBeenCalled();
   });
 
+  it("revokes an owned target session and its active refresh tokens", async () => {
+    const target = createSession("target-session");
+    const activeToken = createToken("target-token", target.state.id);
+    (sessions.findById as jest.Mock).mockResolvedValue(target);
+    (tokens.findBySessionId as jest.Mock).mockResolvedValue([activeToken]);
+
+    await new RevokeDeviceSessionUseCase(unitOfWork).execute(
+      auth,
+      target.state.id,
+    );
+
+    expect(sessions.findById).toHaveBeenCalledWith("target-session");
+    expect(target.isActive()).toBe(false);
+    expect(activeToken.isActive()).toBe(false);
+    expect(sessions.save).toHaveBeenCalledWith(target);
+    expect(tokens.save).toHaveBeenCalledWith(activeToken);
+    expect(unitOfWork.run).toHaveBeenCalledTimes(1);
+  });
+
   it("returns SESSION_NOT_FOUND when the session does not exist", async () => {
     (sessions.findById as jest.Mock).mockResolvedValue(null);
 
-    await expect(new LogoutUseCase(sessions, tokens).execute(auth)).rejects.toMatchObject({
+    await expect(new LogoutUseCase(unitOfWork).execute(auth)).rejects.toMatchObject({
       code: IdentityErrorCode.SESSION_NOT_FOUND,
       statusCode: 404,
     });
@@ -120,7 +152,7 @@ describe("Session management use cases", () => {
       inactiveToken,
     ]);
 
-    await new LogoutAllSessionsUseCase(sessions, tokens).execute("user-1");
+    await new LogoutAllSessionsUseCase(unitOfWork).execute("user-1");
 
     expect(sessions.save).toHaveBeenCalledTimes(1);
     expect(sessions.save).toHaveBeenCalledWith(activeSession);

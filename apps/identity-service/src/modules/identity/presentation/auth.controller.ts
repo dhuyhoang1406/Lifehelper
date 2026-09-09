@@ -34,8 +34,8 @@ export class AuthController {
   @Get("me") @UseGuards(JwtAuthGuard) me(@CurrentUser() auth: AuthenticatedUser) {
     return this.getCurrentUser.execute(auth.userId);
   }
-  @Post("logout") @HttpCode(204) @UseGuards(JwtAuthGuard) logout(@CurrentUser() auth: AuthenticatedUser) { return this.logoutUser.execute(auth); }
-  @Post("logout-all") @HttpCode(204) @UseGuards(JwtAuthGuard) logoutEverywhere(@CurrentUser() auth: AuthenticatedUser) { return this.logoutAll.execute(auth.userId); }
+  @Post("logout") @HttpCode(HttpStatus.NO_CONTENT) @UseGuards(JwtAuthGuard) logout(@CurrentUser() auth: AuthenticatedUser) { return this.logoutUser.execute(auth); }
+  @Post("logout-all") @HttpCode(HttpStatus.NO_CONTENT) @UseGuards(JwtAuthGuard) logoutEverywhere(@CurrentUser() auth: AuthenticatedUser) { return this.logoutAll.execute(auth.userId); }
   @Get("sessions") @UseGuards(JwtAuthGuard) sessions(@CurrentUser() auth: AuthenticatedUser) { return this.listSessions.execute(auth.userId); }
-  @Delete("sessions/:sessionId") @HttpCode(204) @UseGuards(JwtAuthGuard) revoke(@CurrentUser() auth: AuthenticatedUser, @Param("sessionId") sessionId: string) { return this.revokeSession.execute(auth, sessionId); }
+  @Delete("sessions/:sessionId") @HttpCode(HttpStatus.NO_CONTENT) @UseGuards(JwtAuthGuard) revoke(@CurrentUser() auth: AuthenticatedUser, @Param("sessionId") sessionId: string) { return this.revokeSession.execute(auth, sessionId); }
 }
