@@ -182,4 +182,16 @@ describe("AuthController", () => {
     ).resolves.toBeUndefined();
     expect(revokeSession.execute).toHaveBeenCalledWith(auth, "target-session");
   });
+
+  it("delegates Google authentication to the use case", async () => {
+    const response = { accessToken: "access-token", refreshToken: "refresh-token" };
+    (googleLogin.execute as jest.Mock).mockResolvedValue(response);
+    const dto = {
+      idToken: "google-token",
+      device: { deviceId: "phone", platform: DevicePlatform.ANDROID },
+    };
+
+    await expect(createController().google(dto)).resolves.toBe(response);
+    expect(googleLogin.execute).toHaveBeenCalledWith(dto);
+  });
 });
