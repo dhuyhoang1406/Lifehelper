@@ -1,6 +1,8 @@
 import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "./prisma.service";
+import { SkipThrottle } from "@nestjs/throttler";
+@SkipThrottle({ auth: true })
 @Controller("health")
 export class HealthController {
   constructor(

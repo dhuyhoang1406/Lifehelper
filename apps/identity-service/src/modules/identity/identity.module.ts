@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
+import { APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "../../prisma.service";
 import { PrismaDeviceSessionRepository, PrismaIdentityUnitOfWork, PrismaOAuthAccountRepository, PrismaRefreshTokenRepository, PrismaUserRepository } from "../../persistence/identity.repositories";
@@ -13,6 +14,8 @@ import { JwtAuthGuard } from "./presentation/guards/jwt-auth.guard";
 import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "./application/use-cases/session-management.use-cases";
 import { GoogleLoginUseCase } from "./application/use-cases/google-login.use-case";
 import { GoogleOAuthIdentityProvider } from "./infrastructure/security/google-oauth.provider";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ConfigService } from "@nestjs/config";
 import { Argon2PasswordHasher } from "./infrastructure/security/argon2-password-hasher";
 import { JwtTokenService } from "./infrastructure/security/jwt-token.service";
 import { AuthController } from "./presentation/auth.controller";
@@ -20,7 +23,7 @@ import { IdentityExceptionFilter } from "./presentation/identity-exception.filte
 
 const repository = (provide: symbol, useClass: new (db: PrismaService) => unknown) => ({ provide, useFactory: (db: PrismaService) => new useClass(db), inject: [PrismaService] });
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [JwtModule.register({}), ThrottlerModule.forRootAsync({ inject: [ConfigService], useFactory: (config: ConfigService) => [{ name: "auth", ttl: config.getOrThrow<number>("AUTH_RATE_LIMIT_TTL_MS"), limit: config.getOrThrow<number>("AUTH_RATE_LIMIT_MAX") }] })],
   controllers: [AuthController],
   providers: [
     RegisterUserUseCase,
@@ -42,6 +45,7 @@ const repository = (provide: symbol, useClass: new (db: PrismaService) => unknow
     repository(REFRESH_TOKEN_REPOSITORY, PrismaRefreshTokenRepository),
     repository(IDENTITY_UNIT_OF_WORK, PrismaIdentityUnitOfWork),
     { provide: APP_FILTER, useClass: IdentityExceptionFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   exports: [TOKEN_SERVICE],
 })

@@ -29,6 +29,8 @@ const schema = Joi.object({
     .min(300)
     .default(2_592_000),
   GOOGLE_CLIENT_ID: Joi.string().min(1).required(),
+  AUTH_RATE_LIMIT_TTL_MS: Joi.number().integer().min(1_000).default(60_000),
+  AUTH_RATE_LIMIT_MAX: Joi.number().integer().min(1).default(10),
 }).unknown(true);
 export function validateEnvironment(config: Record<string, unknown>) {
   const { error, value } = schema.validate(config, { abortEarly: false });
