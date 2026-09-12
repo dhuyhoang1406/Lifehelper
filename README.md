@@ -35,10 +35,16 @@ pnpm typecheck
 pnpm build
 pnpm test
 pnpm test:e2e
+pnpm test:persistence
 pnpm prisma:validate
 ```
 
 Each backend service has its own Prisma schema and PostgreSQL database. Requests accept or generate an `x-correlation-id`; the same value is returned in the response and included in structured JSON logs.
+Persistence tests require those databases to be running and migrated. CI creates
+an isolated PostgreSQL database per service, applies committed migrations, and
+runs every service's persistence suite. See
+[`docs/api/identity-auth.md`](docs/api/identity-auth.md) for the opt-in live
+Google OAuth smoke test and session-revocation behavior.
 
 ## Flutter
 
