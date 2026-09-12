@@ -23,8 +23,22 @@ jobs:
     name: Backend quality checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: lifehelper
+          POSTGRES_PASSWORD: lifehelper
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lifehelper -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_ci?schema=public
+      DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_identity_ci?schema=public
     steps:
       - name: Check out selected revision
         uses: actions/checkout@v4
@@ -47,6 +61,21 @@ jobs:
       - name: Generate Prisma clients
         run: pnpm prisma:generate
 
+      - name: Create service databases
+        env:
+          PGPASSWORD: lifehelper
+        run: |
+          for database in identity productivity ai document notification analytics; do
+            createdb --host localhost --username lifehelper "lifehelper_${database}_ci"
+          done
+
+      - name: Apply migrations
+        run: |
+          for service in identity productivity ai document notification analytics; do
+            DATABASE_URL="postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_${service}_ci?schema=public" \
+              pnpm --filter "@lifehelper/${service}-service" db:migrate
+          done
+
       - name: Lint
         run: pnpm lint
 
@@ -61,6 +90,13 @@ jobs:
 
       - name: Run integration tests
         run: pnpm test:e2e
+
+      - name: Run PostgreSQL persistence tests
+        run: |
+          for service in identity productivity ai document notification analytics; do
+            DATABASE_URL="postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_${service}_ci?schema=public" \
+              pnpm --filter "@lifehelper/${service}-service" test:persistence
+          done
 
   mobile:
     name: Flutter quality checks
