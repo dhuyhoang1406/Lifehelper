@@ -5,9 +5,28 @@ import type {
   TaskTagRepository,
 } from "../../../application/repositories/productivity.repositories";
 import type { Task } from "../domain/entities/task.entity";
+import { Tag } from "../domain/entities/tag.entity";
+import { ConflictException } from "@nestjs/common";
 import { TaskUseCases } from "./task.use-cases";
 
 describe("TaskUseCases", () => {
+  const build = (overrides: Partial<TagRepository> = {}) => {
+    const tags = {
+      findByNormalizedName: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockResolvedValue(undefined),
+      ...overrides,
+    } as unknown as TagRepository;
+    return {
+      tags,
+      useCases: new TaskUseCases(
+        { save: jest.fn() } as unknown as TaskRepository,
+        {} as SubtaskRepository,
+        tags,
+        {} as TaskTagRepository,
+      ),
+    };
+  };
+
   it("does not allow input properties to override the authenticated owner", async () => {
     let saved: Task | undefined;
     const tasks = {
@@ -35,5 +54,49 @@ describe("TaskUseCases", () => {
     expect(result.userId).toBe("00000000-0000-4000-8000-000000000001");
     expect(result.id).not.toBe("00000000-0000-4000-8000-000000000098");
     expect(saved?.state).toEqual(result);
+  });
+
+  it("normalizes case and whitespace when checking a new tag", async () => {
+    const { tags, useCases } = build();
+
+    const result = await useCases.createTag("user-1", "  Work  ");
+
+    expect(tags.findByNormalizedName).toHaveBeenCalledWith("user-1", "work");
+    expect(result.name).toBe("Work");
+    expect(tags.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a case-insensitive duplicate tag", async () => {
+    const existing = Tag.create({
+      id: "tag-1",
+      userId: "user-1",
+      name: "Work",
+    });
+    const { tags, useCases } = build({
+      findByNormalizedName: jest.fn().mockResolvedValue(existing),
+    });
+
+    await expect(useCases.createTag("user-1", " work ")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(tags.save).not.toHaveBeenCalled();
+  });
+
+  it("rejects renaming a tag to another normalized name", async () => {
+    const current = Tag.create({ id: "tag-1", userId: "user-1", name: "Home" });
+    const duplicate = Tag.create({
+      id: "tag-2",
+      userId: "user-1",
+      name: "Work",
+    });
+    const { tags, useCases } = build({
+      findByIdAndUserId: jest.fn().mockResolvedValue(current),
+      findByNormalizedName: jest.fn().mockResolvedValue(duplicate),
+    });
+
+    await expect(
+      useCases.renameTag("user-1", "tag-1", " WORK "),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tags.save).not.toHaveBeenCalled();
   });
 });
