@@ -47,4 +47,17 @@ export class Subtask {
     this.props.completedAt = null;
     this.props.updatedAt = at;
   }
+  update(input: { title?: string; position?: number }, at = new Date()): void {
+    if (input.title !== undefined) {
+      if (!input.title.trim())
+        throw new TaskDomainError("Subtask title is required");
+      this.props.title = input.title.trim();
+    }
+    if (input.position !== undefined) {
+      if (input.position < 0)
+        throw new TaskDomainError("Subtask position cannot be negative");
+      this.props.position = input.position;
+    }
+    this.props.updatedAt = at;
+  }
 }

@@ -23,7 +23,14 @@ describe("Productivity persistence", () => {
         title: "Integration",
       }),
     );
-    expect((await repo.findById(id))?.state.title).toBe("Integration");
+    expect(
+      (
+        await repo.findByIdAndUserId(
+          id,
+          "00000000-0000-4000-8000-000000000001",
+        )
+      )?.state.title,
+    ).toBe("Integration");
   });
   it("rolls back business data and outbox atomically", async () => {
     const rollbackId = "10000000-0000-4000-8000-000000000099";

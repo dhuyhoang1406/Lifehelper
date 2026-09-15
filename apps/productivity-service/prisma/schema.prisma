@@ -89,13 +89,14 @@ model Subtask {
 }
 
 model Tag {
-  id        String    @id @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  name      String    @db.VarChar(80)
-  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
-  taskTags  TaskTag[]
+  id             String    @id @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  name           String    @db.VarChar(80)
+  normalizedName String    @map("normalized_name") @db.VarChar(80)
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+  taskTags       TaskTag[]
 
-  @@unique([userId, name])
+  @@unique([userId, normalizedName])
   @@map("tags")
 }
 

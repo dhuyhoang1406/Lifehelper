@@ -92,6 +92,35 @@ export class Task {
     this.props.completedAt = null;
     this.props.updatedAt = at;
   }
+  update(
+    input: {
+      title?: string;
+      description?: string | null;
+      priority?: TaskPriority;
+      dueAt?: Date | null;
+      estimatedMinutes?: number | null;
+    },
+    at = new Date(),
+  ): void {
+    if (input.title !== undefined) {
+      if (!input.title.trim())
+        throw new TaskDomainError("Task title is required");
+      this.props.title = input.title.trim();
+    }
+    if (
+      input.estimatedMinutes !== undefined &&
+      input.estimatedMinutes !== null &&
+      input.estimatedMinutes <= 0
+    )
+      throw new TaskDomainError("Estimated minutes must be positive");
+    if (input.description !== undefined)
+      this.props.description = input.description;
+    if (input.priority !== undefined) this.props.priority = input.priority;
+    if (input.dueAt !== undefined) this.props.dueAt = input.dueAt;
+    if (input.estimatedMinutes !== undefined)
+      this.props.estimatedMinutes = input.estimatedMinutes;
+    this.props.updatedAt = at;
+  }
   updateDueDate(dueAt: Date | null, at = new Date()): void {
     this.props.dueAt = dueAt;
     this.props.updatedAt = at;
