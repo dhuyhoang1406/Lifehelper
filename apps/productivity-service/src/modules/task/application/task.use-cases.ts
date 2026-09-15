@@ -41,7 +41,7 @@ export class TaskUseCases {
       estimatedMinutes?: number;
     },
   ) {
-    const task = Task.create({ id: randomUUID(), userId, ...input });
+    const task = Task.create({ ...input, id: randomUUID(), userId });
     await this.tasks.save(task);
     return task.state;
   }
