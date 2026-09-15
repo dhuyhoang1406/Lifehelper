@@ -7,7 +7,7 @@ export interface TagProps {
   createdAt: Date;
 }
 export class Tag {
-  private constructor(private readonly props: TagProps) {}
+  private constructor(private props: TagProps) {}
   static create(
     input: Omit<TagProps, "createdAt"> & Partial<Pick<TagProps, "createdAt">>,
   ): Tag {
@@ -24,5 +24,10 @@ export class Tag {
   }
   get state(): Readonly<TagProps> {
     return this.props;
+  }
+  rename(name: string): void {
+    if (!name.trim() || name.trim().length > 80)
+      throw new TaskDomainError("Invalid tag name");
+    this.props.name = name.trim();
   }
 }

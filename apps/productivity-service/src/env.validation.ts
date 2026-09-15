@@ -20,6 +20,9 @@ const schema = Joi.object({
   LOG_LEVEL: Joi.string()
     .valid("fatal", "error", "warn", "info", "debug", "trace")
     .default("info"),
+  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  JWT_ISSUER: Joi.string().required(),
+  JWT_AUDIENCE: Joi.string().required(),
 }).unknown(true);
 export function validateEnvironment(config: Record<string, unknown>) {
   const { error, value } = schema.validate(config, { abortEarly: false });

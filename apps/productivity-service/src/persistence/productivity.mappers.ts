@@ -3,6 +3,8 @@ import type {
   CalendarEvent as EventRecord,
   Habit as HabitRecord,
   Reminder as ReminderRecord,
+  Subtask as SubtaskRecord,
+  Tag as TagRecord,
 } from "../../generated/client";
 import { Task } from "../modules/task/domain/entities/task.entity";
 import {
@@ -14,6 +16,8 @@ import { CalendarEventType } from "../modules/calendar/domain/enums/calendar-eve
 import { Habit } from "../modules/habit/domain/entities/habit.entity";
 import { HabitFrequency } from "../modules/habit/domain/enums/habit-frequency.enum";
 import { Reminder } from "../modules/reminder/domain/entities/reminder.entity";
+import { Subtask } from "../modules/task/domain/entities/subtask.entity";
+import { Tag } from "../modules/task/domain/entities/tag.entity";
 import {
   ReminderResourceType,
   ReminderStatus,
@@ -27,6 +31,17 @@ export const TaskMapper = {
       priority: r.priority as TaskPriority,
     }),
   toPersistence: (e: Task) => e.state,
+};
+export const SubtaskMapper = {
+  toDomain: (record: SubtaskRecord) => Subtask.restore(record),
+  toPersistence: (entity: Subtask) => entity.state,
+};
+export const TagMapper = {
+  toDomain: (record: TagRecord) => Tag.restore(record),
+  toPersistence: (entity: Tag) => ({
+    ...entity.state,
+    normalizedName: entity.state.name.trim().toLowerCase(),
+  }),
 };
 export const CalendarEventMapper = {
   toDomain: (r: EventRecord) =>
