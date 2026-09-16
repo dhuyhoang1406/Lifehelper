@@ -11,16 +11,27 @@ import { TaskUseCases } from "./modules/task/application/task.use-cases";
 import { TaskController } from "./modules/task/presentation/task.controller";
 import { TaskExceptionFilter } from "./modules/task/presentation/task-exception.filter";
 import {
+  CreateCalendarEvent,
+  DeleteCalendarEvent,
+  GetCalendarEvent,
+  ListCalendarEvents,
+  UpdateCalendarEvent,
+} from "./modules/calendar/application/calendar-event.use-cases";
+import { CalendarEventController } from "./modules/calendar/presentation/calendar-event.controller";
+import { CalendarExceptionFilter } from "./modules/calendar/presentation/calendar-exception.filter";
+import {
   PrismaSubtaskRepository,
   PrismaTagRepository,
   PrismaTaskRepository,
   PrismaTaskTagRepository,
+  PrismaCalendarEventRepository,
 } from "./persistence/productivity.repositories";
 import {
   SUBTASK_REPOSITORY,
   TAG_REPOSITORY,
   TASK_REPOSITORY,
   TASK_TAG_REPOSITORY,
+  CALENDAR_EVENT_REPOSITORY,
 } from "./application/repositories/productivity.repositories";
 @Module({
   imports: [
@@ -32,11 +43,16 @@ import {
     StructuredLoggerModule,
     JwtModule.register({}),
   ],
-  controllers: [HealthController, TaskController],
+  controllers: [HealthController, TaskController, CalendarEventController],
   providers: [
     PrismaService,
     JwtAuthGuard,
     TaskUseCases,
+    CreateCalendarEvent,
+    GetCalendarEvent,
+    ListCalendarEvents,
+    UpdateCalendarEvent,
+    DeleteCalendarEvent,
     {
       provide: TASK_REPOSITORY,
       useFactory: (db: PrismaService) => new PrismaTaskRepository(db),
@@ -57,7 +73,13 @@ import {
       useFactory: (db: PrismaService) => new PrismaTaskTagRepository(db),
       inject: [PrismaService],
     },
+    {
+      provide: CALENDAR_EVENT_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaCalendarEventRepository(db),
+      inject: [PrismaService],
+    },
     { provide: APP_FILTER, useClass: TaskExceptionFilter },
+    { provide: APP_FILTER, useClass: CalendarExceptionFilter },
   ],
 })
 export class AppModule {}

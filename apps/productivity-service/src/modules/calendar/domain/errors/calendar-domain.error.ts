@@ -11,3 +11,10 @@ export class InvalidCalendarRangeError extends CalendarDomainError {
     this.name = "InvalidCalendarRangeError";
   }
 }
+
+export class InvalidCalendarTimezoneError extends CalendarDomainError {
+  constructor(timezone: string) {
+    super(`Invalid IANA timezone: ${timezone}`);
+    this.name = "InvalidCalendarTimezoneError";
+  }
+}

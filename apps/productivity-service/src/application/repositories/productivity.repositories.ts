@@ -48,11 +48,13 @@ export interface TaskTagRepository {
   detach(taskId: UUID, tagId: UUID): Promise<void>;
 }
 export interface CalendarEventRepository {
-  findById(id: UUID): Promise<CalendarEvent | null>;
+  findByIdAndUserId(id: UUID, userId: UUID): Promise<CalendarEvent | null>;
   findByUserAndRange(
     userId: UUID,
-    start: Date,
-    end: Date,
+    from?: Date,
+    to?: Date,
+    page?: number,
+    limit?: number,
   ): Promise<CalendarEvent[]>;
   save(entity: CalendarEvent): Promise<void>;
 }
@@ -70,3 +72,4 @@ export const TASK_REPOSITORY = Symbol("TASK_REPOSITORY");
 export const SUBTASK_REPOSITORY = Symbol("SUBTASK_REPOSITORY");
 export const TAG_REPOSITORY = Symbol("TAG_REPOSITORY");
 export const TASK_TAG_REPOSITORY = Symbol("TASK_TAG_REPOSITORY");
+export const CALENDAR_EVENT_REPOSITORY = Symbol("CALENDAR_EVENT_REPOSITORY");
