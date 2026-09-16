@@ -144,20 +144,30 @@ export class PrismaTaskTagRepository implements TaskTagRepository {
 }
 export class PrismaCalendarEventRepository implements CalendarEventRepository {
   constructor(private readonly db: PrismaService) {}
-  async findById(id: string) {
-    const r = await this.db.calendarEvent.findUnique({ where: { id } });
+  async findByIdAndUserId(id: string, userId: string) {
+    const r = await this.db.calendarEvent.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
     return r ? CalendarEventMapper.toDomain(r) : null;
   }
-  async findByUserAndRange(userId: string, start: Date, end: Date) {
+  async findByUserAndRange(
+    userId: string,
+    from?: Date,
+    to?: Date,
+    page = 1,
+    limit = 50,
+  ) {
     return (
       await this.db.calendarEvent.findMany({
         where: {
           userId,
           deletedAt: null,
-          startAt: { lt: end },
-          endAt: { gt: start },
+          startAt: to ? { lt: to } : undefined,
+          endAt: from ? { gt: from } : undefined,
         },
         orderBy: { startAt: "asc" },
+        skip: (page - 1) * limit,
+        take: limit,
       })
     ).map(CalendarEventMapper.toDomain);
   }
