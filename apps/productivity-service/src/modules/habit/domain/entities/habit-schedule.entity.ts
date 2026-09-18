@@ -42,17 +42,23 @@ export class HabitSchedule {
     schedules: readonly HabitSchedule[],
   ): void {
     if (frequency === HabitFrequency.WEEKLY && schedules.length === 0)
-      throw new HabitDomainError("Weekly habits require a schedule");
+      throw new HabitDomainError(
+        "Weekly habits require a schedule; provide schedules with a day of week",
+      );
     if (
       frequency === HabitFrequency.WEEKLY &&
       schedules.some(({ state }) => state.dayOfWeek === null)
     )
-      throw new HabitDomainError("Weekly schedules require a day of week");
+      throw new HabitDomainError(
+        "Weekly schedules require a day of week; provide compatible schedules when changing frequency",
+      );
     if (
       frequency === HabitFrequency.DAILY &&
       schedules.some(({ state }) => state.dayOfWeek !== null)
     )
-      throw new HabitDomainError("Daily schedules cannot specify a day of week");
+      throw new HabitDomainError(
+        "Daily schedules cannot specify a day of week; provide schedules: [] or schedules without weekdays when changing frequency",
+      );
     const keys = schedules.map(
       ({ state }) => `${state.dayOfWeek ?? "daily"}:${state.timeOfDay ?? "any"}`,
     );
