@@ -2,6 +2,8 @@ import type {
   Task as TaskRecord,
   CalendarEvent as EventRecord,
   Habit as HabitRecord,
+  HabitLog as HabitLogRecord,
+  HabitSchedule as HabitScheduleRecord,
   Reminder as ReminderRecord,
   Subtask as SubtaskRecord,
   Tag as TagRecord,
@@ -14,6 +16,8 @@ import {
 import { CalendarEvent } from "../modules/calendar/domain/entities/calendar-event.entity";
 import { CalendarEventType } from "../modules/calendar/domain/enums/calendar-event-type.enum";
 import { Habit } from "../modules/habit/domain/entities/habit.entity";
+import { HabitLog } from "../modules/habit/domain/entities/habit-log.entity";
+import { HabitSchedule } from "../modules/habit/domain/entities/habit-schedule.entity";
 import { HabitFrequency } from "../modules/habit/domain/enums/habit-frequency.enum";
 import { Reminder } from "../modules/reminder/domain/entities/reminder.entity";
 import { Subtask } from "../modules/task/domain/entities/subtask.entity";
@@ -65,6 +69,29 @@ export const HabitMapper = {
     endDate: e.state.endDate
       ? new Date(`${e.state.endDate}T00:00:00.000Z`)
       : null,
+  }),
+};
+export const HabitScheduleMapper = {
+  toDomain: (record: HabitScheduleRecord) =>
+    HabitSchedule.restore({
+      ...record,
+      timeOfDay: record.timeOfDay
+        ? record.timeOfDay.toISOString().slice(11, 19)
+        : null,
+    }),
+  toPersistence: (entity: HabitSchedule) => ({
+    ...entity.state,
+    timeOfDay: entity.state.timeOfDay
+      ? new Date(`1970-01-01T${entity.state.timeOfDay}Z`)
+      : null,
+  }),
+};
+export const HabitLogMapper = {
+  toDomain: (record: HabitLogRecord) =>
+    HabitLog.restore({ ...record, logDate: dateOnly(record.logDate) }),
+  toPersistence: (entity: HabitLog) => ({
+    ...entity.state,
+    logDate: new Date(`${entity.state.logDate}T00:00:00.000Z`),
   }),
 };
 export const ReminderMapper = {
