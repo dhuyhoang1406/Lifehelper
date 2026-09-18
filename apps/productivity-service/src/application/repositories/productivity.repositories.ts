@@ -2,6 +2,8 @@ import type { UUID } from "@lifehelper/shared-types";
 import type { Task } from "../../modules/task/domain/entities/task.entity";
 import type { CalendarEvent } from "../../modules/calendar/domain/entities/calendar-event.entity";
 import type { Habit } from "../../modules/habit/domain/entities/habit.entity";
+import type { HabitLog } from "../../modules/habit/domain/entities/habit-log.entity";
+import type { HabitSchedule } from "../../modules/habit/domain/entities/habit-schedule.entity";
 import type { Reminder } from "../../modules/reminder/domain/entities/reminder.entity";
 import type { Subtask } from "../../modules/task/domain/entities/subtask.entity";
 import type { Tag } from "../../modules/task/domain/entities/tag.entity";
@@ -59,9 +61,23 @@ export interface CalendarEventRepository {
   save(entity: CalendarEvent): Promise<void>;
 }
 export interface HabitRepository {
-  findById(id: UUID): Promise<Habit | null>;
-  findActiveByUserId(userId: UUID): Promise<Habit[]>;
-  save(entity: Habit): Promise<void>;
+  findByIdAndUserId(
+    id: UUID,
+    userId: UUID,
+  ): Promise<{ habit: Habit; schedules: HabitSchedule[] } | null>;
+  findPageByUserId(
+    userId: UUID,
+    query: { active?: boolean; page: number; limit: number },
+  ): Promise<{ items: Habit[]; total: number; page: number; limit: number }>;
+  save(entity: Habit, schedules?: HabitSchedule[]): Promise<void>;
+}
+export interface HabitLogRepository {
+  findByIdAndHabitId(id: UUID, habitId: UUID): Promise<HabitLog | null>;
+  findPageByHabitId(
+    habitId: UUID,
+    query: { from?: string; to?: string; page: number; limit: number },
+  ): Promise<{ items: HabitLog[]; total: number; page: number; limit: number }>;
+  save(entity: HabitLog): Promise<void>;
 }
 export interface ReminderRepository {
   findById(id: UUID): Promise<Reminder | null>;
@@ -73,3 +89,5 @@ export const SUBTASK_REPOSITORY = Symbol("SUBTASK_REPOSITORY");
 export const TAG_REPOSITORY = Symbol("TAG_REPOSITORY");
 export const TASK_TAG_REPOSITORY = Symbol("TASK_TAG_REPOSITORY");
 export const CALENDAR_EVENT_REPOSITORY = Symbol("CALENDAR_EVENT_REPOSITORY");
+export const HABIT_REPOSITORY = Symbol("HABIT_REPOSITORY");
+export const HABIT_LOG_REPOSITORY = Symbol("HABIT_LOG_REPOSITORY");

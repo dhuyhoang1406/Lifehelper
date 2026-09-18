@@ -20,11 +20,27 @@ import {
 import { CalendarEventController } from "./modules/calendar/presentation/calendar-event.controller";
 import { CalendarExceptionFilter } from "./modules/calendar/presentation/calendar-exception.filter";
 import {
+  ArchiveHabit,
+  CreateHabit,
+  GetHabit,
+  GetHabitLogs,
+  ListHabits,
+  LogHabitCompletion,
+  PauseHabit,
+  ResumeHabit,
+  UpdateHabit,
+  UpdateHabitLog,
+} from "./modules/habit/application/habit.use-cases";
+import { HabitController } from "./modules/habit/presentation/habit.controller";
+import { HabitExceptionFilter } from "./modules/habit/presentation/habit-exception.filter";
+import {
   PrismaSubtaskRepository,
   PrismaTagRepository,
   PrismaTaskRepository,
   PrismaTaskTagRepository,
   PrismaCalendarEventRepository,
+  PrismaHabitLogRepository,
+  PrismaHabitRepository,
 } from "./persistence/productivity.repositories";
 import {
   SUBTASK_REPOSITORY,
@@ -32,6 +48,8 @@ import {
   TASK_REPOSITORY,
   TASK_TAG_REPOSITORY,
   CALENDAR_EVENT_REPOSITORY,
+  HABIT_LOG_REPOSITORY,
+  HABIT_REPOSITORY,
 } from "./application/repositories/productivity.repositories";
 @Module({
   imports: [
@@ -43,7 +61,12 @@ import {
     StructuredLoggerModule,
     JwtModule.register({}),
   ],
-  controllers: [HealthController, TaskController, CalendarEventController],
+  controllers: [
+    HealthController,
+    TaskController,
+    CalendarEventController,
+    HabitController,
+  ],
   providers: [
     PrismaService,
     JwtAuthGuard,
@@ -53,6 +76,16 @@ import {
     ListCalendarEvents,
     UpdateCalendarEvent,
     DeleteCalendarEvent,
+    CreateHabit,
+    GetHabit,
+    ListHabits,
+    UpdateHabit,
+    PauseHabit,
+    ResumeHabit,
+    ArchiveHabit,
+    LogHabitCompletion,
+    GetHabitLogs,
+    UpdateHabitLog,
     {
       provide: TASK_REPOSITORY,
       useFactory: (db: PrismaService) => new PrismaTaskRepository(db),
@@ -78,8 +111,19 @@ import {
       useFactory: (db: PrismaService) => new PrismaCalendarEventRepository(db),
       inject: [PrismaService],
     },
+    {
+      provide: HABIT_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaHabitRepository(db),
+      inject: [PrismaService],
+    },
+    {
+      provide: HABIT_LOG_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaHabitLogRepository(db),
+      inject: [PrismaService],
+    },
     { provide: APP_FILTER, useClass: TaskExceptionFilter },
     { provide: APP_FILTER, useClass: CalendarExceptionFilter },
+    { provide: APP_FILTER, useClass: HabitExceptionFilter },
   ],
 })
 export class AppModule {}

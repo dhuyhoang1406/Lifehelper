@@ -47,6 +47,7 @@ async function main() {
       userId: DEMO_IDS.user,
       name: "Demo habit",
       frequencyType: HabitFrequency.DAILY,
+      timezone: "UTC",
       startDate: now,
       createdAt: now,
       updatedAt: now,

@@ -136,6 +136,7 @@ model Habit {
   name          String          @db.VarChar(180)
   description   String?
   frequencyType HabitFrequency  @map("frequency_type")
+  timezone      String          @db.VarChar(64)
   targetCount   Int             @default(1) @map("target_count")
   startDate     DateTime        @map("start_date") @db.Date
   endDate       DateTime?       @map("end_date") @db.Date

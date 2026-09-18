@@ -1,10 +1,14 @@
-import type { TaskStatus as PrismaTaskStatus } from "../../generated/client";
+import {
+  Prisma,
+  type TaskStatus as PrismaTaskStatus,
+} from "../../generated/client";
 import { PrismaService } from "../prisma.service";
 import type {
   TaskRepository,
   TaskQuery,
   CalendarEventRepository,
   HabitRepository,
+  HabitLogRepository,
   ReminderRepository,
   SubtaskRepository,
   TagRepository,
@@ -13,6 +17,9 @@ import type {
 import type { Task } from "../modules/task/domain/entities/task.entity";
 import type { CalendarEvent } from "../modules/calendar/domain/entities/calendar-event.entity";
 import type { Habit } from "../modules/habit/domain/entities/habit.entity";
+import type { HabitLog } from "../modules/habit/domain/entities/habit-log.entity";
+import type { HabitSchedule } from "../modules/habit/domain/entities/habit-schedule.entity";
+import { DuplicateHabitLogError } from "../modules/habit/domain/errors/habit-domain.error";
 import type { Reminder } from "../modules/reminder/domain/entities/reminder.entity";
 import type { Subtask } from "../modules/task/domain/entities/subtask.entity";
 import type { Tag } from "../modules/task/domain/entities/tag.entity";
@@ -20,6 +27,8 @@ import {
   TaskMapper,
   CalendarEventMapper,
   HabitMapper,
+  HabitLogMapper,
+  HabitScheduleMapper,
   ReminderMapper,
   SubtaskMapper,
   TagMapper,
@@ -182,25 +191,113 @@ export class PrismaCalendarEventRepository implements CalendarEventRepository {
 }
 export class PrismaHabitRepository implements HabitRepository {
   constructor(private readonly db: PrismaService) {}
-  async findById(id: string) {
-    const r = await this.db.habit.findUnique({ where: { id } });
-    return r ? HabitMapper.toDomain(r) : null;
-  }
-  async findActiveByUserId(userId: string) {
-    return (
-      await this.db.habit.findMany({
-        where: { userId, isActive: true, deletedAt: null },
-        orderBy: { createdAt: "desc" },
-      })
-    ).map(HabitMapper.toDomain);
-  }
-  async save(e: Habit) {
-    const data = HabitMapper.toPersistence(e);
-    await this.db.habit.upsert({
-      where: { id: e.state.id },
-      create: data,
-      update: data,
+  async findByIdAndUserId(id: string, userId: string) {
+    const record = await this.db.habit.findFirst({
+      where: { id, userId, deletedAt: null },
+      include: { schedules: { orderBy: { createdAt: "asc" } } },
     });
+    return record
+      ? {
+          habit: HabitMapper.toDomain(record),
+          schedules: record.schedules.map(HabitScheduleMapper.toDomain),
+        }
+      : null;
+  }
+  async findPageByUserId(
+    userId: string,
+    query: { active?: boolean; page: number; limit: number },
+  ) {
+    const where = { userId, isActive: query.active, deletedAt: null };
+    const [records, total] = await this.db.$transaction([
+      this.db.habit.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.db.habit.count({ where }),
+    ]);
+    return {
+      items: records.map(HabitMapper.toDomain),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+  async save(e: Habit, schedules?: HabitSchedule[]) {
+    const data = HabitMapper.toPersistence(e);
+    await this.db.$transaction(async (tx) => {
+      await tx.habit.upsert({
+        where: { id: e.state.id },
+        create: data,
+        update: data,
+      });
+      if (schedules !== undefined) {
+        await tx.habitSchedule.deleteMany({ where: { habitId: e.state.id } });
+        if (schedules.length > 0)
+          await tx.habitSchedule.createMany({
+            data: schedules.map(HabitScheduleMapper.toPersistence),
+          });
+      }
+    });
+  }
+}
+export class PrismaHabitLogRepository implements HabitLogRepository {
+  constructor(private readonly db: PrismaService) {}
+  async findByIdAndHabitId(id: string, habitId: string) {
+    const record = await this.db.habitLog.findFirst({ where: { id, habitId } });
+    return record ? HabitLogMapper.toDomain(record) : null;
+  }
+  async findPageByHabitId(
+    habitId: string,
+    query: { from?: string; to?: string; page: number; limit: number },
+  ) {
+    const where = {
+      habitId,
+      logDate:
+        query.from || query.to
+          ? {
+              gte: query.from
+                ? new Date(`${query.from}T00:00:00.000Z`)
+                : undefined,
+              lte: query.to
+                ? new Date(`${query.to}T00:00:00.000Z`)
+                : undefined,
+            }
+          : undefined,
+    };
+    const [records, total] = await this.db.$transaction([
+      this.db.habitLog.findMany({
+        where,
+        orderBy: { logDate: "desc" },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.db.habitLog.count({ where }),
+    ]);
+    return {
+      items: records.map(HabitLogMapper.toDomain),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+  async save(entity: HabitLog) {
+    const data = HabitLogMapper.toPersistence(entity);
+    try {
+      await this.db.habitLog.upsert({
+        where: { id: entity.state.id },
+        create: data,
+        update: data,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        throw new DuplicateHabitLogError();
+      throw error;
+    }
   }
 }
 export class PrismaReminderRepository implements ReminderRepository {

@@ -17,4 +17,9 @@ describe("HabitLog", () => {
       "at least one",
     );
   });
+  it("rejects an impossible calendar date", () => {
+    expect(() => HabitLog.create({ ...input, logDate: "2026-02-30" })).toThrow(
+      "invalid",
+    );
+  });
 });

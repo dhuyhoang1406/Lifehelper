@@ -4,3 +4,10 @@ export class HabitDomainError extends Error {
     this.name = new.target.name;
   }
 }
+
+export class DuplicateHabitLogError extends HabitDomainError {
+  constructor() {
+    super("Habit completion is already logged for this date");
+    this.name = "DuplicateHabitLogError";
+  }
+}
