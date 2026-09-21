@@ -34,6 +34,16 @@ import {
 import { HabitController } from "./modules/habit/presentation/habit.controller";
 import { HabitExceptionFilter } from "./modules/habit/presentation/habit-exception.filter";
 import {
+  CancelReminder,
+  CreateReminder,
+  DeleteReminder,
+  GetReminder,
+  ListReminders,
+  UpdateReminder,
+} from "./modules/reminder/application/reminder.use-cases";
+import { ReminderController } from "./modules/reminder/presentation/reminder.controller";
+import { ReminderExceptionFilter } from "./modules/reminder/presentation/reminder-exception.filter";
+import {
   PrismaSubtaskRepository,
   PrismaTagRepository,
   PrismaTaskRepository,
@@ -41,6 +51,7 @@ import {
   PrismaCalendarEventRepository,
   PrismaHabitLogRepository,
   PrismaHabitRepository,
+  PrismaReminderRepository,
 } from "./persistence/productivity.repositories";
 import {
   SUBTASK_REPOSITORY,
@@ -50,6 +61,7 @@ import {
   CALENDAR_EVENT_REPOSITORY,
   HABIT_LOG_REPOSITORY,
   HABIT_REPOSITORY,
+  REMINDER_REPOSITORY,
 } from "./application/repositories/productivity.repositories";
 @Module({
   imports: [
@@ -66,6 +78,7 @@ import {
     TaskController,
     CalendarEventController,
     HabitController,
+    ReminderController,
   ],
   providers: [
     PrismaService,
@@ -86,6 +99,12 @@ import {
     LogHabitCompletion,
     GetHabitLogs,
     UpdateHabitLog,
+    CreateReminder,
+    GetReminder,
+    ListReminders,
+    UpdateReminder,
+    CancelReminder,
+    DeleteReminder,
     {
       provide: TASK_REPOSITORY,
       useFactory: (db: PrismaService) => new PrismaTaskRepository(db),
@@ -121,9 +140,15 @@ import {
       useFactory: (db: PrismaService) => new PrismaHabitLogRepository(db),
       inject: [PrismaService],
     },
+    {
+      provide: REMINDER_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaReminderRepository(db),
+      inject: [PrismaService],
+    },
     { provide: APP_FILTER, useClass: TaskExceptionFilter },
     { provide: APP_FILTER, useClass: CalendarExceptionFilter },
     { provide: APP_FILTER, useClass: HabitExceptionFilter },
+    { provide: APP_FILTER, useClass: ReminderExceptionFilter },
   ],
 })
 export class AppModule {}

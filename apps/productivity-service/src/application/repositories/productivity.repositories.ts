@@ -80,9 +80,21 @@ export interface HabitLogRepository {
   save(entity: HabitLog): Promise<void>;
 }
 export interface ReminderRepository {
-  findById(id: UUID): Promise<Reminder | null>;
+  findByIdAndUserId(id: UUID, userId: UUID): Promise<Reminder | null>;
   findPendingBefore(at: Date): Promise<Reminder[]>;
+  findPageByUserId(
+    userId: UUID,
+    query: {
+      status?: string;
+      from?: Date;
+      to?: Date;
+      page: number;
+      limit: number;
+    },
+  ): Promise<{ items: Reminder[]; total: number; page: number; limit: number }>;
   save(entity: Reminder): Promise<void>;
+  delete(id: UUID, userId: UUID): Promise<void>;
+  resourceBelongsToUser(type: string, id: UUID, userId: UUID): Promise<boolean>;
 }
 export const TASK_REPOSITORY = Symbol("TASK_REPOSITORY");
 export const SUBTASK_REPOSITORY = Symbol("SUBTASK_REPOSITORY");
@@ -91,3 +103,4 @@ export const TASK_TAG_REPOSITORY = Symbol("TASK_TAG_REPOSITORY");
 export const CALENDAR_EVENT_REPOSITORY = Symbol("CALENDAR_EVENT_REPOSITORY");
 export const HABIT_REPOSITORY = Symbol("HABIT_REPOSITORY");
 export const HABIT_LOG_REPOSITORY = Symbol("HABIT_LOG_REPOSITORY");
+export const REMINDER_REPOSITORY = Symbol("REMINDER_REPOSITORY");
