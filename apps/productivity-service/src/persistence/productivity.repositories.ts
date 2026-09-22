@@ -260,9 +260,7 @@ export class PrismaHabitLogRepository implements HabitLogRepository {
               gte: query.from
                 ? new Date(`${query.from}T00:00:00.000Z`)
                 : undefined,
-              lte: query.to
-                ? new Date(`${query.to}T00:00:00.000Z`)
-                : undefined,
+              lte: query.to ? new Date(`${query.to}T00:00:00.000Z`) : undefined,
             }
           : undefined,
     };
@@ -302,8 +300,8 @@ export class PrismaHabitLogRepository implements HabitLogRepository {
 }
 export class PrismaReminderRepository implements ReminderRepository {
   constructor(private readonly db: PrismaService) {}
-  async findById(id: string) {
-    const r = await this.db.reminder.findUnique({ where: { id } });
+  async findByIdAndUserId(id: string, userId: string) {
+    const r = await this.db.reminder.findFirst({ where: { id, userId } });
     return r ? ReminderMapper.toDomain(r) : null;
   }
   async findPendingBefore(at: Date) {
@@ -314,6 +312,39 @@ export class PrismaReminderRepository implements ReminderRepository {
       })
     ).map(ReminderMapper.toDomain);
   }
+  async findPageByUserId(
+    userId: string,
+    query: {
+      status?: string;
+      from?: Date;
+      to?: Date;
+      page: number;
+      limit: number;
+    },
+  ) {
+    const where = {
+      userId,
+      status: query.status as
+        "PENDING" | "QUEUED" | "SENT" | "FAILED" | "CANCELLED" | undefined,
+      remindAt:
+        query.from || query.to ? { gte: query.from, lt: query.to } : undefined,
+    };
+    const [records, total] = await this.db.$transaction([
+      this.db.reminder.findMany({
+        where,
+        orderBy: [{ remindAt: "asc" }, { id: "asc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.db.reminder.count({ where }),
+    ]);
+    return {
+      items: records.map(ReminderMapper.toDomain),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
   async save(e: Reminder) {
     const data = ReminderMapper.toPersistence(e);
     await this.db.reminder.upsert({
@@ -321,5 +352,32 @@ export class PrismaReminderRepository implements ReminderRepository {
       create: data,
       update: data,
     });
+  }
+  async delete(id: string, userId: string) {
+    await this.db.reminder.deleteMany({ where: { id, userId } });
+  }
+  async resourceBelongsToUser(type: string, id: string, userId: string) {
+    switch (type) {
+      case "TASK":
+        return (
+          (await this.db.task.count({
+            where: { id, userId, deletedAt: null },
+          })) > 0
+        );
+      case "CALENDAR_EVENT":
+        return (
+          (await this.db.calendarEvent.count({
+            where: { id, userId, deletedAt: null },
+          })) > 0
+        );
+      case "HABIT":
+        return (
+          (await this.db.habit.count({
+            where: { id, userId, deletedAt: null },
+          })) > 0
+        );
+      default:
+        return false;
+    }
   }
 }
