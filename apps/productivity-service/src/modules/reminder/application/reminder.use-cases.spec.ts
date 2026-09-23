@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ProductivityErrorCode } from "../../../application/errors/productivity.errors";
 import type { ReminderRepository } from "../../../application/repositories/productivity.repositories";
 import { Reminder } from "../domain/entities/reminder.entity";
 import { ReminderResourceType } from "../domain/enums/reminder.enums";
@@ -26,14 +26,12 @@ describe("Reminder use cases", () => {
     ({
       findByIdAndUserId: jest.fn().mockResolvedValue(found ? current() : null),
       findPendingBefore: jest.fn().mockResolvedValue([]),
-      findPageByUserId: jest
-        .fn()
-        .mockResolvedValue({
-          items: [current()],
-          total: 1,
-          page: 1,
-          limit: 20,
-        }),
+      findPageByUserId: jest.fn().mockResolvedValue({
+        items: [current()],
+        total: 1,
+        page: 1,
+        limit: 20,
+      }),
       save: jest.fn(),
       delete: jest.fn(),
       resourceBelongsToUser: jest.fn().mockResolvedValue(true),
@@ -62,24 +60,27 @@ describe("Reminder use cases", () => {
         remindAt: new Date(),
         timezone: "UTC",
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({
+      code: ProductivityErrorCode.REMINDER_RESOURCE_NOT_FOUND,
+      statusCode: 404,
+    });
   });
   it("scopes get, update, cancel, and delete by owner", async () => {
     const repository = repo(false);
     await expect(
       new GetReminder(repository).execute(userId, "missing"),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({ code: ProductivityErrorCode.REMINDER_NOT_FOUND });
     await expect(
       new UpdateReminder(repository).execute(userId, "missing", {
         title: "New",
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({ code: ProductivityErrorCode.REMINDER_NOT_FOUND });
     await expect(
       new CancelReminder(repository).execute(userId, "missing"),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({ code: ProductivityErrorCode.REMINDER_NOT_FOUND });
     await expect(
       new DeleteReminder(repository).execute(userId, "missing"),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({ code: ProductivityErrorCode.REMINDER_NOT_FOUND });
     expect(repository.delete).not.toHaveBeenCalled();
   });
   it("lists a bounded page and validates date range", async () => {

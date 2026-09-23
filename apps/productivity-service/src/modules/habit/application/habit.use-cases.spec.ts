@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ProductivityErrorCode } from "../../../application/errors/productivity.errors";
 import type {
   HabitLogRepository,
   HabitRepository,
@@ -64,7 +64,10 @@ describe("Habit use cases", () => {
     const repository = habitRepository(false);
     await expect(
       new GetHabit(repository).execute(userId, "habit-id"),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toMatchObject({
+      code: ProductivityErrorCode.HABIT_NOT_FOUND,
+      statusCode: 404,
+    });
     expect(repository.findByIdAndUserId).toHaveBeenCalledWith(
       "habit-id",
       userId,

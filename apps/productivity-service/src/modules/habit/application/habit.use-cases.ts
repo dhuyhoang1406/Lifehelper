@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
+import {
+  ProductivityErrorCode,
+  productivityNotFound,
+} from "../../../application/errors/productivity.errors";
 import type {
   HabitLogRepository,
   HabitRepository,
@@ -67,7 +71,11 @@ export class GetHabit {
   ) {}
   async execute(userId: string, id: string) {
     const aggregate = await this.habits.findByIdAndUserId(id, userId);
-    if (!aggregate) throw new NotFoundException("Habit not found");
+    if (!aggregate)
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_NOT_FOUND,
+        "Habit not found",
+      );
     return {
       ...aggregate.habit.state,
       schedules: aggregate.schedules.map(({ state }) => state),
@@ -96,7 +104,11 @@ export class UpdateHabit {
   ) {}
   async execute(userId: string, id: string, input: UpdateHabitInput) {
     const aggregate = await this.habits.findByIdAndUserId(id, userId);
-    if (!aggregate) throw new NotFoundException("Habit not found");
+    if (!aggregate)
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_NOT_FOUND,
+        "Habit not found",
+      );
     const { schedules: scheduleInputs, ...changes } = input;
     aggregate.habit.update(changes);
     const schedules =
@@ -122,7 +134,11 @@ abstract class HabitLifecycleUseCase {
   constructor(protected readonly habits: HabitRepository) {}
   protected async owned(userId: string, id: string) {
     const aggregate = await this.habits.findByIdAndUserId(id, userId);
-    if (!aggregate) throw new NotFoundException("Habit not found");
+    if (!aggregate)
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_NOT_FOUND,
+        "Habit not found",
+      );
     return aggregate.habit;
   }
 }
@@ -177,7 +193,11 @@ export class LogHabitCompletion {
     input: { logDate: string; completedCount?: number; completedAt?: Date },
   ) {
     const aggregate = await this.habits.findByIdAndUserId(habitId, userId);
-    if (!aggregate) throw new NotFoundException("Habit not found");
+    if (!aggregate)
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_NOT_FOUND,
+        "Habit not found",
+      );
     aggregate.habit.assertCanLog(input.logDate);
     const log = HabitLog.create({
       id: randomUUID(),
@@ -202,7 +222,10 @@ export class GetHabitLogs {
     query: { from?: string; to?: string; page: number; limit: number },
   ) {
     if (!(await this.habits.findByIdAndUserId(habitId, userId)))
-      throw new NotFoundException("Habit not found");
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_NOT_FOUND,
+        "Habit not found",
+      );
     if (query.from) HabitLog.validateDate(query.from);
     if (query.to) HabitLog.validateDate(query.to);
     if (query.from && query.to && query.to < query.from)
@@ -225,9 +248,16 @@ export class UpdateHabitLog {
     input: { completedCount?: number; completedAt?: Date },
   ) {
     if (!(await this.habits.findByIdAndUserId(habitId, userId)))
-      throw new NotFoundException("Habit not found");
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_NOT_FOUND,
+        "Habit not found",
+      );
     const log = await this.logs.findByIdAndHabitId(id, habitId);
-    if (!log) throw new NotFoundException("Habit log not found");
+    if (!log)
+      throw productivityNotFound(
+        ProductivityErrorCode.HABIT_LOG_NOT_FOUND,
+        "Habit log not found",
+      );
     log.update(input);
     await this.logs.save(log);
     return log.state;

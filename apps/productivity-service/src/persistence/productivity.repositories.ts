@@ -14,6 +14,10 @@ import type {
   TagRepository,
   TaskTagRepository,
 } from "../application/repositories/productivity.repositories";
+import {
+  ProductivityErrorCode,
+  productivityConflict,
+} from "../application/errors/productivity.errors";
 import type { Task } from "../modules/task/domain/entities/task.entity";
 import type { CalendarEvent } from "../modules/calendar/domain/entities/calendar-event.entity";
 import type { Habit } from "../modules/habit/domain/entities/habit.entity";
@@ -128,11 +132,24 @@ export class PrismaTagRepository implements TagRepository {
   }
   async save(entity: Tag) {
     const data = TagMapper.toPersistence(entity);
-    await this.db.tag.upsert({
-      where: { id: entity.state.id },
-      create: data,
-      update: data,
-    });
+    try {
+      await this.db.tag.upsert({
+        where: { id: entity.state.id },
+        create: data,
+        update: data,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        throw productivityConflict(
+          ProductivityErrorCode.TAG_ALREADY_EXISTS,
+          "Tag already exists",
+          error,
+        );
+      throw error;
+    }
   }
   async delete(id: string) {
     await this.db.tag.delete({ where: { id } });
