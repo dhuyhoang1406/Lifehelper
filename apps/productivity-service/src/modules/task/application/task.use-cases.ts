@@ -45,8 +45,9 @@ export class TaskUseCases {
     await this.tasks.save(task);
     return task.state;
   }
-  list(userId: string, query: TaskQuery) {
-    return this.tasks.findPageByUserId(userId, query);
+  async list(userId: string, query: TaskQuery) {
+    const page = await this.tasks.findPageByUserId(userId, query);
+    return { ...page, items: page.items.map((task) => task.state) };
   }
   async get(userId: string, id: string) {
     const task = await this.ownedTask(userId, id);

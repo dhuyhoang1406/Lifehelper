@@ -4,11 +4,13 @@ import type {
   HabitRepository,
 } from "../../../application/repositories/productivity.repositories";
 import { Habit } from "../domain/entities/habit.entity";
+import { HabitLog } from "../domain/entities/habit-log.entity";
 import { HabitSchedule } from "../domain/entities/habit-schedule.entity";
 import { HabitFrequency } from "../domain/enums/habit-frequency.enum";
 import {
   CreateHabit,
   GetHabit,
+  GetHabitLogs,
   LogHabitCompletion,
   PauseHabit,
   ResumeHabit,
@@ -28,9 +30,9 @@ describe("Habit use cases", () => {
     });
   const habitRepository = (found = true) =>
     ({
-      findByIdAndUserId: jest.fn().mockResolvedValue(
-        found ? { habit: habit(), schedules: [] } : null,
-      ),
+      findByIdAndUserId: jest
+        .fn()
+        .mockResolvedValue(found ? { habit: habit(), schedules: [] } : null),
       findPageByUserId: jest.fn(),
       save: jest.fn().mockResolvedValue(undefined),
     }) as jest.Mocked<HabitRepository>;
@@ -60,8 +62,9 @@ describe("Habit use cases", () => {
 
   it("hides another user's habit as not found", async () => {
     const repository = habitRepository(false);
-    await expect(new GetHabit(repository).execute(userId, "habit-id"))
-      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      new GetHabit(repository).execute(userId, "habit-id"),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(repository.findByIdAndUserId).toHaveBeenCalledWith(
       "habit-id",
       userId,
@@ -92,11 +95,43 @@ describe("Habit use cases", () => {
     expect(logs.save).toHaveBeenCalledTimes(1);
   });
 
+  it("returns habit log state instead of exposing domain entities", async () => {
+    const habits = habitRepository();
+    const logs = logRepository();
+    const log = HabitLog.create({
+      id: "log-1",
+      habitId: habit().state.id,
+      userId,
+      logDate: "2026-09-16",
+    });
+    logs.findPageByHabitId.mockResolvedValue({
+      items: [log],
+      total: 1,
+      page: 1,
+      limit: 20,
+    });
+
+    await expect(
+      new GetHabitLogs(habits, logs).execute(userId, habit().state.id, {
+        page: 1,
+        limit: 20,
+      }),
+    ).resolves.toEqual({
+      items: [log.state],
+      total: 1,
+      page: 1,
+      limit: 20,
+    });
+  });
+
   it("does not log a paused habit", async () => {
     const paused = habit();
     paused.deactivate();
     const habits = habitRepository();
-    habits.findByIdAndUserId.mockResolvedValue({ habit: paused, schedules: [] });
+    habits.findByIdAndUserId.mockResolvedValue({
+      habit: paused,
+      schedules: [],
+    });
     await expect(
       new LogHabitCompletion(habits, logRepository()).execute(
         userId,
@@ -158,7 +193,9 @@ describe("Habit use cases", () => {
         aggregate.habit.state.id,
         { name: "New name" },
       );
-      expect(result.schedules).toEqual(aggregate.schedules.map(({ state }) => state));
+      expect(result.schedules).toEqual(
+        aggregate.schedules.map(({ state }) => state),
+      );
       expect(repository.save).toHaveBeenCalledWith(aggregate.habit, undefined);
     });
 

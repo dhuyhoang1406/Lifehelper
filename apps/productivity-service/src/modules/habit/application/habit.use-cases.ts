@@ -39,10 +39,7 @@ export interface UpdateHabitInput {
   schedules?: HabitScheduleInput[];
 }
 
-const buildSchedules = (
-  habitId: string,
-  inputs: HabitScheduleInput[] = [],
-) =>
+const buildSchedules = (habitId: string, inputs: HabitScheduleInput[] = []) =>
   inputs.map((input) =>
     HabitSchedule.create({ id: randomUUID(), habitId, ...input }),
   );
@@ -210,7 +207,8 @@ export class GetHabitLogs {
     if (query.to) HabitLog.validateDate(query.to);
     if (query.from && query.to && query.to < query.from)
       throw new HabitDomainError("Log date range is invalid");
-    return this.logs.findPageByHabitId(habitId, query);
+    const page = await this.logs.findPageByHabitId(habitId, query);
+    return { ...page, items: page.items.map(({ state }) => state) };
   }
 }
 
