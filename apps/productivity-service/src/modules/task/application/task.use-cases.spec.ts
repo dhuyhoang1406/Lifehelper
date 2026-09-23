@@ -4,9 +4,9 @@ import type {
   TaskRepository,
   TaskTagRepository,
 } from "../../../application/repositories/productivity.repositories";
+import { ProductivityErrorCode } from "../../../application/errors/productivity.errors";
 import { Task } from "../domain/entities/task.entity";
 import { Tag } from "../domain/entities/tag.entity";
-import { ConflictException } from "@nestjs/common";
 import { TaskUseCases } from "./task.use-cases";
 
 describe("TaskUseCases", () => {
@@ -107,9 +107,10 @@ describe("TaskUseCases", () => {
       findByNormalizedName: jest.fn().mockResolvedValue(existing),
     });
 
-    await expect(useCases.createTag("user-1", " work ")).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(useCases.createTag("user-1", " work ")).rejects.toMatchObject({
+      code: ProductivityErrorCode.TAG_ALREADY_EXISTS,
+      statusCode: 409,
+    });
     expect(tags.save).not.toHaveBeenCalled();
   });
 
@@ -127,7 +128,10 @@ describe("TaskUseCases", () => {
 
     await expect(
       useCases.renameTag("user-1", "tag-1", " WORK "),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({
+      code: ProductivityErrorCode.TAG_ALREADY_EXISTS,
+      statusCode: 409,
+    });
     expect(tags.save).not.toHaveBeenCalled();
   });
 });

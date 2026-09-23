@@ -16,6 +16,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import { HabitFrequency } from "../domain/enums/habit-frequency.enum";
+import { PaginationDto } from "../../../presentation/pagination.dto";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
@@ -52,15 +53,13 @@ export class UpdateHabitDto {
   @Type(() => HabitScheduleDto)
   schedules?: HabitScheduleDto[];
 }
-export class HabitListDto {
+export class HabitListDto extends PaginationDto {
   @IsOptional()
   @Transform(({ value }) =>
     value === "true" ? true : value === "false" ? false : value,
   )
   @IsBoolean()
   active?: boolean;
-  @Type(() => Number) @IsInt() @Min(1) page = 1;
-  @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 20;
 }
 export class LogHabitCompletionDto {
   @IsString() @Matches(DATE_PATTERN) logDate!: string;
@@ -71,11 +70,9 @@ export class UpdateHabitLogDto {
   @IsOptional() @IsInt() @Min(1) completedCount?: number;
   @IsOptional() @Type(() => Date) @IsDate() completedAt?: Date;
 }
-export class HabitLogListDto {
+export class HabitLogListDto extends PaginationDto {
   @IsOptional() @IsString() @Matches(DATE_PATTERN) from?: string;
   @IsOptional() @IsString() @Matches(DATE_PATTERN) to?: string;
-  @Type(() => Number) @IsInt() @Min(1) page = 1;
-  @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
 }
 export class HabitIdParamDto {
   @IsUUID() id!: string;

@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ProductivityErrorCode } from "../../../application/errors/productivity.errors";
 import type { CalendarEventRepository } from "../../../application/repositories/productivity.repositories";
 import { CalendarEvent } from "../domain/entities/calendar-event.entity";
 import { CalendarEventType } from "../domain/enums/calendar-event-type.enum";
@@ -44,8 +44,12 @@ describe("Calendar event use cases", () => {
 
   it("scopes get by owner and hides another user's event", async () => {
     const repo = repository(null);
-    await expect(new GetCalendarEvent(repo).execute(userId, "event-id"))
-      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      new GetCalendarEvent(repo).execute(userId, "event-id"),
+    ).rejects.toMatchObject({
+      code: ProductivityErrorCode.CALENDAR_EVENT_NOT_FOUND,
+      statusCode: 404,
+    });
     expect(repo.findByIdAndUserId).toHaveBeenCalledWith("event-id", userId);
   });
 

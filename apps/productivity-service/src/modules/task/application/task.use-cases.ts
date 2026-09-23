@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { Inject, Injectable } from "@nestjs/common";
 import {
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+  ProductivityErrorCode,
+  productivityConflict,
+  productivityNotFound,
+} from "../../../application/errors/productivity.errors";
 import type {
   SubtaskRepository,
   TagRepository,
@@ -114,7 +114,10 @@ export class TaskUseCases {
   }
   async createTag(userId: string, name: string) {
     if (await this.tags.findByNormalizedName(userId, name.trim().toLowerCase()))
-      throw new ConflictException("Tag already exists");
+      throw productivityConflict(
+        ProductivityErrorCode.TAG_ALREADY_EXISTS,
+        "Tag already exists",
+      );
     const tag = Tag.create({ id: randomUUID(), userId, name });
     await this.tags.save(tag);
     return tag.state;
@@ -129,7 +132,10 @@ export class TaskUseCases {
       name.trim().toLowerCase(),
     );
     if (duplicate && duplicate.state.id !== id)
-      throw new ConflictException("Tag already exists");
+      throw productivityConflict(
+        ProductivityErrorCode.TAG_ALREADY_EXISTS,
+        "Tag already exists",
+      );
     tag.rename(name);
     await this.tags.save(tag);
     return tag.state;
@@ -154,17 +160,29 @@ export class TaskUseCases {
   }
   private async ownedTask(userId: string, id: string) {
     const task = await this.tasks.findByIdAndUserId(id, userId);
-    if (!task) throw new NotFoundException("Task not found");
+    if (!task)
+      throw productivityNotFound(
+        ProductivityErrorCode.TASK_NOT_FOUND,
+        "Task not found",
+      );
     return task;
   }
   private async ownedSubtask(taskId: string, id: string) {
     const item = await this.subtasks.findByIdAndTaskId(id, taskId);
-    if (!item) throw new NotFoundException("Subtask not found");
+    if (!item)
+      throw productivityNotFound(
+        ProductivityErrorCode.SUBTASK_NOT_FOUND,
+        "Subtask not found",
+      );
     return item;
   }
   private async ownedTag(userId: string, id: string) {
     const tag = await this.tags.findByIdAndUserId(id, userId);
-    if (!tag) throw new NotFoundException("Tag not found");
+    if (!tag)
+      throw productivityNotFound(
+        ProductivityErrorCode.TAG_NOT_FOUND,
+        "Tag not found",
+      );
     return tag;
   }
 }

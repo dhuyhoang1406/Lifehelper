@@ -2,15 +2,13 @@ import { Type } from "class-transformer";
 import {
   IsDate,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   IsUUID,
-  Max,
   MaxLength,
-  Min,
   MinLength,
 } from "class-validator";
+import { PaginationDto } from "../../../presentation/pagination.dto";
 import { CalendarEventType } from "../domain/enums/calendar-event-type.enum";
 
 export class CreateCalendarEventDto {
@@ -35,11 +33,9 @@ export class UpdateCalendarEventDto {
   @IsOptional() @IsString() recurrenceRule?: string | null;
 }
 
-export class CalendarEventListDto {
+export class CalendarEventListDto extends PaginationDto {
   @IsOptional() @Type(() => Date) @IsDate() from?: Date;
   @IsOptional() @Type(() => Date) @IsDate() to?: Date;
-  @Type(() => Number) @IsInt() @Min(1) page = 1;
-  @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
 }
 
 export class CalendarEventIdParamDto {

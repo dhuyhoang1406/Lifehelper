@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
+import {
+  ProductivityErrorCode,
+  productivityNotFound,
+} from "../../../application/errors/productivity.errors";
 import type { ReminderRepository } from "../../../application/repositories/productivity.repositories";
 import { REMINDER_REPOSITORY } from "../../../application/repositories/productivity.repositories";
 import { Reminder } from "../domain/entities/reminder.entity";
@@ -29,11 +33,18 @@ async function validateReference(
     id &&
     !(await repo.resourceBelongsToUser(type, id, userId))
   )
-    throw new NotFoundException("Linked resource not found");
+    throw productivityNotFound(
+      ProductivityErrorCode.REMINDER_RESOURCE_NOT_FOUND,
+      "Linked resource not found",
+    );
 }
 async function owned(repo: ReminderRepository, userId: string, id: string) {
   const reminder = await repo.findByIdAndUserId(id, userId);
-  if (!reminder) throw new NotFoundException("Reminder not found");
+  if (!reminder)
+    throw productivityNotFound(
+      ProductivityErrorCode.REMINDER_NOT_FOUND,
+      "Reminder not found",
+    );
   return reminder;
 }
 

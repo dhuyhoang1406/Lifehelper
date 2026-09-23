@@ -9,7 +9,6 @@ import { validateEnvironment } from "./env.validation";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
 import { TaskUseCases } from "./modules/task/application/task.use-cases";
 import { TaskController } from "./modules/task/presentation/task.controller";
-import { TaskExceptionFilter } from "./modules/task/presentation/task-exception.filter";
 import {
   CreateCalendarEvent,
   DeleteCalendarEvent,
@@ -18,7 +17,6 @@ import {
   UpdateCalendarEvent,
 } from "./modules/calendar/application/calendar-event.use-cases";
 import { CalendarEventController } from "./modules/calendar/presentation/calendar-event.controller";
-import { CalendarExceptionFilter } from "./modules/calendar/presentation/calendar-exception.filter";
 import {
   ArchiveHabit,
   CreateHabit,
@@ -32,7 +30,6 @@ import {
   UpdateHabitLog,
 } from "./modules/habit/application/habit.use-cases";
 import { HabitController } from "./modules/habit/presentation/habit.controller";
-import { HabitExceptionFilter } from "./modules/habit/presentation/habit-exception.filter";
 import {
   CancelReminder,
   CreateReminder,
@@ -42,7 +39,7 @@ import {
   UpdateReminder,
 } from "./modules/reminder/application/reminder.use-cases";
 import { ReminderController } from "./modules/reminder/presentation/reminder.controller";
-import { ReminderExceptionFilter } from "./modules/reminder/presentation/reminder-exception.filter";
+import { ProductivityExceptionFilter } from "./presentation/productivity-exception.filter";
 import {
   PrismaSubtaskRepository,
   PrismaTagRepository,
@@ -145,10 +142,7 @@ import {
       useFactory: (db: PrismaService) => new PrismaReminderRepository(db),
       inject: [PrismaService],
     },
-    { provide: APP_FILTER, useClass: TaskExceptionFilter },
-    { provide: APP_FILTER, useClass: CalendarExceptionFilter },
-    { provide: APP_FILTER, useClass: HabitExceptionFilter },
-    { provide: APP_FILTER, useClass: ReminderExceptionFilter },
+    { provide: APP_FILTER, useClass: ProductivityExceptionFilter },
   ],
 })
 export class AppModule {}
