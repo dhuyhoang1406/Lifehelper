@@ -11,8 +11,10 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUserId } from "../../../auth/current-user.decorator";
 import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { swaggerExamples } from "../../../presentation/swagger.examples";
 import {
   ArchiveHabit,
   CreateHabit,
@@ -38,6 +40,8 @@ import {
 
 @Controller("habits")
 @UseGuards(JwtAuthGuard)
+@ApiTags("Habits")
+@ApiBearerAuth("access-token")
 export class HabitController {
   constructor(
     private readonly createHabit: CreateHabit,
@@ -51,16 +55,15 @@ export class HabitController {
     private readonly getLogs: GetHabitLogs,
     private readonly updateLog: UpdateHabitLog,
   ) {}
-  @Post() create(
-    @CurrentUserId() userId: string,
-    @Body() body: CreateHabitDto,
-  ) {
+  @Post()
+  @ApiBody({
+    type: CreateHabitDto,
+    examples: { default: { value: swaggerExamples.habit } },
+  })
+  create(@CurrentUserId() userId: string, @Body() body: CreateHabitDto) {
     return this.createHabit.execute(userId, body);
   }
-  @Get() list(
-    @CurrentUserId() userId: string,
-    @Query() query: HabitListDto,
-  ) {
+  @Get() list(@CurrentUserId() userId: string, @Query() query: HabitListDto) {
     return this.listHabits.execute(userId, query);
   }
   @Get(":id") get(
@@ -94,7 +97,12 @@ export class HabitController {
   ) {
     return this.archiveHabit.execute(userId, params.id);
   }
-  @Post(":id/logs") log(
+  @Post(":id/logs")
+  @ApiBody({
+    type: LogHabitCompletionDto,
+    examples: { default: { value: swaggerExamples.habitLog } },
+  })
+  log(
     @CurrentUserId() userId: string,
     @Param() params: HabitIdParamDto,
     @Body() body: LogHabitCompletionDto,

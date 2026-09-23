@@ -11,8 +11,10 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUserId } from "../../../auth/current-user.decorator";
 import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { swaggerExamples } from "../../../presentation/swagger.examples";
 import {
   CreateCalendarEvent,
   DeleteCalendarEvent,
@@ -29,6 +31,8 @@ import {
 
 @Controller("calendar-events")
 @UseGuards(JwtAuthGuard)
+@ApiTags("Calendar events")
+@ApiBearerAuth("access-token")
 export class CalendarEventController {
   constructor(
     private readonly createEvent: CreateCalendarEvent,
@@ -37,7 +41,12 @@ export class CalendarEventController {
     private readonly updateEvent: UpdateCalendarEvent,
     private readonly deleteEvent: DeleteCalendarEvent,
   ) {}
-  @Post() create(
+  @Post()
+  @ApiBody({
+    type: CreateCalendarEventDto,
+    examples: { default: { value: swaggerExamples.calendarEvent } },
+  })
+  create(
     @CurrentUserId() userId: string,
     @Body() body: CreateCalendarEventDto,
   ) {

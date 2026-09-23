@@ -20,6 +20,11 @@ const schema = Joi.object({
   LOG_LEVEL: Joi.string()
     .valid("fatal", "error", "warn", "info", "debug", "trace")
     .default("info"),
+  SWAGGER_ENABLED: Joi.boolean().default(false),
+  SWAGGER_PATH: Joi.string()
+    .trim()
+    .pattern(/^[a-zA-Z0-9/_-]+$/)
+    .default("docs"),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().required(),
   JWT_AUDIENCE: Joi.string().required(),

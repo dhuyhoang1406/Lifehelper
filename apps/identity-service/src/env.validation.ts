@@ -20,14 +20,16 @@ const schema = Joi.object({
   LOG_LEVEL: Joi.string()
     .valid("fatal", "error", "warn", "info", "debug", "trace")
     .default("info"),
+  SWAGGER_ENABLED: Joi.boolean().default(false),
+  SWAGGER_PATH: Joi.string()
+    .trim()
+    .pattern(/^[a-zA-Z0-9/_-]+$/)
+    .default("docs"),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ACCESS_EXPIRES_IN_SECONDS: Joi.number().integer().min(60).default(900),
   JWT_ISSUER: Joi.string().min(1).required(),
   JWT_AUDIENCE: Joi.string().min(1).required(),
-  REFRESH_TOKEN_TTL_SECONDS: Joi.number()
-    .integer()
-    .min(300)
-    .default(2_592_000),
+  REFRESH_TOKEN_TTL_SECONDS: Joi.number().integer().min(300).default(2_592_000),
   GOOGLE_CLIENT_ID: Joi.string().min(1).required(),
   AUTH_RATE_LIMIT_TTL_MS: Joi.number().integer().min(1_000).default(60_000),
   AUTH_RATE_LIMIT_MAX: Joi.number().integer().min(1).default(10),

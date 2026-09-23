@@ -1,0 +1,40 @@
+export const swaggerExamples = {
+  task: {
+    title: "Prepare weekly review",
+    description: "Summarize progress and plan next week",
+    priority: "HIGH",
+    dueAt: "2026-10-02T10:00:00.000Z",
+    estimatedMinutes: 45,
+  },
+  subtask: { title: "Collect completed work", position: 1 },
+  tag: { name: "Planning" },
+  calendarEvent: {
+    title: "Weekly planning",
+    description: "Review priorities for the next week",
+    eventType: "WORK",
+    startAt: "2026-10-02T09:00:00.000Z",
+    endAt: "2026-10-02T10:00:00.000Z",
+    timezone: "Asia/Ho_Chi_Minh",
+    location: "Online",
+  },
+  habit: {
+    name: "Morning exercise",
+    description: "Thirty-minute workout",
+    frequencyType: "WEEKLY",
+    timezone: "Asia/Ho_Chi_Minh",
+    targetCount: 1,
+    startDate: "2026-10-01",
+    schedules: [{ dayOfWeek: 2, timeOfDay: "07:30" }],
+  },
+  habitLog: {
+    logDate: "2026-10-06",
+    completedCount: 1,
+    completedAt: "2026-10-06T00:30:00.000Z",
+  },
+  reminder: {
+    resourceType: "CUSTOM",
+    title: "Prepare for weekly review",
+    remindAt: "2026-10-02T08:45:00.000Z",
+    timezone: "Asia/Ho_Chi_Minh",
+  },
+} as const;
