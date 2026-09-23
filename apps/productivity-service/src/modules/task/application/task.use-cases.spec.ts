@@ -4,7 +4,7 @@ import type {
   TaskRepository,
   TaskTagRepository,
 } from "../../../application/repositories/productivity.repositories";
-import type { Task } from "../domain/entities/task.entity";
+import { Task } from "../domain/entities/task.entity";
 import { Tag } from "../domain/entities/tag.entity";
 import { ConflictException } from "@nestjs/common";
 import { TaskUseCases } from "./task.use-cases";
@@ -54,6 +54,37 @@ describe("TaskUseCases", () => {
     expect(result.userId).toBe("00000000-0000-4000-8000-000000000001");
     expect(result.id).not.toBe("00000000-0000-4000-8000-000000000098");
     expect(saved?.state).toEqual(result);
+  });
+
+  it("returns task state instead of exposing domain entities in list responses", async () => {
+    const task = Task.create({
+      id: "task-1",
+      userId: "user-1",
+      title: "Listed",
+    });
+    const tasks = {
+      findPageByUserId: jest.fn().mockResolvedValue({
+        items: [task],
+        total: 1,
+        page: 1,
+        limit: 20,
+      }),
+    } as unknown as TaskRepository;
+    const useCases = new TaskUseCases(
+      tasks,
+      {} as SubtaskRepository,
+      {} as TagRepository,
+      {} as TaskTagRepository,
+    );
+
+    await expect(
+      useCases.list("user-1", { page: 1, limit: 20 }),
+    ).resolves.toEqual({
+      items: [task.state],
+      total: 1,
+      page: 1,
+      limit: 20,
+    });
   });
 
   it("normalizes case and whitespace when checking a new tag", async () => {

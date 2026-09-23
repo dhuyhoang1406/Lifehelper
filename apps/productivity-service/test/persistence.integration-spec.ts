@@ -23,6 +23,7 @@ const db = new PrismaService();
 const id = "10000000-0000-4000-8000-000000000002";
 const calendarId = "20000000-0000-4000-8000-000000000002";
 const habitId = "30000000-0000-4000-8000-000000000002";
+const rollbackHabitId = "30000000-0000-4000-8000-000000000099";
 const habitLogId = "40000000-0000-4000-8000-000000000002";
 const reminderId = "60000000-0000-4000-8000-000000000002";
 describe("Productivity persistence", () => {
@@ -32,6 +33,7 @@ describe("Productivity persistence", () => {
     await db.outboxEvent.deleteMany({ where: { aggregateId: id } });
     await db.calendarEvent.deleteMany({ where: { id: calendarId } });
     await db.habit.deleteMany({ where: { id: habitId } });
+    await db.habit.deleteMany({ where: { id: rollbackHabitId } });
     await db.reminder.deleteMany({ where: { id: reminderId } });
     await db.task.deleteMany({ where: { id } });
     await db.$disconnect();
@@ -147,6 +149,31 @@ describe("Productivity persistence", () => {
         }),
       ),
     ).rejects.toThrow("already logged");
+  });
+  it("rolls back a Habit when replacing its schedules fails", async () => {
+    const habits = new PrismaHabitRepository(db);
+    const habit = Habit.create({
+      id: rollbackHabitId,
+      userId: "00000000-0000-4000-8000-000000000001",
+      name: "Rollback habit",
+      frequencyType: HabitFrequency.WEEKLY,
+      timezone: "UTC",
+      startDate: "2026-09-01",
+    });
+    const scheduleId = "50000000-0000-4000-8000-000000000099";
+    const schedules = [2, 3].map((dayOfWeek) =>
+      HabitSchedule.create({
+        id: scheduleId,
+        habitId: rollbackHabitId,
+        dayOfWeek,
+        timeOfDay: "07:30:00",
+      }),
+    );
+
+    await expect(habits.save(habit, schedules)).rejects.toThrow();
+    expect(
+      await db.habit.findUnique({ where: { id: rollbackHabitId } }),
+    ).toBeNull();
   });
   it("persists a reminder with UTC instant, timezone, and owner-scoped lookup", async () => {
     const reminders = new PrismaReminderRepository(db);

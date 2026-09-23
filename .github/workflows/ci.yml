@@ -89,7 +89,11 @@ jobs:
         run: pnpm test
 
       - name: Run integration tests
-        run: pnpm test:e2e
+        run: |
+          for service in identity productivity ai document notification analytics; do
+            DATABASE_URL="postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_${service}_ci?schema=public" \
+              pnpm --filter "@lifehelper/${service}-service" test:e2e
+          done
 
       - name: Run PostgreSQL persistence tests
         run: |
