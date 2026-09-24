@@ -1,6 +1,14 @@
 process.env.NODE_ENV='test';
 process.env.SERVICE_NAME='ai-service';
 process.env.AI_PORT='3003';
+process.env.AI_PROVIDER='ollama';
+process.env.AI_MODEL='test-model';
+process.env.AI_BASE_URL='http://localhost:11434';
+process.env.AI_TIMEOUT_MS='1000';
+process.env.AI_MAX_OUTPUT_TOKENS='256';
+process.env.AI_MAX_CONTEXT_MESSAGES='10';
+process.env.AI_RETRY_MAX_ATTEMPTS='2';
+process.env.AI_RETRY_BASE_DELAY_MS='1';
 process.env.DATABASE_URL='postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_ai?schema=public';
 process.env.REDIS_URL='redis://localhost:6379';
 process.env.AWS_ENDPOINT_URL='http://localhost:4566';

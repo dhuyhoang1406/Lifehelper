@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { StructuredLoggerModule } from "@lifehelper/logger";
 import { HealthController } from "./health.controller";
 import { PrismaService } from "./prisma.service";
@@ -14,6 +14,10 @@ import {
   PrismaConversationRepository,
   PrismaMessageRepository,
 } from "./persistence/ai.repositories";
+import {
+  AI_PROVIDER_CONFIG,
+  createAIProviderConfig,
+} from "./config/ai-provider.config";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -26,6 +30,11 @@ import {
   controllers: [HealthController],
   providers: [
     PrismaService,
+    {
+      provide: AI_PROVIDER_CONFIG,
+      useFactory: createAIProviderConfig,
+      inject: [ConfigService],
+    },
     {
       provide: CONVERSATION_REPOSITORY,
       useFactory: (db: PrismaService) => new PrismaConversationRepository(db),
