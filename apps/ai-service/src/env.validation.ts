@@ -5,6 +5,38 @@ const schema = Joi.object({
     .default("development"),
   SERVICE_NAME: Joi.string().default("ai-service"),
   AI_PORT: Joi.number().port().default(3003),
+  AI_PROVIDER: Joi.string().valid("ollama", "cloudflare").required(),
+  AI_MODEL: Joi.string().trim().min(1).max(200).required(),
+  AI_BASE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .required(),
+  AI_TIMEOUT_MS: Joi.number().integer().min(100).max(300_000).required(),
+  AI_MAX_OUTPUT_TOKENS: Joi.number()
+    .integer()
+    .positive()
+    .max(65_536)
+    .required(),
+  AI_MAX_CONTEXT_MESSAGES: Joi.number()
+    .integer()
+    .positive()
+    .max(500)
+    .required(),
+  AI_RETRY_MAX_ATTEMPTS: Joi.number().integer().min(1).max(5).required(),
+  AI_RETRY_BASE_DELAY_MS: Joi.number()
+    .integer()
+    .positive()
+    .max(10_000)
+    .required(),
+  CLOUDFLARE_ACCOUNT_ID: Joi.when("AI_PROVIDER", {
+    is: "cloudflare",
+    then: Joi.string().trim().min(1).required(),
+    otherwise: Joi.any().strip(),
+  }),
+  CLOUDFLARE_API_TOKEN: Joi.when("AI_PROVIDER", {
+    is: "cloudflare",
+    then: Joi.string().trim().min(1).required(),
+    otherwise: Joi.any().strip(),
+  }),
   DATABASE_URL: Joi.string()
     .uri({ scheme: ["postgresql", "postgres"] })
     .required(),
