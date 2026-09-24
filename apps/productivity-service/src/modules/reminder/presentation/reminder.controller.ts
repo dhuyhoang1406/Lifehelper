@@ -11,8 +11,10 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUserId } from "../../../auth/current-user.decorator";
 import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { swaggerExamples } from "../../../presentation/swagger.examples";
 import {
   CancelReminder,
   CreateReminder,
@@ -30,6 +32,8 @@ import {
 
 @Controller("reminders")
 @UseGuards(JwtAuthGuard)
+@ApiTags("Reminders")
+@ApiBearerAuth("access-token")
 export class ReminderController {
   constructor(
     private readonly createReminder: CreateReminder,
@@ -39,10 +43,12 @@ export class ReminderController {
     private readonly cancelReminder: CancelReminder,
     private readonly deleteReminder: DeleteReminder,
   ) {}
-  @Post() create(
-    @CurrentUserId() userId: string,
-    @Body() body: CreateReminderDto,
-  ) {
+  @Post()
+  @ApiBody({
+    type: CreateReminderDto,
+    examples: { default: { value: swaggerExamples.reminder } },
+  })
+  create(@CurrentUserId() userId: string, @Body() body: CreateReminderDto) {
     return this.createReminder.execute(userId, body);
   }
   @Get() list(

@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Logger } from "nestjs-pino";
+import { configureSwagger } from "@lifehelper/swagger";
 import { AppModule } from "./app.module";
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -15,6 +16,10 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.enableShutdownHooks();
+  configureSwagger(app, {
+    title: "Lifehelper Identity API",
+    description: "Authentication, user profile, and session management APIs.",
+  });
   await app.listen(
     app.get(ConfigService).getOrThrow<number>("IDENTITY_PORT"),
     "0.0.0.0",

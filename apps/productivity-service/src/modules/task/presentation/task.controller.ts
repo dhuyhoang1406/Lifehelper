@@ -11,8 +11,10 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUserId } from "../../../auth/current-user.decorator";
 import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { swaggerExamples } from "../../../presentation/swagger.examples";
 import { TaskUseCases } from "../application/task.use-cases";
 import {
   CreateSubtaskDto,
@@ -25,12 +27,16 @@ import {
 } from "./task.dto";
 @Controller()
 @UseGuards(JwtAuthGuard)
+@ApiTags("Tasks and tags")
+@ApiBearerAuth("access-token")
 export class TaskController {
   constructor(private readonly useCases: TaskUseCases) {}
-  @Post("tasks") create(
-    @CurrentUserId() userId: string,
-    @Body() body: CreateTaskDto,
-  ) {
+  @Post("tasks")
+  @ApiBody({
+    type: CreateTaskDto,
+    examples: { default: { value: swaggerExamples.task } },
+  })
+  create(@CurrentUserId() userId: string, @Body() body: CreateTaskDto) {
     return this.useCases.create(userId, body);
   }
   @Get("tasks") list(
@@ -76,7 +82,12 @@ export class TaskController {
   ) {
     return this.useCases.transition(userId, params.id, "cancel");
   }
-  @Post("tasks/:id/subtasks") createSubtask(
+  @Post("tasks/:id/subtasks")
+  @ApiBody({
+    type: CreateSubtaskDto,
+    examples: { default: { value: swaggerExamples.subtask } },
+  })
+  createSubtask(
     @CurrentUserId() userId: string,
     @Param() params: IdParamDto,
     @Body() body: CreateSubtaskDto,
@@ -103,10 +114,12 @@ export class TaskController {
   @Get("tags") tags(@CurrentUserId() userId: string) {
     return this.useCases.listTags(userId);
   }
-  @Post("tags") createTag(
-    @CurrentUserId() userId: string,
-    @Body() body: TagDto,
-  ) {
+  @Post("tags")
+  @ApiBody({
+    type: TagDto,
+    examples: { default: { value: swaggerExamples.tag } },
+  })
+  createTag(@CurrentUserId() userId: string, @Body() body: TagDto) {
     return this.useCases.createTag(userId, body.name);
   }
   @Patch("tags/:id") renameTag(

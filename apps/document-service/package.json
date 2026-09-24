@@ -20,6 +20,7 @@
   "dependencies": {
     "@lifehelper/logger": "workspace:*",
     "@lifehelper/shared-types": "workspace:*",
+    "@lifehelper/swagger": "workspace:*",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
@@ -30,6 +31,11 @@
     "pino-http": "^10.5.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
+  },
+  "dependenciesMeta": {
+    "@lifehelper/swagger": {
+      "injected": false
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
