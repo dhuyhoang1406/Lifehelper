@@ -100,6 +100,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GEMINI_MODELS: gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash-lite
         run: |
           python3 - <<'PY'
           import json, os, re, subprocess, time, urllib.error, urllib.request
@@ -160,39 +161,59 @@ jobs:
               "contents": [{"parts": [{"text": prompt}]}],
               "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
           }
-          url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-                 "gemini-3.6-flash:generateContent?key=" + os.environ["GEMINI_API_KEY"])
-          req = urllib.request.Request(
-              url, data=json.dumps(body).encode("utf-8"),
-              headers={"Content-Type": "application/json"},
-          )
-          attempts = 5
+          models = tuple(model.strip() for model in os.environ["GEMINI_MODELS"].split(",")
+                         if model.strip())
+          attempts_per_model = 2
           data = None
-          for attempt in range(1, attempts + 1):
-              try:
-                  with urllib.request.urlopen(req, timeout=180) as resp:
-                      data = json.load(resp)
+          selected_model = None
+          last_error = None
+          for model_index, model in enumerate(models):
+              url = ("https://generativelanguage.googleapis.com/v1beta/models/"
+                     + model + ":generateContent?key=" + os.environ["GEMINI_API_KEY"])
+              req = urllib.request.Request(
+                  url, data=json.dumps(body).encode("utf-8"),
+                  headers={"Content-Type": "application/json"},
+              )
+              for attempt in range(1, attempts_per_model + 1):
+                  try:
+                      print(f"Reviewing with {model} (attempt {attempt}/{attempts_per_model})")
+                      with urllib.request.urlopen(req, timeout=180) as resp:
+                          data = json.load(resp)
+                      selected_model = model
+                      break
+                  except urllib.error.HTTPError as e:
+                      detail = e.read().decode("utf-8", "replace")[:500]
+                      last_error = f"Gemini API error {e.code} from {model}: {detail}"
+                      retryable = e.code in (429, 500, 503)
+                      if retryable and attempt < attempts_per_model:
+                          retry_after = e.headers.get("Retry-After")
+                          wait = (int(retry_after) if retry_after and retry_after.isdigit()
+                                  else 20 * attempt)
+                          print(f"{model} busy ({e.code}); retry in {wait}s")
+                          time.sleep(wait)
+                          continue
+                      if e.code == 404 or retryable:
+                          if model_index < len(models) - 1:
+                              print(f"::warning::{last_error}; trying fallback model")
+                          break
+                      print("::error::" + last_error)
+                      raise SystemExit(1)
+                  except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                      last_error = f"Network error while calling {model}: {e}"
+                      if attempt < attempts_per_model:
+                          wait = 15 * attempt
+                          print(f"{last_error}; retry in {wait}s")
+                          time.sleep(wait)
+                      else:
+                          print("::error::" + last_error)
+                          raise SystemExit(1)
+              if data is not None:
                   break
-              except urllib.error.HTTPError as e:
-                  if e.code in (429, 500, 503) and attempt < attempts:
-                      retry_after = e.headers.get("Retry-After")
-                      wait = (int(retry_after) if retry_after and retry_after.isdigit()
-                              else 20 * attempt)
-                      print(f"Gemini busy ({e.code}); retry {attempt}/{attempts} in {wait}s")
-                      time.sleep(wait)
-                  else:
-                      print("::error::Gemini API error " + str(e.code) + ": "
-                            + e.read().decode("utf-8", "replace")[:500])
-                      raise SystemExit(1)
-              except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-                  if attempt < attempts:
-                      wait = 15 * attempt
-                      print(f"Network error ({e}); retry {attempt}/{attempts} in {wait}s")
-                      time.sleep(wait)
-                  else:
-                      print("::error::Gemini request failed after " + str(attempts)
-                            + " attempts: " + str(e))
-                      raise SystemExit(1)
+
+          if data is None:
+              print("::error::All Gemini review models failed. " + (last_error or "Unknown error"))
+              raise SystemExit(1)
+          print(f"Gemini review completed with {selected_model}")
 
           try:
               text = data["candidates"][0]["content"]["parts"][0]["text"]
