@@ -4,6 +4,16 @@ import { StructuredLoggerModule } from "@lifehelper/logger";
 import { HealthController } from "./health.controller";
 import { PrismaService } from "./prisma.service";
 import { validateEnvironment } from "./env.validation";
+import {
+  AI_ACTION_LOG_REPOSITORY,
+  CONVERSATION_REPOSITORY,
+  MESSAGE_REPOSITORY,
+} from "./application/repositories/ai.repositories";
+import {
+  PrismaAIActionLogRepository,
+  PrismaConversationRepository,
+  PrismaMessageRepository,
+} from "./persistence/ai.repositories";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -14,6 +24,23 @@ import { validateEnvironment } from "./env.validation";
     StructuredLoggerModule,
   ],
   controllers: [HealthController],
-  providers: [PrismaService],
+  providers: [
+    PrismaService,
+    {
+      provide: CONVERSATION_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaConversationRepository(db),
+      inject: [PrismaService],
+    },
+    {
+      provide: MESSAGE_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaMessageRepository(db),
+      inject: [PrismaService],
+    },
+    {
+      provide: AI_ACTION_LOG_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaAIActionLogRepository(db),
+      inject: [PrismaService],
+    },
+  ],
 })
 export class AppModule {}

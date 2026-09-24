@@ -41,6 +41,7 @@ model Message {
   conversationId String        @map("conversation_id") @db.Uuid
   role           MessageRole
   content        String
+  provider       String?       @db.VarChar(100)
   model          String?       @db.VarChar(100)
   inputTokens    Int?          @map("input_tokens")
   outputTokens   Int?          @map("output_tokens")
@@ -68,7 +69,7 @@ model AIActionLog {
   message        Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
-  @@index([conversationId])
+  @@index([conversationId, createdAt])
   @@map("ai_action_logs")
 }
 
