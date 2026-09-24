@@ -5,7 +5,7 @@
   "packageManager": "pnpm@11.22.0",
   "scripts": {
     "build": "pnpm --filter './packages/**' --filter './apps/**' --if-present build",
-    "test": "pnpm --filter './apps/**' --if-present test",
+    "test": "pnpm --filter './packages/**' --filter './apps/**' --if-present test",
     "test:e2e": "pnpm --filter './apps/**' --if-present test:e2e",
     "test:persistence": "pnpm --filter './apps/*-service' --if-present test:persistence",
     "lint": "pnpm --filter './packages/**' --filter './apps/**' --if-present lint",
