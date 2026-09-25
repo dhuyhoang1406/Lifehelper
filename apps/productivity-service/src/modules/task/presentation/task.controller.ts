@@ -51,7 +51,9 @@ export class TaskController {
   ) {
     return this.useCases.get(userId, params.id);
   }
-  @Patch("tasks/:id") update(
+  @Patch("tasks/:id")
+  @ApiBody({ type: UpdateTaskDto, examples: { default: { value: swaggerExamples.taskUpdate } } })
+  update(
     @CurrentUserId() userId: string,
     @Param() params: IdParamDto,
     @Body() body: UpdateTaskDto,
@@ -94,7 +96,9 @@ export class TaskController {
   ) {
     return this.useCases.createSubtask(userId, params.id, body);
   }
-  @Patch("tasks/:id/subtasks/:subtaskId") updateSubtask(
+  @Patch("tasks/:id/subtasks/:subtaskId")
+  @ApiBody({ type: UpdateSubtaskDto, examples: { default: { value: swaggerExamples.subtaskUpdate } } })
+  updateSubtask(
     @CurrentUserId() userId: string,
     @Param("id") taskId: string,
     @Param("subtaskId") id: string,
@@ -122,7 +126,9 @@ export class TaskController {
   createTag(@CurrentUserId() userId: string, @Body() body: TagDto) {
     return this.useCases.createTag(userId, body.name);
   }
-  @Patch("tags/:id") renameTag(
+  @Patch("tags/:id")
+  @ApiBody({ type: TagDto, examples: { default: { value: swaggerExamples.tagUpdate } } })
+  renameTag(
     @CurrentUserId() userId: string,
     @Param() params: IdParamDto,
     @Body() body: TagDto,

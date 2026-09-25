@@ -70,7 +70,9 @@ export class CalendarEventController {
   ) {
     return this.getEvent.execute(userId, params.id);
   }
-  @Patch(":id") update(
+  @Patch(":id")
+  @ApiBody({ type: UpdateCalendarEventDto, examples: { default: { value: swaggerExamples.calendarEventUpdate } } })
+  update(
     @CurrentUserId() userId: string,
     @Param() params: CalendarEventIdParamDto,
     @Body() body: UpdateCalendarEventDto,
