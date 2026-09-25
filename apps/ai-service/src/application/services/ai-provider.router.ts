@@ -56,4 +56,12 @@ export class AIProviderRouter {
       throw normalizeAIProviderError(error);
     }
   }
+
+  async checkHealth(): Promise<void> {
+    try {
+      await this.provider.checkHealth();
+    } catch (error) {
+      throw normalizeAIProviderError(error);
+    }
+  }
 }

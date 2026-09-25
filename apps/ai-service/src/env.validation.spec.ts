@@ -18,6 +18,9 @@ const baseEnvironment = {
   AI_MAX_CONTEXT_MESSAGES: "50",
   AI_RETRY_MAX_ATTEMPTS: "3",
   AI_RETRY_BASE_DELAY_MS: "250",
+  JWT_ACCESS_SECRET: "test-access-secret-at-least-32-characters",
+  JWT_ISSUER: "lifehelper-identity",
+  JWT_AUDIENCE: "lifehelper-mobile",
 };
 
 describe("AI environment validation", () => {

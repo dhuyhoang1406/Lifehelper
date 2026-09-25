@@ -31,4 +31,6 @@ export class FakeAIProvider implements AIProvider {
     if ("error" in result) throw result.error;
     return result.response;
   }
+
+  async checkHealth(): Promise<void> {}
 }

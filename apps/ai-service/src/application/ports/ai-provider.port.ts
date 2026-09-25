@@ -8,6 +8,8 @@ export interface AIRequestMessage {
   role: MessageRole;
   content: string;
   toolCallId?: string;
+  toolName?: string;
+  toolCalls?: readonly AIToolCall[];
 }
 
 export interface AIToolDefinition {
@@ -50,6 +52,7 @@ export interface AIResponse {
 export interface AIProvider {
   readonly name: AIProviderName;
   generate(request: AIRequest): Promise<AIResponse>;
+  checkHealth(): Promise<void>;
 }
 
 export interface AIProviderConfig {
@@ -67,3 +70,4 @@ export interface AIProviderConfig {
 
 export const AI_PROVIDER_CONFIG = Symbol("AI_PROVIDER_CONFIG");
 export const AI_PROVIDER_ROUTER = Symbol("AI_PROVIDER_ROUTER");
+export const AI_PROVIDER_INSTANCE = Symbol("AI_PROVIDER_INSTANCE");
