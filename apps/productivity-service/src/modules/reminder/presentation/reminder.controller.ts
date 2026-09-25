@@ -63,7 +63,9 @@ export class ReminderController {
   ) {
     return this.getReminder.execute(userId, params.id);
   }
-  @Patch(":id") update(
+  @Patch(":id")
+  @ApiBody({ type: UpdateReminderDto, examples: { default: { value: swaggerExamples.reminderUpdate } } })
+  update(
     @CurrentUserId() userId: string,
     @Param() params: ReminderIdParamDto,
     @Body() body: UpdateReminderDto,
