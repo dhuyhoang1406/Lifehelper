@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { DevicePlatform } from "../../domain/enums/identity.enums";
-import { LoginDto, RegisterDto } from "./auth.dto";
+import { GoogleLoginDto, LoginDto, RegisterDto } from "./auth.dto";
 
 describe("RegisterDto", () => {
   const validRequest = {
@@ -62,6 +62,28 @@ describe("LoginDto", () => {
     const errors = await validate(
       plainToInstance(LoginDto, { ...validRequest, device: "phone" }),
     );
+    expect(errors.some((error) => error.property === "device")).toBe(true);
+  });
+});
+
+describe("GoogleLoginDto", () => {
+  const validRequest = {
+    idToken: "google-id-token",
+    device: { deviceId: "phone", platform: DevicePlatform.ANDROID },
+  };
+
+  it("accepts a valid Google login payload", async () => {
+    await expect(validate(plainToInstance(GoogleLoginDto, validRequest))).resolves.toHaveLength(0);
+  });
+
+  it("rejects a payload that omits device", async () => {
+    const errors = await validate(plainToInstance(GoogleLoginDto, { idToken: validRequest.idToken }));
+    expect(errors.some((error) => error.property === "device")).toBe(true);
+  });
+
+  it.each([null, "phone"])("rejects invalid device %s", async (device) => {
+    const dto = plainToInstance(GoogleLoginDto, { idToken: validRequest.idToken, device });
+    const errors = await validate(dto);
     expect(errors.some((error) => error.property === "device")).toBe(true);
   });
 });

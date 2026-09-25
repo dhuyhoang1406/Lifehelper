@@ -41,5 +41,5 @@ export class GoogleLoginDto {
   @ApiProperty({ example: "<valid Google ID token>", description: "Must be issued to the configured Google client ID." })
   @IsString() @IsNotEmpty() idToken!: string;
   @ApiProperty({ type: () => DeviceDto })
-  @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
+  @IsDefined() @IsObject() @ValidateNested() @Type(() => DeviceDto) device!: DeviceDto;
 }
