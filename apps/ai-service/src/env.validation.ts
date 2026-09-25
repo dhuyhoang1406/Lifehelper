@@ -27,6 +27,9 @@ const schema = Joi.object({
     .positive()
     .max(10_000)
     .required(),
+  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  JWT_ISSUER: Joi.string().trim().min(1).required(),
+  JWT_AUDIENCE: Joi.string().trim().min(1).required(),
   CLOUDFLARE_ACCOUNT_ID: Joi.when("AI_PROVIDER", {
     is: "cloudflare",
     then: Joi.string().trim().min(1).required(),
