@@ -27,6 +27,7 @@ export class AIProviderFailure extends Error {
     message: string,
     readonly retryable: boolean,
     readonly cause?: unknown,
+    readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = new.target.name;

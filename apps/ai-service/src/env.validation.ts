@@ -7,9 +7,11 @@ const schema = Joi.object({
   AI_PORT: Joi.number().port().default(3003),
   AI_PROVIDER: Joi.string().valid("ollama", "cloudflare").required(),
   AI_MODEL: Joi.string().trim().min(1).max(200).required(),
-  AI_BASE_URL: Joi.string()
-    .uri({ scheme: ["http", "https"] })
-    .required(),
+  AI_BASE_URL: Joi.when("AI_PROVIDER", {
+    is: "cloudflare",
+    then: Joi.string().uri({ scheme: ["https"] }).required(),
+    otherwise: Joi.string().uri({ scheme: ["http", "https"] }).required(),
+  }),
   AI_TIMEOUT_MS: Joi.number().integer().min(100).max(300_000).required(),
   AI_MAX_OUTPUT_TOKENS: Joi.number()
     .integer()

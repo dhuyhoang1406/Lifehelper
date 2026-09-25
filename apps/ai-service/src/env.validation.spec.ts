@@ -60,6 +60,18 @@ describe("AI environment validation", () => {
     );
   });
 
+  it("requires HTTPS for Cloudflare API calls", () => {
+    expect(() =>
+      validateEnvironment({
+        ...baseEnvironment,
+        AI_PROVIDER: "cloudflare",
+        AI_BASE_URL: "http://api.cloudflare.com/client/v4",
+        CLOUDFLARE_ACCOUNT_ID: "account-id",
+        CLOUDFLARE_API_TOKEN: "api-token",
+      }),
+    ).toThrow("Environment validation failed");
+  });
+
   it.each([
     ["AI_PROVIDER", "openai"],
     ["AI_BASE_URL", "not-a-url"],

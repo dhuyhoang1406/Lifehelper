@@ -33,12 +33,19 @@ export interface AIUsage {
 export interface AIProviderMetadata {
   provider: AIProviderName;
   model: string;
+  reportedModel?: string;
   latencyMs: number;
+  totalLatencyMs?: number;
+  retryCount?: number;
+  rawUsage?: AIJsonObject;
 }
 
 export interface AIRequest {
   messages: readonly AIRequestMessage[];
+  maxOutputTokens?: number;
+  disableReasoning?: boolean;
   tools?: readonly AIToolDefinition[];
+  responseFormat?: { type: "json_schema"; schema: AIJsonObject };
 }
 
 export interface AIResponse {

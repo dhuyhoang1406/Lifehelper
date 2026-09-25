@@ -32,6 +32,7 @@ import {
 } from "./application/services/ai-provider.router";
 import { AIProviderRetryPolicy } from "./application/services/ai-provider-retry.policy";
 import { OllamaProvider } from "./infrastructure/ai/ollama.provider";
+import { CloudflareWorkersAIProvider } from "./infrastructure/ai/cloudflare-workers-ai.provider";
 import {
   RandomJitterSource,
   SystemDelay,
@@ -63,6 +64,7 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
       provide: AI_PROVIDER_INSTANCE,
       useFactory: (config: AIProviderConfig): AIProvider => {
         if (config.provider === "ollama") return new OllamaProvider(config);
+        if (config.provider === "cloudflare") return new CloudflareWorkersAIProvider(config);
         throw new Error(`AI provider '${config.provider}' is not implemented`);
       },
       inject: [AI_PROVIDER_CONFIG],

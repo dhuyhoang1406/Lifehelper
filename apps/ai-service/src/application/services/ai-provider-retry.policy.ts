@@ -6,6 +6,8 @@ export interface AIProviderRetryOptions {
   baseDelayMs: number;
 }
 
+const MAX_RETRY_DELAY_MS = 30_000;
+
 export class AIProviderRetryPolicy {
   constructor(
     private readonly options: AIProviderRetryOptions,
@@ -39,7 +41,13 @@ export class AIProviderRetryPolicy {
         return await operation();
       } catch (error) {
         if (!this.shouldRetry(error, attempt)) throw error;
-        await this.delay.wait(this.backoffDelay(attempt));
+        const hint =
+          error instanceof AIProviderFailure ? error.retryAfterMs : undefined;
+        const delay =
+          hint === undefined
+            ? this.backoffDelay(attempt)
+            : Math.max(this.backoffDelay(attempt), hint);
+        await this.delay.wait(Math.min(MAX_RETRY_DELAY_MS, delay));
       }
     }
     throw new Error("Retry policy exhausted without returning or throwing");
