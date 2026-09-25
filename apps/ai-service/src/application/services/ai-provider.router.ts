@@ -48,10 +48,21 @@ export class AIProviderRouter {
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
+    const startedAt = performance.now();
+    let attempts = 0;
     try {
-      return await this.retryPolicy.execute(() =>
-        this.provider.generate(request),
-      );
+      const response = await this.retryPolicy.execute(() => {
+        attempts += 1;
+        return this.provider.generate(request);
+      });
+      return {
+        ...response,
+        metadata: {
+          ...response.metadata,
+          totalLatencyMs: Math.round(performance.now() - startedAt),
+          retryCount: attempts - 1,
+        },
+      };
     } catch (error) {
       throw normalizeAIProviderError(error);
     }

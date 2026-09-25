@@ -84,6 +84,40 @@ describe("AIProviderRetryPolicy", () => {
     expect(delay.waits).toEqual([25]);
   });
 
+  it("respects a provider retry hint without exceeding the application cap", async () => {
+    const delay = new FakeDelay();
+    const policy = new AIProviderRetryPolicy(
+      { maxAttempts: 3, baseDelayMs: 100 },
+      delay,
+      new FixedJitter(0.5),
+    );
+    const operation = jest
+      .fn()
+      .mockRejectedValueOnce(
+        new AIProviderFailure(
+          "unavailable",
+          "capacity",
+          true,
+          undefined,
+          2_000,
+        ),
+      )
+      .mockRejectedValueOnce(
+        new AIProviderFailure(
+          "unavailable",
+          "capacity",
+          true,
+          undefined,
+          120_000,
+        ),
+      )
+      .mockResolvedValue("ok");
+
+    await expect(policy.execute(operation)).resolves.toBe("ok");
+    expect(delay.waits).toEqual([2_000, 30_000]);
+    expect(operation).toHaveBeenCalledTimes(3);
+  });
+
   it("rejects an invalid jitter value", async () => {
     const policy = new AIProviderRetryPolicy(
       { maxAttempts: 2, baseDelayMs: 100 },

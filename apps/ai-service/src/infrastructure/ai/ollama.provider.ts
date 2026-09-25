@@ -56,7 +56,10 @@ export class OllamaProvider implements AIProvider {
             })),
           }
         : {}),
-      options: { num_predict: this.config.maxOutputTokens },
+      options: { num_predict: request.maxOutputTokens ?? this.config.maxOutputTokens },
+      ...(request.responseFormat
+        ? { format: request.responseFormat.schema }
+        : {}),
     });
     return this.mapResponse(payload, Date.now() - startedAt, request);
   }
@@ -219,6 +222,17 @@ export class OllamaProvider implements AIProvider {
         arguments: raw.function.arguments as AIJsonObject,
       };
     });
+    if (request.responseFormat && toolCalls.length === 0) {
+      try {
+        if (!isObject(JSON.parse(payload.message.content))) throw new Error();
+      } catch {
+        throw new AIProviderFailure(
+          "invalid_response",
+          "Invalid structured output",
+          false,
+        );
+      }
+    }
     const inputTokens = tokenCount(payload.prompt_eval_count);
     const outputTokens = tokenCount(payload.eval_count);
     const finishReason =

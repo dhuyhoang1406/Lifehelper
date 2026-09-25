@@ -81,7 +81,12 @@ describe("AI generation (e2e)", () => {
         });
       });
     expect(provider.requests.at(-1)).toMatchObject({
-      messages: [{ role: "USER", content: "Hi" }],
+      messages: [
+        { role: "SYSTEM" },
+        { role: "USER", content: "Hi" },
+      ],
+      maxOutputTokens: 256,
+      disableReasoning: true,
     });
   });
 

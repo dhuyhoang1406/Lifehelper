@@ -194,6 +194,32 @@ describe("OllamaProvider HTTP contract", () => {
     ).rejects.toMatchObject({ code: AIErrorCode.AI_TOOL_CALL_INVALID });
   });
 
+  it("maps provider-neutral structured output requests to Ollama format", async () => {
+    const provider = new OllamaProvider({ ...baseConfig, baseUrl });
+    handler = () => ({
+      body: {
+        ...response,
+        message: { role: "assistant", content: '{"answer":42}' },
+      },
+    });
+    const request = {
+      messages: [],
+      responseFormat: {
+        type: "json_schema" as const,
+        schema: { type: "object" },
+      },
+    };
+
+    await expect(provider.generate(request)).resolves.toMatchObject({
+      content: '{"answer":42}',
+    });
+    expect(received[0].body).toMatchObject({ format: { type: "object" } });
+    handler = () => ({ body: response });
+    await expect(provider.generate(request)).rejects.toMatchObject({
+      kind: "invalid_response",
+    });
+  });
+
   it("reports timeout and connection failures", async () => {
     handler = async () => {
       await new Promise((resolve) => setTimeout(resolve, 120));

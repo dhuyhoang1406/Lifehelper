@@ -33,9 +33,10 @@ describe("AIProviderRouter", () => {
       noRetry(),
     );
 
-    await expect(router.generate(request)).resolves.toEqual(
-      response("cloudflare"),
-    );
+    await expect(router.generate(request)).resolves.toMatchObject({
+      ...response("cloudflare"),
+      metadata: { provider: "cloudflare", retryCount: 0 },
+    });
     expect(cloudflare.requests).toEqual([request]);
     expect(ollama.requests).toEqual([]);
   });
@@ -56,6 +57,26 @@ describe("AIProviderRouter", () => {
     });
     expect(ollama.requests).toHaveLength(1);
     expect(cloudflare.requests).toHaveLength(0);
+  });
+
+  it("reports retry count and total latency after a transient failure", async () => {
+    const cloudflare = new FakeAIProvider("cloudflare");
+    cloudflare.enqueueError(new AIProviderFailure("unavailable", "busy", true));
+    cloudflare.enqueueResponse(response("cloudflare"));
+    const router = new AIProviderRouter(
+      "cloudflare",
+      new AIProviderRegistry([cloudflare]),
+      new AIProviderRetryPolicy(
+        { maxAttempts: 2, baseDelayMs: 1 },
+        { wait: async () => undefined },
+        { next: () => 0 },
+      ),
+    );
+
+    const result = await router.generate(request);
+    expect(result.metadata.retryCount).toBe(1);
+    expect(result.metadata.totalLatencyMs).toBeGreaterThanOrEqual(0);
+    expect(cloudflare.requests).toHaveLength(2);
   });
 
   it("fails fast when the configured provider is not registered", () => {
