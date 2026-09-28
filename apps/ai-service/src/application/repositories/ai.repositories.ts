@@ -13,6 +13,7 @@ export interface AIPage<T> extends AIPageQuery {
 }
 export interface ConversationRepository {
   findByIdAndUserId(id: UUID, userId: UUID): Promise<Conversation | null>;
+  nextMessageAt(id: UUID, userId: UUID): Promise<Date | null>;
   findPageByUserId(
     userId: UUID,
     query: AIPageQuery,
@@ -20,11 +21,18 @@ export interface ConversationRepository {
   save(entity: Conversation): Promise<void>;
 }
 export interface MessageRepository {
-  findPageByConversationAndUserId(
+  findRecentByConversationAndUserId(
     conversationId: UUID,
     userId: UUID,
-    query: AIPageQuery,
-  ): Promise<AIPage<Message>>;
+    limit: number,
+    through?: Date,
+  ): Promise<Message[]>;
+  findBeforeByConversationAndUserId(
+    conversationId: UUID,
+    userId: UUID,
+    before: { createdAt: Date; id: UUID } | null,
+    limit: number,
+  ): Promise<Message[]>;
   save(entity: Message): Promise<void>;
 }
 export interface AIActionLogRepository {

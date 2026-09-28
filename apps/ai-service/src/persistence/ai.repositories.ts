@@ -17,7 +17,7 @@ import {
 
 type AIDatabase = Pick<
   Prisma.TransactionClient,
-  "conversation" | "message" | "aIActionLog"
+  "conversation" | "message" | "aIActionLog" | "$queryRaw"
 >;
 
 const pageOffset = ({ page, limit }: AIPageQuery): number => (page - 1) * limit;
@@ -30,6 +30,19 @@ export class PrismaConversationRepository implements ConversationRepository {
       where: { id, userId, deletedAt: null },
     });
     return record ? ConversationMapper.toDomain(record) : null;
+  }
+
+  async nextMessageAt(id: string, userId: string): Promise<Date | null> {
+    const rows = await this.db.$queryRaw<Array<{ updatedAt: Date }>>`
+      UPDATE conversations
+      SET updated_at = GREATEST(
+        updated_at + INTERVAL '1 millisecond',
+        clock_timestamp()
+      )
+      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND deleted_at IS NULL
+      RETURNING updated_at AS "updatedAt"
+    `;
+    return rows[0]?.updatedAt ?? null;
   }
 
   async findPageByUserId(
@@ -70,29 +83,48 @@ export class PrismaConversationRepository implements ConversationRepository {
 export class PrismaMessageRepository implements MessageRepository {
   constructor(private readonly db: AIDatabase) {}
 
-  async findPageByConversationAndUserId(
+  async findRecentByConversationAndUserId(
     conversationId: string,
     userId: string,
-    query: AIPageQuery,
-  ): Promise<AIPage<Message>> {
-    const where = {
+    limit: number,
+    through?: Date,
+  ): Promise<Message[]> {
+    const records = await this.db.message.findMany({
+      where: {
+        conversationId,
+        conversation: { userId, deletedAt: null },
+        ...(through ? { createdAt: { lte: through } } : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit,
+    });
+    return records.reverse().map(MessageMapper.toDomain);
+  }
+
+  async findBeforeByConversationAndUserId(
+    conversationId: string,
+    userId: string,
+    before: { createdAt: Date; id: string } | null,
+    limit: number,
+  ): Promise<Message[]> {
+    const where: Prisma.MessageWhereInput = {
       conversationId,
       conversation: { userId, deletedAt: null },
+      ...(before
+        ? {
+            OR: [
+              { createdAt: { lt: before.createdAt } },
+              { createdAt: before.createdAt, id: { lt: before.id } },
+            ],
+          }
+        : {}),
     };
-    const [records, total] = await Promise.all([
-      this.db.message.findMany({
-        where,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        skip: pageOffset(query),
-        take: query.limit,
-      }),
-      this.db.message.count({ where }),
-    ]);
-    return {
-      items: records.map(MessageMapper.toDomain),
-      total,
-      ...query,
-    };
+    const records = await this.db.message.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit,
+    });
+    return records.map(MessageMapper.toDomain);
   }
 
   async save(entity: Message): Promise<void> {

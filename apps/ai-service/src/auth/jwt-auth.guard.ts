@@ -8,6 +8,10 @@ import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { Request } from "express";
 
+export interface AuthenticatedAIRequest extends Request {
+  auth?: { userId: string };
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -16,7 +20,7 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<AuthenticatedAIRequest>();
     const [scheme, token] = request.headers.authorization?.split(" ") ?? [];
     if (scheme !== "Bearer" || !token) throw new UnauthorizedException();
     try {
@@ -31,6 +35,7 @@ export class JwtAuthGuard implements CanActivate {
       });
       if (!payload.sub || !payload.sessionId || payload.tokenType !== "access")
         throw new UnauthorizedException();
+      request.auth = { userId: payload.sub };
       return true;
     } catch {
       throw new UnauthorizedException();

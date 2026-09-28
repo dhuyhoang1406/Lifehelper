@@ -10,6 +10,8 @@ import {
   AI_ACTION_LOG_REPOSITORY,
   CONVERSATION_REPOSITORY,
   MESSAGE_REPOSITORY,
+  type ConversationRepository,
+  type MessageRepository,
 } from "./application/repositories/ai.repositories";
 import {
   PrismaAIActionLogRepository,
@@ -38,6 +40,8 @@ import {
   SystemDelay,
 } from "./infrastructure/ai/system-retry.adapters";
 import { AIController } from "./presentation/ai.controller";
+import { AIConversationController } from "./presentation/ai-conversation.controller";
+import { AIConversationUseCases } from "./application/services/ai-conversation.use-cases";
 import { AIProviderExceptionFilter } from "./presentation/ai-provider-exception.filter";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
 @Module({
@@ -50,7 +54,7 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
     StructuredLoggerModule,
     JwtModule.register({}),
   ],
-  controllers: [HealthController, AIController],
+  controllers: [HealthController, AIController, AIConversationController],
   providers: [
     PrismaService,
     JwtAuthGuard,
@@ -100,6 +104,27 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
       provide: AI_ACTION_LOG_REPOSITORY,
       useFactory: (db: PrismaService) => new PrismaAIActionLogRepository(db),
       inject: [PrismaService],
+    },
+    {
+      provide: AIConversationUseCases,
+      useFactory: (
+        conversations: ConversationRepository,
+        messages: MessageRepository,
+        provider: AIProviderRouter,
+        config: AIProviderConfig,
+      ) =>
+        new AIConversationUseCases(
+          conversations,
+          messages,
+          provider,
+          config.maxContextMessages,
+        ),
+      inject: [
+        CONVERSATION_REPOSITORY,
+        MESSAGE_REPOSITORY,
+        AI_PROVIDER_ROUTER,
+        AI_PROVIDER_CONFIG,
+      ],
     },
   ],
 })
