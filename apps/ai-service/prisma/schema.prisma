@@ -49,7 +49,7 @@ model Message {
   conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   actions        AIActionLog[]
 
-  @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, id])
   @@map("messages")
 }
 

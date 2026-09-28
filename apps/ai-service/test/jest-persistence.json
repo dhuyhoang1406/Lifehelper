@@ -2,6 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": "..",
   "testEnvironment": "node",
-  "testRegex": "persistence.integration-spec.ts$",
+  "testRegex": ".*\\.integration-spec\\.ts$",
+  "setupFiles": ["<rootDir>/test/setup-persistence-env.ts"],
   "transform": { "^.+\\.ts$": "ts-jest" }
 }

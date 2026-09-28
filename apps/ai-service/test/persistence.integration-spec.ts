@@ -92,19 +92,29 @@ describe("AI PostgreSQL persistence", () => {
       }),
     );
 
-    const page = await messages.findPageByConversationAndUserId(
-      conversationA,
-      userA,
-      { page: 1, limit: 10 },
+    const latest = await messages.findBeforeByConversationAndUserId(
+      conversationA, userA, null, 1,
     );
-    expect(page.items.map((message) => message.state.id)).toEqual([
-      messageEarlier,
-      messageLater,
-    ]);
-    expect(page.items[1]?.state.provider).toBe("ollama");
-    expect(page.items[1]?.state.createdAt.toISOString()).toBe(
+    expect(latest.map((message) => message.state.id)).toEqual([messageLater]);
+    expect(latest[0]?.state.provider).toBe("ollama");
+    expect(latest[0]?.state.createdAt.toISOString()).toBe(
       "2026-09-24T02:00:00.000Z",
     );
+    expect(
+      (await messages.findBeforeByConversationAndUserId(
+        conversationA,
+        userA,
+        { createdAt: latest[0]!.state.createdAt, id: latest[0]!.state.id },
+        1,
+      )).map((message) => message.state.id),
+    ).toEqual([messageEarlier]);
+    expect(
+      await messages.findBeforeByConversationAndUserId(conversationA, userB, null, 10),
+    ).toEqual([]);
+    expect(
+      (await messages.findRecentByConversationAndUserId(conversationA, userA, 1))
+        .map((message) => message.state.id),
+    ).toEqual([messageLater]);
 
     const conversation = await conversations.findByIdAndUserId(
       conversationA,
@@ -117,11 +127,17 @@ describe("AI PostgreSQL persistence", () => {
       await conversations.findByIdAndUserId(conversationA, userA),
     ).toBeNull();
     expect(
-      await messages.findPageByConversationAndUserId(conversationA, userA, {
-        page: 1,
-        limit: 10,
-      }),
-    ).toMatchObject({ total: 0, items: [] });
+      await messages.findBeforeByConversationAndUserId(conversationA, userA, null, 10),
+    ).toEqual([]);
+  });
+
+  it("allocates owner-scoped, strictly increasing message timestamps", async () => {
+    await seedConversations();
+    expect(await conversations.nextMessageAt(conversationA, userB)).toBeNull();
+    const first = await conversations.nextMessageAt(conversationA, userA);
+    const second = await conversations.nextMessageAt(conversationA, userA);
+    expect(first).toBeInstanceOf(Date);
+    expect(second!.getTime()).toBeGreaterThan(first!.getTime());
   });
 
   it("enforces the message foreign key", async () => {
@@ -178,7 +194,7 @@ describe("AI PostgreSQL persistence", () => {
       WHERE schemaname = 'public'
         AND indexname IN (
           'conversations_user_id_updated_at_idx',
-          'messages_conversation_id_created_at_idx',
+          'messages_conversation_id_created_at_id_idx',
           'ai_action_logs_user_id_created_at_idx',
           'ai_action_logs_conversation_id_created_at_idx'
         )
@@ -188,7 +204,7 @@ describe("AI PostgreSQL persistence", () => {
       "ai_action_logs_conversation_id_created_at_idx",
       "ai_action_logs_user_id_created_at_idx",
       "conversations_user_id_updated_at_idx",
-      "messages_conversation_id_created_at_idx",
+      "messages_conversation_id_created_at_id_idx",
     ]);
   });
 });
