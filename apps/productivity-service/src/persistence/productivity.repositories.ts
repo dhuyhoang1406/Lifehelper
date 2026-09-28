@@ -51,7 +51,9 @@ export class PrismaTaskRepository implements TaskRepository {
       deletedAt: null,
       status: q.status as PrismaTaskStatus | undefined,
       priority: q.priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT" | undefined,
-      dueAt: q.dueAt ? { lte: q.dueAt } : undefined,
+      dueAt: q.dueFrom || q.dueTo
+        ? { gte: q.dueFrom, lt: q.dueTo, lte: q.dueAt }
+        : q.dueAt ? { lte: q.dueAt } : undefined,
       title: q.search
         ? { contains: q.search, mode: "insensitive" as const }
         : undefined,

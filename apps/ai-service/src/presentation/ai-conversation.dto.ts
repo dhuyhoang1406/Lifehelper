@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsTimeZone,
   IsUUID,
   Matches,
   Max,
@@ -19,6 +20,12 @@ export class ChatDto {
   @MaxLength(16_000)
   @Matches(/\S/)
   prompt!: string;
+
+  @ApiPropertyOptional({ example: "Asia/Ho_Chi_Minh", description: "User's IANA timezone for date-based read tools" })
+  @IsOptional()
+  @IsString()
+  @IsTimeZone()
+  timezone?: string;
 
   @ApiPropertyOptional({
     format: "uuid",

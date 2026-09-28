@@ -9,7 +9,7 @@ import { JwtService } from "@nestjs/jwt";
 import type { Request } from "express";
 
 export interface AuthenticatedAIRequest extends Request {
-  auth?: { userId: string };
+  auth?: { userId: string; accessToken: string };
 }
 
 @Injectable()
@@ -35,7 +35,7 @@ export class JwtAuthGuard implements CanActivate {
       });
       if (!payload.sub || !payload.sessionId || payload.tokenType !== "access")
         throw new UnauthorizedException();
-      request.auth = { userId: payload.sub };
+      request.auth = { userId: payload.sub, accessToken: token };
       return true;
     } catch {
       throw new UnauthorizedException();

@@ -22,9 +22,9 @@ The user message is saved before the provider call. On provider failure it
 remains in history, but no assistant success message is fabricated. Context is
 loaded in a bounded, owner-scoped PostgreSQL query using
 `AI_MAX_CONTEXT_MESSAGES`; the provider call runs outside any DB transaction.
-All timestamps and IDs are generated server-side. This branch does **not**
-enable tool execution, access Productivity data, or create tasks through chat;
-those capabilities belong to the subsequent tool-registry/action branches.
+All timestamps and IDs are generated server-side. Branch 6 adds the read-only
+tools documented in [AI read tools](ai-read-tools.md). It does not enable task
+creation or other write actions; those belong to later action branches.
 
 The real PostgreSQL HTTP integration suite runs with
 `pnpm --filter @lifehelper/ai-service test:persistence` after migrations are

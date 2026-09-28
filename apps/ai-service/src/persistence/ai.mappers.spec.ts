@@ -38,6 +38,7 @@ describe("AI persistence mappers", () => {
       conversationId: "10000000-0000-4000-8000-000000000001",
       role: PrismaMessageRole.ASSISTANT,
       content: "Done",
+      toolPayload: null,
       provider: "ollama",
       model: "llama3.2",
       inputTokens: 12,
@@ -45,9 +46,10 @@ describe("AI persistence mappers", () => {
       createdAt,
     };
 
-    expect(MessageMapper.toPersistence(MessageMapper.toDomain(record))).toEqual(
-      record,
-    );
+    expect(MessageMapper.toPersistence(MessageMapper.toDomain(record))).toEqual({
+      ...record,
+      toolPayload: Prisma.DbNull,
+    });
   });
 
   it("restores an action log without leaking Prisma enum types", () => {

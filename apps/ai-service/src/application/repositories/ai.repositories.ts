@@ -34,6 +34,7 @@ export interface MessageRepository {
     limit: number,
   ): Promise<Message[]>;
   save(entity: Message): Promise<void>;
+  saveMany(entities: readonly Message[]): Promise<void>;
 }
 export interface AIActionLogRepository {
   findByIdAndUserId(id: UUID, userId: UUID): Promise<AIActionLog | null>;

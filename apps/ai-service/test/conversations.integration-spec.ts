@@ -3,8 +3,9 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
-import { AIErrorCode, AIProviderFailure } from "../src/application/errors/ai.errors";
+import { AIApplicationError, AIErrorCode, AIProviderFailure } from "../src/application/errors/ai.errors";
 import { AI_PROVIDER_INSTANCE } from "../src/application/ports/ai-provider.port";
+import { PRODUCTIVITY_READ_CLIENT, type ProductivityReadClient } from "../src/application/ports/productivity-read.port";
 import { PrismaService } from "../src/prisma.service";
 import { FakeAIProvider } from "../src/testing/fake-ai.provider";
 
@@ -24,11 +25,16 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
   let tokenA: string;
   let tokenB: string;
   const provider = new FakeAIProvider("ollama");
+  const productivity: jest.Mocked<ProductivityReadClient> = {
+    listTasks: jest.fn(), listCalendar: jest.fn(),
+  };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(AI_PROVIDER_INSTANCE)
       .useValue(provider)
+      .overrideProvider(PRODUCTIVITY_READ_CLIENT)
+      .useValue(productivity)
       .compile();
     app = module.createNestApplication();
     app.useGlobalPipes(
@@ -59,6 +65,7 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
   beforeEach(async () => {
     await db.conversation.deleteMany({ where: { userId: { in: [userA, userB] } } });
     provider.requests.length = 0;
+    jest.clearAllMocks();
   });
 
   afterAll(async () => {
@@ -67,6 +74,92 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
   });
 
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+  it("executes only authorized read tools and persists a reconstructable tool exchange", async () => {
+    productivity.listTasks.mockResolvedValue({ items: [{ id: "task-1", title: "Read", status: "TODO", priority: "LOW", dueAt: null }], total: 1 });
+    provider.enqueueResponse({ ...reply, content: null, finishReason: "tool_calls", toolCalls: [
+      { id: "call-1", name: "get_tasks", arguments: { status: "TODO" } },
+    ] });
+    provider.enqueueResponse(reply);
+    const created = await request(app.getHttpServer())
+      .post("/ai/chat").set(auth(tokenA)).set("x-correlation-id", "trace-a")
+      .send({ prompt: "Show my tasks" }).expect(200);
+    const conversationId = created.body.conversationId as string;
+    expect(provider.requests[0]?.tools?.map((tool) => tool.name)).toEqual([
+      "get_tasks", "get_today_tasks", "get_schedule",
+    ]);
+    expect(productivity.listTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: userA, accessToken: tokenA, correlationId: "trace-a" }),
+      expect.objectContaining({ status: "TODO", limit: 20 }),
+    );
+    expect(provider.requests[1]?.messages.map((message) => message.role)).toEqual([
+      "SYSTEM", "USER", "ASSISTANT", "TOOL",
+    ]);
+    expect(await db.message.count({ where: { conversationId } })).toBe(4);
+    const storedCalls = await db.message.findMany({
+      where: { conversationId }, orderBy: { createdAt: "asc" },
+    });
+    expect(storedCalls[1]?.toolPayload).toMatchObject({ kind: "tool_calls" });
+    expect(storedCalls[1]?.content).toBe("");
+    expect(storedCalls[2]?.toolPayload).toMatchObject({ kind: "tool_result", id: "call-1" });
+    provider.enqueueResponse(reply);
+    await request(app.getHttpServer()).post("/ai/chat").set(auth(tokenA))
+      .send({ prompt: "Continue", conversationId }).expect(200);
+    expect(provider.requests[2]?.messages[2]).toMatchObject({
+      role: "ASSISTANT", toolCalls: [{ id: "call-1", name: "get_tasks" }],
+    });
+    expect(provider.requests[2]?.messages[3]).toMatchObject({ role: "TOOL", toolCallId: "call-1" });
+    await request(app.getHttpServer()).get(`/ai/conversations/${conversationId}`)
+      .set(auth(tokenB)).expect(404);
+  });
+
+  it("rejects an unregistered tool before any Productivity request", async () => {
+    provider.enqueueResponse({ ...reply, content: null, finishReason: "tool_calls", toolCalls: [
+      { id: "call-1", name: "delete_task", arguments: { userId: userB } },
+    ] });
+    const response = await request(app.getHttpServer()).post("/ai/chat")
+      .set(auth(tokenA)).send({ prompt: "Bad tool" }).expect(400);
+    expect(response.body.code).toBe(AIErrorCode.AI_TOOL_CALL_INVALID);
+    expect(productivity.listTasks).not.toHaveBeenCalled();
+    expect(productivity.listCalendar).not.toHaveBeenCalled();
+  });
+
+  it("validates the whole tool batch before making any downstream call", async () => {
+    provider.enqueueResponse({ ...reply, content: null, finishReason: "tool_calls", toolCalls: [
+      { id: "valid", name: "get_tasks", arguments: {} },
+      { id: "invalid", name: "get_tasks", arguments: { userId: userB } },
+    ] });
+    await request(app.getHttpServer()).post("/ai/chat")
+      .set(auth(tokenA)).send({ prompt: "Invalid batch" }).expect(400);
+    expect(productivity.listTasks).not.toHaveBeenCalled();
+  });
+
+  it("sends only a stable error code to the model when Productivity fails", async () => {
+    productivity.listTasks.mockRejectedValue(new AIApplicationError(
+      AIErrorCode.AI_PRODUCTIVITY_UNAVAILABLE, "private upstream details", 502,
+    ));
+    provider.enqueueResponse({ ...reply, content: null, finishReason: "tool_calls", toolCalls: [
+      { id: "call-1", name: "get_tasks", arguments: {} },
+    ] });
+    provider.enqueueResponse(reply);
+    await request(app.getHttpServer()).post("/ai/chat")
+      .set(auth(tokenA)).send({ prompt: "Try tasks" }).expect(200);
+    const toolContent = provider.requests[1]?.messages.find((message) => message.role === "TOOL")?.content;
+    expect(toolContent).toBe('{"error":"AI_PRODUCTIVITY_UNAVAILABLE"}');
+    expect(toolContent).not.toContain("private upstream details");
+  });
+
+  it("passes validated client timezone to the provider without hardcoding a default", async () => {
+    await request(app.getHttpServer()).post("/ai/chat").set(auth(tokenA))
+      .send({ prompt: "Today", timezone: "invalid/timezone" }).expect(400);
+    provider.enqueueResponse(reply);
+    await request(app.getHttpServer()).post("/ai/chat").set(auth(tokenA))
+      .send({ prompt: "Today", timezone: "Asia/Ho_Chi_Minh" }).expect(200);
+    expect(provider.requests[0]?.messages[0]).toMatchObject({
+      role: "SYSTEM",
+      content: expect.stringContaining("User timezone: Asia/Ho_Chi_Minh"),
+    });
+  });
 
   it("persists chat, orders and paginates messages, and hides other users' data", async () => {
     await request(app.getHttpServer()).post("/ai/chat").send({ prompt: "No token" }).expect(401);

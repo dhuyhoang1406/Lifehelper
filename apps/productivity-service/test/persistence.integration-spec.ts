@@ -51,6 +51,29 @@ describe("Productivity persistence", () => {
         ?.state.title,
     ).toBe("Integration");
   });
+  it("filters a bounded due-date range in PostgreSQL and isolates owners", async () => {
+    const taskIds = [
+      "10000000-0000-4000-8000-000000000021",
+      "10000000-0000-4000-8000-000000000022",
+      "10000000-0000-4000-8000-000000000023",
+    ];
+    const owner = "00000000-0000-4000-8000-000000000001";
+    const other = "00000000-0000-4000-8000-000000000003";
+    try {
+      await repo.save(Task.create({ id: taskIds[0], userId: owner, title: "Today", dueAt: new Date("2026-09-28T12:00:00Z") }));
+      await repo.save(Task.create({ id: taskIds[1], userId: owner, title: "Tomorrow", dueAt: new Date("2026-09-29T12:00:00Z") }));
+      await repo.save(Task.create({ id: taskIds[2], userId: other, title: "Other user", dueAt: new Date("2026-09-28T12:00:00Z") }));
+      const page = await repo.findPageByUserId(owner, {
+        page: 1, limit: 20,
+        dueFrom: new Date("2026-09-28T00:00:00Z"),
+        dueTo: new Date("2026-09-29T00:00:00Z"),
+      });
+      expect(page.items.map((task) => task.state.id)).toEqual([taskIds[0]]);
+      expect(page.total).toBe(1);
+    } finally {
+      await db.task.deleteMany({ where: { id: { in: taskIds } } });
+    }
+  });
   it("rolls back business data and outbox atomically", async () => {
     const rollbackId = "10000000-0000-4000-8000-000000000099";
     await expect(

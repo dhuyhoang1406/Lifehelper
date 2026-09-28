@@ -18,12 +18,19 @@ const baseEnvironment = {
   AI_MAX_CONTEXT_MESSAGES: "50",
   AI_RETRY_MAX_ATTEMPTS: "3",
   AI_RETRY_BASE_DELAY_MS: "250",
+  PRODUCTIVITY_SERVICE_URL: "http://localhost:3002",
+  PRODUCTIVITY_TIMEOUT_MS: "5000",
   JWT_ACCESS_SECRET: "test-access-secret-at-least-32-characters",
   JWT_ISSUER: "lifehelper-identity",
   JWT_AUDIENCE: "lifehelper-mobile",
 };
 
 describe("AI environment validation", () => {
+  it("requires a bounded internal Productivity client configuration", () => {
+    expect(() => validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_SERVICE_URL: "file:///tmp/data" })).toThrow();
+    expect(() => validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_TIMEOUT_MS: "0" })).toThrow();
+    expect(() => validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_SERVICE_URL: undefined })).toThrow();
+  });
   it("accepts Ollama without Cloudflare credentials and converts numbers", () => {
     const result = validateEnvironment(baseEnvironment);
 

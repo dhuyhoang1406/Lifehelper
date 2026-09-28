@@ -32,6 +32,8 @@ export class TaskListDto extends PaginationDto {
   @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus;
   @IsOptional() @IsEnum(TaskPriority) priority?: TaskPriority;
   @IsOptional() @Type(() => Date) @IsDate() dueAt?: Date;
+  @IsOptional() @Type(() => Date) @IsDate() dueFrom?: Date;
+  @IsOptional() @Type(() => Date) @IsDate() dueTo?: Date;
   @IsOptional() @IsString() tag?: string;
   @IsOptional() @IsString() search?: string;
   @IsOptional() @IsIn(["createdAt", "updatedAt", "dueAt", "priority"]) sort?:

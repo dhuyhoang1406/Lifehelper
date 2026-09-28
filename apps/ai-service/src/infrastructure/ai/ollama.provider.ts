@@ -65,7 +65,10 @@ export class OllamaProvider implements AIProvider {
   }
 
   private mapMessages(request: AIRequest): unknown[] {
-    const messages = request.messages.slice(-this.config.maxContextMessages);
+    const system = request.messages.find((message) => message.role === "SYSTEM");
+    const recent = request.messages.filter((message) => message !== system)
+      .slice(-this.config.maxContextMessages);
+    const messages = system ? [system, ...recent] : recent;
     const namesById = new Map<string, string>();
     return messages.map((message) => {
       if (message.role === "ASSISTANT" && message.toolCalls?.length) {

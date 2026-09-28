@@ -2,6 +2,16 @@ import { Message } from "./message.entity";
 import { MessageRole } from "../enums/ai.enums";
 
 describe("Message", () => {
+  it("allows empty assistant text only when it carries tool calls", () => {
+    expect(() => Message.create({
+      id: "message-id", conversationId: "conversation-id", role: MessageRole.ASSISTANT,
+      content: "", toolPayload: { kind: "tool_calls", calls: [{ id: "call-1", name: "get_tasks", arguments: {} }] },
+    })).not.toThrow();
+    expect(() => Message.create({
+      id: "message-id", conversationId: "conversation-id", role: MessageRole.ASSISTANT,
+      content: "", toolPayload: {},
+    })).toThrow("required");
+  });
   it("rejects whitespace-only content", () => {
     expect(() =>
       Message.create({

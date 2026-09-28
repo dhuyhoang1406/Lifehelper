@@ -29,6 +29,8 @@ const schema = Joi.object({
     .positive()
     .max(10_000)
     .required(),
+  PRODUCTIVITY_SERVICE_URL: Joi.string().uri({ scheme: ["http", "https"] }).required(),
+  PRODUCTIVITY_TIMEOUT_MS: Joi.number().integer().min(100).max(30_000).required(),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().trim().min(1).required(),
   JWT_AUDIENCE: Joi.string().trim().min(1).required(),
