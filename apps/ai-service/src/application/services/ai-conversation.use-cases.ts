@@ -130,7 +130,7 @@ export class AIConversationUseCases {
     return {
       conversation: conversation.state,
       messages: {
-        items: page.reverse().map((item) => item.state),
+        items: [...page].reverse().map((item) => item.state),
         limit: query.limit,
         hasMore,
         nextCursor: hasMore && oldest
