@@ -1,4 +1,5 @@
 import type { UUID } from "@lifehelper/shared-types";
+import type { JsonValue } from "@lifehelper/shared-types";
 import { MessageRole } from "../enums/ai.enums";
 import { AIDomainError } from "../errors/ai-domain.error";
 export interface MessageProps {
@@ -6,6 +7,7 @@ export interface MessageProps {
   conversationId: UUID;
   role: MessageRole;
   content: string;
+  toolPayload?: JsonValue | null;
   provider: string | null;
   model: string | null;
   inputTokens: number | null;
@@ -19,13 +21,20 @@ export class Message {
       Partial<
         Pick<
           MessageProps,
-          "provider" | "model" | "inputTokens" | "outputTokens" | "createdAt"
+          "provider" | "model" | "inputTokens" | "outputTokens" | "createdAt" | "toolPayload"
         >
       >,
   ): Message {
     if (!Object.values(MessageRole).includes(input.role))
       throw new AIDomainError("Unsupported message role");
-    if (!input.content.trim())
+    const toolCallAssistant = input.role === MessageRole.ASSISTANT &&
+      input.toolPayload !== null &&
+      typeof input.toolPayload === "object" &&
+      !Array.isArray(input.toolPayload) &&
+      input.toolPayload?.kind === "tool_calls" &&
+      Array.isArray(input.toolPayload.calls) &&
+      input.toolPayload.calls.length > 0;
+    if (!input.content.trim() && !toolCallAssistant)
       throw new AIDomainError("Message content is required");
     for (const count of [input.inputTokens, input.outputTokens])
       if (count != null && (!Number.isInteger(count) || count < 0))
@@ -35,6 +44,7 @@ export class Message {
     return new Message({
       ...input,
       provider,
+      toolPayload: input.toolPayload ?? null,
       model,
       inputTokens: input.inputTokens ?? null,
       outputTokens: input.outputTokens ?? null,

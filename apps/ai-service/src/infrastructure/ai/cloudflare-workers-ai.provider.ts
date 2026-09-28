@@ -124,8 +124,10 @@ export class CloudflareWorkersAIProvider implements AIProvider {
   }
 
   private mapMessages(request: AIRequest): unknown[] {
-    return request.messages
-      .slice(-this.config.maxContextMessages)
+    const system = request.messages.find((message) => message.role === "SYSTEM");
+    const recent = request.messages.filter((message) => message !== system)
+      .slice(-this.config.maxContextMessages);
+    return (system ? [system, ...recent] : recent)
       .map((message) => {
         if (message.role === "TOOL") {
           if (!message.toolCallId)

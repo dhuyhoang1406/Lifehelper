@@ -41,6 +41,7 @@ model Message {
   conversationId String        @map("conversation_id") @db.Uuid
   role           MessageRole
   content        String
+  toolPayload    Json?         @map("tool_payload")
   provider       String?       @db.VarChar(100)
   model          String?       @db.VarChar(100)
   inputTokens    Int?          @map("input_tokens")

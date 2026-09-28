@@ -131,6 +131,12 @@ export class PrismaMessageRepository implements MessageRepository {
     const data = MessageMapper.toPersistence(entity);
     await this.db.message.create({ data });
   }
+
+  async saveMany(entities: readonly Message[]): Promise<void> {
+    await this.db.message.createMany({
+      data: entities.map(MessageMapper.toPersistence),
+    });
+  }
 }
 
 export class PrismaAIActionLogRepository implements AIActionLogRepository {

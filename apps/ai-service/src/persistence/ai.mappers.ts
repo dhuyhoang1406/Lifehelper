@@ -20,8 +20,13 @@ export const ConversationMapper = {
 
 export const MessageMapper = {
   toDomain: (record: MessageRecord) =>
-    Message.restore({ ...record, role: record.role as MessageRole }),
-  toPersistence: (entity: Message) => entity.state,
+    Message.restore({ ...record, toolPayload: record.toolPayload as JsonValue | null, role: record.role as MessageRole }),
+  toPersistence: (entity: Message) => ({
+    ...entity.state,
+    toolPayload: entity.state.toolPayload == null
+      ? Prisma.DbNull
+      : entity.state.toolPayload as Prisma.InputJsonValue,
+  }),
 };
 
 export const AIActionLogMapper = {

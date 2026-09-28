@@ -44,6 +44,9 @@ import { AIConversationController } from "./presentation/ai-conversation.control
 import { AIConversationUseCases } from "./application/services/ai-conversation.use-cases";
 import { AIProviderExceptionFilter } from "./presentation/ai-provider-exception.filter";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
+import { PRODUCTIVITY_READ_CLIENT, type ProductivityReadClient } from "./application/ports/productivity-read.port";
+import { ProductivityHttpClient } from "./infrastructure/productivity/productivity-http.client";
+import { AIToolRegistry } from "./application/services/ai-tool-registry";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -58,6 +61,19 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
   providers: [
     PrismaService,
     JwtAuthGuard,
+    {
+      provide: PRODUCTIVITY_READ_CLIENT,
+      useFactory: (config: ConfigService) => new ProductivityHttpClient(
+        config.getOrThrow<string>("PRODUCTIVITY_SERVICE_URL"),
+        config.getOrThrow<number>("PRODUCTIVITY_TIMEOUT_MS"),
+      ),
+      inject: [ConfigService],
+    },
+    {
+      provide: AIToolRegistry,
+      useFactory: (client: ProductivityReadClient) => new AIToolRegistry(client),
+      inject: [PRODUCTIVITY_READ_CLIENT],
+    },
     { provide: APP_FILTER, useClass: AIProviderExceptionFilter },
     {
       provide: AI_PROVIDER_CONFIG,
@@ -112,18 +128,21 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
         messages: MessageRepository,
         provider: AIProviderRouter,
         config: AIProviderConfig,
+        tools: AIToolRegistry,
       ) =>
         new AIConversationUseCases(
           conversations,
           messages,
           provider,
           config.maxContextMessages,
+          tools,
         ),
       inject: [
         CONVERSATION_REPOSITORY,
         MESSAGE_REPOSITORY,
         AI_PROVIDER_ROUTER,
         AI_PROVIDER_CONFIG,
+        AIToolRegistry,
       ],
     },
   ],

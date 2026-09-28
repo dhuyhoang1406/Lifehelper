@@ -11,6 +11,8 @@ export interface TaskQuery {
   status?: string;
   priority?: string;
   dueAt?: Date;
+  dueFrom?: Date;
+  dueTo?: Date;
   tag?: string;
   search?: string;
   sort?: "createdAt" | "updatedAt" | "dueAt" | "priority";

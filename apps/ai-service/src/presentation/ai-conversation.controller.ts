@@ -12,7 +12,8 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AIConversationUseCases } from "../application/services/ai-conversation.use-cases";
-import { CurrentUserId } from "../auth/current-user.decorator";
+import type { ToolUserContext } from "../application/ports/productivity-read.port";
+import { CurrentAIToolContext, CurrentUserId } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import {
   ChatDto,
@@ -30,8 +31,8 @@ export class AIConversationController {
 
   @Post("chat")
   @HttpCode(HttpStatus.OK)
-  chat(@CurrentUserId() userId: string, @Body() body: ChatDto) {
-    return this.useCases.chat(userId, body.prompt, body.conversationId);
+  chat(@CurrentAIToolContext() context: ToolUserContext, @Body() body: ChatDto) {
+    return this.useCases.chat(context.userId, body.prompt, body.conversationId, context, body.timezone);
   }
 
   @Get("conversations")
