@@ -6,6 +6,7 @@ export enum MessageRole {
 }
 export enum AIActionStatus {
   REQUESTED = "REQUESTED",
+  EXECUTING = "EXECUTING",
   SUCCESS = "SUCCESS",
   FAILED = "FAILED",
   REJECTED = "REJECTED",

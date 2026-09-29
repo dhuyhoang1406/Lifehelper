@@ -1,5 +1,7 @@
 # AI read tools (Branch 6)
 
+For Branch 7 write tools and confirmation, see [AI productivity actions](./ai-actions.md).
+
 `POST /ai/chat` can use the following registered, read-only tools when the selected
 provider requests them:
 

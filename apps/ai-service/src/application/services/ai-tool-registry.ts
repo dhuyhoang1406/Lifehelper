@@ -1,6 +1,8 @@
 import type { AIToolCall, AIToolDefinition, AIJsonObject } from "../ports/ai-provider.port";
 import type { ProductivityReadClient, ToolUserContext } from "../ports/productivity-read.port";
 import { invalidAIToolCall } from "../errors/ai.errors";
+import { WRITE_TOOL_DEFINITIONS, validateWriteCall, type ValidatedWriteCall } from "./ai-write-tools";
+import { validateToolTimestamp } from "./ai-tool-time";
 
 type ToolName = "get_tasks" | "get_today_tasks" | "get_schedule";
 type ValidatedCall = { id: string; name: ToolName; arguments: AIJsonObject };
@@ -79,23 +81,6 @@ function timezone(value: unknown): string {
   return value;
 }
 
-function timestamp(value: unknown): string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/.test(value))
-    throw invalidAIToolCall("Tool range requires ISO-8601 timestamps with offsets");
-  const parsed = Date.parse(value);
-  const offset = value.match(/([+-])(\d{2}):(\d{2})$/);
-  if (!Number.isFinite(parsed) || (offset?.[2] === "14" && offset[3] !== "00"))
-    throw invalidAIToolCall("Tool range contains an invalid timestamp");
-  const offsetMinutes = offset
-    ? (offset[1] === "+" ? 1 : -1) * (Number(offset[2]) * 60 + Number(offset[3]))
-    : 0;
-  const local = new Date(parsed + offsetMinutes * 60_000).toISOString();
-  const supplied = value.slice(0, 19);
-  if (local.slice(0, 19) !== supplied)
-    throw invalidAIToolCall("Tool range contains an invalid timestamp");
-  return value;
-}
-
 function localDate(now: Date, zone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit",
@@ -123,9 +108,9 @@ function startOfLocalDate(date: string, zone: string): Date {
 export class AIToolRegistry {
   constructor(private readonly productivity: ProductivityReadClient, private readonly now: () => Date = () => new Date()) {}
 
-  get definitions(): readonly AIToolDefinition[] { return definitions; }
+  get definitions(): readonly AIToolDefinition[] { return [...definitions, ...WRITE_TOOL_DEFINITIONS]; }
 
-  validate(call: AIToolCall): ValidatedCall {
+  validate(call: AIToolCall): ValidatedCall | ValidatedWriteCall {
     if (!call || typeof call.id !== "string" || !call.id || call.id.length > 128 || !object(call.arguments))
       throw invalidAIToolCall("Malformed tool call");
     const args = call.arguments;
@@ -148,8 +133,8 @@ export class AIToolRegistry {
       case "get_schedule": {
         assertKeys(args, ["from", "to", "timezone", "limit"]);
         timezone(args.timezone);
-        const from = timestamp(args.from);
-        const to = timestamp(args.to);
+        const from = validateToolTimestamp(args.from);
+        const to = validateToolTimestamp(args.to);
         const duration = Date.parse(to) - Date.parse(from);
         if (duration <= 0 || duration > 31 * 24 * 60 * 60 * 1000)
           throw invalidAIToolCall("Invalid calendar range");
@@ -157,12 +142,17 @@ export class AIToolRegistry {
         break;
       }
       default:
-        throw invalidAIToolCall("Unknown tool name");
+        {
+          const write = validateWriteCall(call);
+          if (write) return write;
+          throw invalidAIToolCall("Unknown tool name");
+        }
     }
     return { id: call.id, name: call.name, arguments: args };
   }
 
-  async execute(call: ValidatedCall, context: ToolUserContext): Promise<AIJsonObject> {
+  async execute(call: ValidatedCall | ValidatedWriteCall, context: ToolUserContext): Promise<AIJsonObject> {
+    if ("risk" in call) throw invalidAIToolCall("Write tools require confirmation");
     const args = call.arguments;
     if (call.name === "get_tasks") {
       const page = await this.productivity.listTasks(context, {

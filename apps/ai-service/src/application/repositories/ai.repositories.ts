@@ -38,6 +38,10 @@ export interface MessageRepository {
 }
 export interface AIActionLogRepository {
   findByIdAndUserId(id: UUID, userId: UUID): Promise<AIActionLog | null>;
+  claim(id: UUID, userId: UUID, payloadHash: string, now: Date): Promise<boolean>;
+  rejectIfRequested(id: UUID, userId: UUID, payloadHash: string, reason: string): Promise<boolean>;
+  recoverStale(now: Date, interruptedBefore: Date): Promise<void>;
+  finalize(entity: AIActionLog): Promise<void>;
   findPageByUserId(
     userId: UUID,
     query: AIPageQuery,

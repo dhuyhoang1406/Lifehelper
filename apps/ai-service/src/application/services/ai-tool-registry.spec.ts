@@ -16,9 +16,11 @@ describe("AI read-tool registry", () => {
   const registry = new AIToolRegistry(client, () => new Date("2026-03-08T15:00:00.000Z"));
   beforeEach(() => jest.clearAllMocks());
 
-  it("exposes only explicit read tools", () => {
+  it("exposes only explicit registered read and write tools", () => {
     expect(registry.definitions.map((tool) => tool.name)).toEqual([
       "get_tasks", "get_today_tasks", "get_schedule",
+      "create_task", "update_task", "complete_task", "create_calendar_event",
+      "create_reminder", "create_habit", "log_habit",
     ]);
     expect(registry.definitions.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true);
   });
