@@ -175,6 +175,40 @@ describe("AI write actions with PostgreSQL and HTTP", () => {
       .set(auth(token))
       .send({ payloadHash: action.payloadHash });
 
+  it.each([{ requestTimezone: undefined }, { requestTimezone: "UTC" }])(
+    "returns a tool error for a write timezone mismatch ($requestTimezone)",
+    async ({ requestTimezone }) => {
+      const write = writes[5];
+      provider.enqueueResponse({
+        ...finalReply,
+        content: null,
+        finishReason: "tool_calls",
+        toolCalls: [{ id: "call-1", name: write.name, arguments: write.args }],
+      });
+      provider.enqueueResponse({
+        ...finalReply,
+        content: "Please provide the matching timezone.",
+      });
+
+      const response = await request(app.getHttpServer())
+        .post("/ai/chat")
+        .set(auth(tokenA))
+        .send({
+          prompt: "Create a habit",
+          ...(requestTimezone ? { timezone: requestTimezone } : {}),
+        })
+        .expect(200);
+
+      expect(response.body.pendingActions).toEqual([]);
+      expect(
+        provider.requests[1]?.messages.find(
+          (message) => message.role === "TOOL",
+        )?.content,
+      ).toBe('{"error":"AI_TOOL_CALL_INVALID"}');
+      expect(await db.aIActionLog.count({ where: { userId: userA } })).toBe(0);
+    },
+  );
+
   it.each(writes)(
     "proposes and executes $name only after explicit confirmation",
     async (write) => {
@@ -214,7 +248,10 @@ describe("AI write actions with PostgreSQL and HTTP", () => {
 
   it("rejects expired and tampered actions before execution", async () => {
     const expired = await propose();
-    await confirm({ actionId: expired.actionId, payloadHash: "0".repeat(64) }).expect(409);
+    await confirm({
+      actionId: expired.actionId,
+      payloadHash: "0".repeat(64),
+    }).expect(409);
     await db.aIActionLog.update({
       where: { id: expired.actionId },
       data: { expiresAt: new Date("2000-01-01") },
@@ -281,11 +318,14 @@ describe("AI write actions with PostgreSQL and HTTP", () => {
         },
       ],
     });
+    provider.enqueueResponse({ ...finalReply, content: "Please check your timezone." });
     await request(app.getHttpServer())
       .post("/ai/chat")
       .set(auth(tokenA))
       .send({ prompt: "Set reminder", timezone: "Europe/Paris" })
-      .expect(400);
+      .expect(200);
+    expect(provider.requests.at(-1)?.messages.find((message) => message.role === "TOOL")?.content)
+      .toBe('{"error":"AI_TOOL_CALL_INVALID"}');
     expect(await db.aIActionLog.count({ where: { userId: userA } })).toBe(0);
     expect(client.execute).not.toHaveBeenCalled();
   });

@@ -97,11 +97,6 @@ export class AIConversationUseCases {
       for (const call of response.toolCalls) seenToolCallIds.add(call.id);
       const tools = this.tools;
       const calls = response.toolCalls.map((call) => tools.validate(call));
-      for (const call of calls) {
-        if ("risk" in call && "timezone" in call.arguments &&
-            (!timezone || call.arguments.timezone !== timezone))
-          throw new AIApplicationError(AIErrorCode.AI_TOOL_CALL_INVALID, "Tool timezone must match authenticated request context", 400);
-      }
       const toolMessages: Message[] = [];
       const assistantAt = await this.conversations.nextMessageAt(conversation.state.id, userId);
       if (!assistantAt) throw conversationNotFound();
@@ -117,6 +112,9 @@ export class AIConversationUseCases {
       for (const call of calls) {
         let result: AIJsonObject;
         try {
+          if ("risk" in call && "timezone" in call.arguments &&
+              (!timezone || call.arguments.timezone !== timezone))
+            throw new AIApplicationError(AIErrorCode.AI_TOOL_CALL_INVALID, "Tool timezone must match authenticated request context", 400);
           if ("risk" in call) {
             if (!this.actions) throw new AIApplicationError(AIErrorCode.AI_TOOL_CALL_INVALID, "Write actions are not available", 400);
             const pending = await this.actions.request(toolContext, conversation.state.id, call);
