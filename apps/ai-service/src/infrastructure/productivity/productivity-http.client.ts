@@ -2,6 +2,9 @@ import { AIApplicationError, AIErrorCode } from "../../application/errors/ai.err
 import type {
   CalendarSummary, ProductivityReadClient, TaskSummary, ToolUserContext,
 } from "../../application/ports/productivity-read.port";
+import type { ProductivityWriteClient } from "../../application/ports/productivity-write.port";
+import type { ValidatedWriteCall } from "../../application/services/ai-write-tools";
+import type { AIJsonObject } from "../../application/ports/ai-provider.port";
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -38,7 +41,7 @@ function event(value: unknown): CalendarSummary {
   };
 }
 
-export class ProductivityHttpClient implements ProductivityReadClient {
+export class ProductivityHttpClient implements ProductivityReadClient, ProductivityWriteClient {
   private readonly baseUrl: URL;
 
   constructor(baseUrl: string, private readonly timeoutMs: number, private readonly transport: typeof fetch = fetch) {
@@ -67,6 +70,62 @@ export class ProductivityHttpClient implements ProductivityReadClient {
     const payload = await this.get("calendar-events", params, context);
     if (!Array.isArray(payload) || payload.length > query.limit) throw invalidResponse();
     return payload.map(event);
+  }
+
+  async execute(context: ToolUserContext, call: ValidatedWriteCall, idempotencyKey: string): Promise<AIJsonObject> {
+    const args = call.arguments;
+    const routes: Record<ValidatedWriteCall["name"], { method: "POST" | "PATCH"; path: string; body?: AIJsonObject }> = {
+      create_task: { method: "POST", path: "tasks", body: Object.fromEntries(Object.entries(args).filter(([key]) => key !== "timezone")) },
+      update_task: { method: "PATCH", path: "tasks/" + args.taskId, body: Object.fromEntries(Object.entries(args).filter(([key]) => key !== "taskId" && key !== "timezone")) },
+      complete_task: { method: "POST", path: "tasks/" + args.taskId + "/complete" },
+      create_calendar_event: { method: "POST", path: "calendar-events", body: args },
+      create_reminder: { method: "POST", path: "reminders", body: args },
+      create_habit: { method: "POST", path: "habits", body: {
+        ...args,
+        ...(Array.isArray(args.schedules) ? { schedules: args.schedules.map((entry) => ({
+          dayOfWeek: (entry as Record<string, unknown>).dayOfWeek ?? null,
+          timeOfDay: (entry as Record<string, unknown>).timeOfDay ?? null,
+        })) } : {}),
+      } as AIJsonObject },
+      log_habit: { method: "POST", path: "habits/" + args.habitId + "/logs", body: Object.fromEntries(Object.entries(args).filter(([key]) => key !== "habitId" && key !== "timezone")) },
+    };
+    const route = routes[call.name];
+    const url = new URL(route.path, this.baseUrl);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.transport(url, {
+        method: route.method, redirect: "error",
+        headers: {
+          authorization: "Bearer " + context.accessToken,
+          "x-correlation-id": context.correlationId,
+          "x-idempotency-key": idempotencyKey,
+          ...(route.body ? { "content-type": "application/json" } : {}),
+        },
+        ...(route.body ? { body: JSON.stringify(route.body) } : {}),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500)
+          throw new AIApplicationError(AIErrorCode.AI_PRODUCTIVITY_REJECTED, "Productivity rejected the action", 422);
+        throw new AIApplicationError(AIErrorCode.AI_PRODUCTIVITY_UNAVAILABLE, "Productivity Service is unavailable", 502);
+      }
+      let payload: unknown;
+      try { payload = await response.json() as unknown; }
+      catch { throw invalidResponse(); }
+      if (!record(payload) || typeof payload.id !== "string") throw invalidResponse();
+      return {
+        id: payload.id,
+        ...(typeof payload.status === "string" ? { status: payload.status } : {}),
+        ...(typeof payload.title === "string" ? { title: payload.title } : {}),
+        ...(typeof payload.name === "string" ? { name: payload.name } : {}),
+      };
+    } catch (error) {
+      if (error instanceof AIApplicationError) throw error;
+      if (controller.signal.aborted)
+        throw new AIApplicationError(AIErrorCode.AI_PRODUCTIVITY_TIMEOUT, "Productivity Service timed out", 504);
+      throw new AIApplicationError(AIErrorCode.AI_PRODUCTIVITY_UNAVAILABLE, "Productivity Service is unavailable", 502);
+    } finally { clearTimeout(timer); }
   }
 
   private async get(path: "tasks" | "calendar-events", params: URLSearchParams, context: ToolUserContext): Promise<unknown> {

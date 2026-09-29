@@ -149,6 +149,50 @@ export class PrismaAIActionLogRepository implements AIActionLogRepository {
     return record ? AIActionLogMapper.toDomain(record) : null;
   }
 
+  async claim(id: string, userId: string, payloadHash: string, now: Date): Promise<boolean> {
+    const result = await this.db.aIActionLog.updateMany({
+      where: {
+        id, userId, payloadHash, status: "REQUESTED",
+        expiresAt: { gt: now },
+      },
+      data: { status: "EXECUTING" },
+    });
+    return result.count === 1;
+  }
+
+  async rejectIfRequested(id: string, userId: string, payloadHash: string, reason: string): Promise<boolean> {
+    const result = await this.db.aIActionLog.updateMany({
+      where: { id, userId, payloadHash, status: "REQUESTED" },
+      data: { status: "REJECTED", errorCode: reason },
+    });
+    return result.count === 1;
+  }
+
+  async recoverStale(now: Date, interruptedBefore: Date): Promise<void> {
+    await this.db.aIActionLog.updateMany({
+      where: { status: "REQUESTED", expiresAt: { lte: now } },
+      data: { status: "REJECTED", errorCode: "ACTION_EXPIRED" },
+    });
+    await this.db.aIActionLog.updateMany({
+      where: { status: "EXECUTING", expiresAt: { lte: interruptedBefore } },
+      data: { status: "FAILED", errorCode: "AI_ACTION_OUTCOME_UNKNOWN" },
+    });
+  }
+
+  async finalize(entity: AIActionLog): Promise<void> {
+    const data = AIActionLogMapper.toPersistence(entity);
+    const result = await this.db.aIActionLog.updateMany({
+      where: { id: entity.state.id, userId: entity.state.userId, status: "EXECUTING" },
+      data: {
+        status: data.status,
+        outputPayload: data.outputPayload,
+        errorCode: data.errorCode,
+        durationMs: data.durationMs,
+      },
+    });
+    if (result.count !== 1) throw new Error("Action state changed during execution");
+  }
+
   async findPageByUserId(
     userId: string,
     query: AIPageQuery,

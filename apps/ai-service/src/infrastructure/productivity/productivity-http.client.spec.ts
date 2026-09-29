@@ -2,6 +2,19 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { AIErrorCode } from "../../application/errors/ai.errors";
 import { ProductivityHttpClient } from "./productivity-http.client";
+import { validateWriteCall } from "../../application/services/ai-write-tools";
+import type { AIJsonObject } from "../../application/ports/ai-provider.port";
+
+const taskId = "00000000-0000-4000-8000-000000000001";
+const writeCases: Array<{ name: string; args: AIJsonObject; method: string; path: string; body?: AIJsonObject }> = [
+  { name: "create_task", args: { title: "Read" }, method: "POST", path: "/tasks", body: { title: "Read" } },
+  { name: "update_task", args: { taskId, title: "Updated" }, method: "PATCH", path: "/tasks/" + taskId, body: { title: "Updated" } },
+  { name: "complete_task", args: { taskId }, method: "POST", path: "/tasks/" + taskId + "/complete", body: undefined },
+  { name: "create_calendar_event", args: { title: "Meeting", eventType: "MEETING", startAt: "2026-10-12T18:00:00+07:00", endAt: "2026-10-12T19:00:00+07:00", timezone: "Asia/Ho_Chi_Minh" }, method: "POST", path: "/calendar-events", body: { title: "Meeting", eventType: "MEETING", startAt: "2026-10-12T18:00:00+07:00", endAt: "2026-10-12T19:00:00+07:00", timezone: "Asia/Ho_Chi_Minh" } },
+  { name: "create_reminder", args: { resourceType: "CUSTOM", title: "Call", remindAt: "2026-10-12T18:00:00+07:00", timezone: "Asia/Ho_Chi_Minh" }, method: "POST", path: "/reminders", body: { resourceType: "CUSTOM", title: "Call", remindAt: "2026-10-12T18:00:00+07:00", timezone: "Asia/Ho_Chi_Minh" } },
+  { name: "create_habit", args: { name: "Walk", frequencyType: "DAILY", timezone: "Asia/Ho_Chi_Minh", startDate: "2026-10-12" }, method: "POST", path: "/habits", body: { name: "Walk", frequencyType: "DAILY", timezone: "Asia/Ho_Chi_Minh", startDate: "2026-10-12" } },
+  { name: "log_habit", args: { habitId: taskId, logDate: "2026-10-12", timezone: "Asia/Ho_Chi_Minh" }, method: "POST", path: "/habits/" + taskId + "/logs", body: { logDate: "2026-10-12" } },
+];
 
 describe("Productivity HTTP read adapter", () => {
   let handler: (request: IncomingMessage, response: ServerResponse) => void;
@@ -56,6 +69,45 @@ describe("Productivity HTTP read adapter", () => {
   it("bounds slow upstream calls", async () => {
     handler = () => undefined;
     await expect(new ProductivityHttpClient(baseUrl, 100).listTasks(context, { page: 1, limit: 20 }))
+      .rejects.toMatchObject({ code: AIErrorCode.AI_PRODUCTIVITY_TIMEOUT });
+  });
+
+  it.each(writeCases)("maps $name to a fixed authenticated Productivity route", async (item) => {
+    handler = (incoming, response) => {
+      void (async () => {
+        const chunks: Buffer[] = [];
+        for await (const chunk of incoming) chunks.push(Buffer.from(chunk as Buffer));
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown : undefined;
+        expect(incoming.method).toBe(item.method);
+        expect(incoming.url).toBe(item.path);
+        expect(incoming.headers.authorization).toBe("Bearer private-token");
+        expect(incoming.headers["x-correlation-id"]).toBe("trace-1");
+        expect(incoming.headers["x-idempotency-key"]).toBe("00000000-0000-4000-8000-000000000099");
+        expect(body).toEqual(item.body);
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({ id: taskId, title: "Safe", privateField: "secret" }));
+      })();
+    };
+    const call = validateWriteCall({ id: "call", name: item.name, arguments: item.args });
+    if (!call) throw new Error("Test tool was not registered");
+    const result = await new ProductivityHttpClient(baseUrl, 1000).execute(context, call, "00000000-0000-4000-8000-000000000099");
+    expect(result).toEqual({ id: taskId, title: "Safe" });
+  });
+
+  it("maps write validation and timeout failures without exposing raw upstream bodies", async () => {
+    const call = validateWriteCall({ id: "call", name: "create_task", arguments: { title: "Read" } });
+    if (!call) throw new Error("Test tool was not registered");
+    handler = (_request, response) => { response.statusCode = 400; response.end("private stack and secret"); };
+    await expect(new ProductivityHttpClient(baseUrl, 1000).execute(context, call, taskId))
+      .rejects.toMatchObject({ code: AIErrorCode.AI_PRODUCTIVITY_REJECTED });
+    handler = (_request, response) => { response.statusCode = 503; response.end("private stack and secret"); };
+    await expect(new ProductivityHttpClient(baseUrl, 1000).execute(context, call, taskId))
+      .rejects.toMatchObject({ code: AIErrorCode.AI_PRODUCTIVITY_UNAVAILABLE });
+    handler = (_request, response) => response.end(JSON.stringify({ title: "missing ID" }));
+    await expect(new ProductivityHttpClient(baseUrl, 1000).execute(context, call, taskId))
+      .rejects.toMatchObject({ code: AIErrorCode.AI_PRODUCTIVITY_INVALID_RESPONSE });
+    handler = () => undefined;
+    await expect(new ProductivityHttpClient(baseUrl, 100).execute(context, call, taskId))
       .rejects.toMatchObject({ code: AIErrorCode.AI_PRODUCTIVITY_TIMEOUT });
   });
 });

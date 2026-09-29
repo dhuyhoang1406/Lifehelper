@@ -17,6 +17,7 @@ enum MessageRole {
 
 enum AIActionStatus {
   REQUESTED
+  EXECUTING
   SUCCESS
   FAILED
   REJECTED
@@ -61,6 +62,9 @@ model AIActionLog {
   messageId      String?        @map("message_id") @db.Uuid
   toolName       String         @map("tool_name") @db.VarChar(100)
   inputPayload   Json           @map("input_payload")
+  payloadHash    String?        @map("payload_hash") @db.VarChar(64)
+  idempotencyKey String?        @unique @map("idempotency_key") @db.Uuid
+  expiresAt      DateTime?      @map("expires_at") @db.Timestamptz(6)
   outputPayload  Json?          @map("output_payload")
   status         AIActionStatus
   errorCode      String?        @map("error_code") @db.VarChar(100)
@@ -70,6 +74,7 @@ model AIActionLog {
   message        Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+  @@index([userId, status, expiresAt])
   @@index([conversationId, createdAt])
   @@map("ai_action_logs")
 }

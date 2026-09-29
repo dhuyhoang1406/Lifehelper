@@ -175,6 +175,7 @@ describe("AI PostgreSQL persistence", () => {
     ).toMatchObject({ total: 1 });
 
     const action = await actions.findByIdAndUserId(actionA, userA);
+    action?.start();
     action?.succeed({ taskCount: 2 }, 25);
     if (action) await actions.save(action);
     expect(

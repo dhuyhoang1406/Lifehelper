@@ -35,6 +35,9 @@ export interface AIActionLogProps {
   messageId: UUID | null;
   toolName: string;
   inputPayload: JsonValue;
+  payloadHash: string | null;
+  idempotencyKey: UUID | null;
+  expiresAt: Date | null;
   outputPayload: JsonValue | null;
   status: AIActionStatus;
   errorCode: string | null;
@@ -49,7 +52,7 @@ export class AIActionLog {
       "id" | "userId" | "toolName" | "inputPayload"
     > &
       Partial<
-        Pick<AIActionLogProps, "conversationId" | "messageId" | "createdAt">
+        Pick<AIActionLogProps, "conversationId" | "messageId" | "createdAt" | "payloadHash" | "idempotencyKey" | "expiresAt">
       >,
   ): AIActionLog {
     if (!input.toolName.trim())
@@ -63,6 +66,9 @@ export class AIActionLog {
       conversationId: input.conversationId ?? null,
       messageId: input.messageId ?? null,
       outputPayload: null,
+      payloadHash: input.payloadHash ?? null,
+      idempotencyKey: input.idempotencyKey ?? null,
+      expiresAt: input.expiresAt ?? null,
       status: AIActionStatus.REQUESTED,
       errorCode: null,
       durationMs: null,
@@ -75,7 +81,14 @@ export class AIActionLog {
   get state(): Readonly<AIActionLogProps> {
     return this.props;
   }
+  start(): void {
+    if (this.props.status !== AIActionStatus.REQUESTED)
+      throw new AIDomainError("Only requested actions can start");
+    this.props.status = AIActionStatus.EXECUTING;
+  }
   succeed(output: JsonValue, durationMs: number): void {
+    if (this.props.status !== AIActionStatus.EXECUTING)
+      throw new AIDomainError("Only executing actions can succeed");
     this.ensureDuration(durationMs);
     ensureSafePayload(output);
     this.props.status = AIActionStatus.SUCCESS;
@@ -83,6 +96,8 @@ export class AIActionLog {
     this.props.durationMs = durationMs;
   }
   fail(errorCode: string, durationMs: number): void {
+    if (this.props.status !== AIActionStatus.EXECUTING)
+      throw new AIDomainError("Only executing actions can fail");
     this.ensureDuration(durationMs);
     this.ensureErrorCode(errorCode);
     this.props.status = AIActionStatus.FAILED;
@@ -90,6 +105,8 @@ export class AIActionLog {
     this.props.durationMs = durationMs;
   }
   reject(errorCode: string): void {
+    if (this.props.status !== AIActionStatus.REQUESTED)
+      throw new AIDomainError("Only requested actions can be rejected");
     this.ensureErrorCode(errorCode);
     this.props.status = AIActionStatus.REJECTED;
     this.props.errorCode = errorCode;

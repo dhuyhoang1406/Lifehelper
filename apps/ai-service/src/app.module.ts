@@ -47,6 +47,11 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
 import { PRODUCTIVITY_READ_CLIENT, type ProductivityReadClient } from "./application/ports/productivity-read.port";
 import { ProductivityHttpClient } from "./infrastructure/productivity/productivity-http.client";
 import { AIToolRegistry } from "./application/services/ai-tool-registry";
+import { AIActionUseCases } from "./application/services/ai-action.use-cases";
+import { AIActionController } from "./presentation/ai-action.controller";
+import { PRODUCTIVITY_WRITE_CLIENT, type ProductivityWriteClient } from "./application/ports/productivity-write.port";
+import type { AIActionLogRepository } from "./application/repositories/ai.repositories";
+import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recovery.worker";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -57,9 +62,10 @@ import { AIToolRegistry } from "./application/services/ai-tool-registry";
     StructuredLoggerModule,
     JwtModule.register({}),
   ],
-  controllers: [HealthController, AIController, AIConversationController],
+  controllers: [HealthController, AIController, AIConversationController, AIActionController],
   providers: [
     PrismaService,
+    AIActionRecoveryWorker,
     JwtAuthGuard,
     {
       provide: PRODUCTIVITY_READ_CLIENT,
@@ -69,6 +75,7 @@ import { AIToolRegistry } from "./application/services/ai-tool-registry";
       ),
       inject: [ConfigService],
     },
+    { provide: PRODUCTIVITY_WRITE_CLIENT, useExisting: PRODUCTIVITY_READ_CLIENT },
     {
       provide: AIToolRegistry,
       useFactory: (client: ProductivityReadClient) => new AIToolRegistry(client),
@@ -122,6 +129,12 @@ import { AIToolRegistry } from "./application/services/ai-tool-registry";
       inject: [PrismaService],
     },
     {
+      provide: AIActionUseCases,
+      useFactory: (actions: AIActionLogRepository, client: ProductivityWriteClient, config: ConfigService) =>
+        new AIActionUseCases(actions, client, config.getOrThrow<number>("AI_ACTION_CONFIRM_TTL_SECONDS")),
+      inject: [AI_ACTION_LOG_REPOSITORY, PRODUCTIVITY_WRITE_CLIENT, ConfigService],
+    },
+    {
       provide: AIConversationUseCases,
       useFactory: (
         conversations: ConversationRepository,
@@ -129,6 +142,7 @@ import { AIToolRegistry } from "./application/services/ai-tool-registry";
         provider: AIProviderRouter,
         config: AIProviderConfig,
         tools: AIToolRegistry,
+        actions: AIActionUseCases,
       ) =>
         new AIConversationUseCases(
           conversations,
@@ -136,6 +150,9 @@ import { AIToolRegistry } from "./application/services/ai-tool-registry";
           provider,
           config.maxContextMessages,
           tools,
+          undefined,
+          undefined,
+          actions,
         ),
       inject: [
         CONVERSATION_REPOSITORY,
@@ -143,6 +160,7 @@ import { AIToolRegistry } from "./application/services/ai-tool-registry";
         AI_PROVIDER_ROUTER,
         AI_PROVIDER_CONFIG,
         AIToolRegistry,
+        AIActionUseCases,
       ],
     },
   ],

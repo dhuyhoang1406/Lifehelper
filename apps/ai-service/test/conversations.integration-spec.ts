@@ -87,6 +87,8 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
     const conversationId = created.body.conversationId as string;
     expect(provider.requests[0]?.tools?.map((tool) => tool.name)).toEqual([
       "get_tasks", "get_today_tasks", "get_schedule",
+      "create_task", "update_task", "complete_task", "create_calendar_event",
+      "create_reminder", "create_habit", "log_habit",
     ]);
     expect(productivity.listTasks).toHaveBeenCalledWith(
       expect.objectContaining({ userId: userA, accessToken: tokenA, correlationId: "trace-a" }),
@@ -179,7 +181,7 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
       .set(auth(tokenA))
       .send({ prompt: "Second question", conversationId: id })
       .expect(200);
-    expect(provider.requests[1]?.messages.map((message) => message.content)).toEqual([
+    expect(provider.requests[1]?.messages.map((message) => message.content).slice(1)).toEqual([
       "First question",
       "Stored answer",
       "Second question",
