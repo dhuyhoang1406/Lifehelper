@@ -34,6 +34,11 @@ export interface AIActionLogProps {
   conversationId: UUID | null;
   messageId: UUID | null;
   toolName: string;
+  correlationId: string | null;
+  provider: string | null;
+  model: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
   inputPayload: JsonValue;
   payloadHash: string | null;
   idempotencyKey: UUID | null;
@@ -52,7 +57,20 @@ export class AIActionLog {
       "id" | "userId" | "toolName" | "inputPayload"
     > &
       Partial<
-        Pick<AIActionLogProps, "conversationId" | "messageId" | "createdAt" | "payloadHash" | "idempotencyKey" | "expiresAt">
+        Pick<
+          AIActionLogProps,
+          | "conversationId"
+          | "messageId"
+          | "createdAt"
+          | "payloadHash"
+          | "idempotencyKey"
+          | "expiresAt"
+          | "provider"
+          | "model"
+          | "inputTokens"
+          | "outputTokens"
+          | "correlationId"
+        >
       >,
   ): AIActionLog {
     if (!input.toolName.trim())
@@ -63,6 +81,11 @@ export class AIActionLog {
     return new AIActionLog({
       ...input,
       toolName: input.toolName.trim(),
+      correlationId: input.correlationId ?? null,
+      provider: input.provider ?? null,
+      model: input.model ?? null,
+      inputTokens: input.inputTokens ?? null,
+      outputTokens: input.outputTokens ?? null,
       conversationId: input.conversationId ?? null,
       messageId: input.messageId ?? null,
       outputPayload: null,

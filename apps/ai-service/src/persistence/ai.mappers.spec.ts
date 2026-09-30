@@ -59,6 +59,8 @@ describe("AI persistence mappers", () => {
       conversationId: null,
       messageId: null,
       toolName: "list_tasks",
+      correlationId: null,
+      provider: null, model: null, inputTokens: null, outputTokens: null,
       inputPayload: { page: 1 },
       payloadHash: null,
       idempotencyKey: null,

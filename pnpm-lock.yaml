@@ -18,6 +18,9 @@ importers:
 
   apps/ai-service:
     dependencies:
+      '@lifehelper/event-contracts':
+        specifier: workspace:*
+        version: link:../../packages/event-contracts
       '@lifehelper/logger':
         specifier: workspace:*
         version: link:../../packages/logger

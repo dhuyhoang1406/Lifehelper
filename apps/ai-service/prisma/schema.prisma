@@ -61,6 +61,11 @@ model AIActionLog {
   conversationId String?        @map("conversation_id") @db.Uuid
   messageId      String?        @map("message_id") @db.Uuid
   toolName       String         @map("tool_name") @db.VarChar(100)
+  correlationId  String?        @map("correlation_id") @db.VarChar(128)
+  provider       String?        @db.VarChar(100)
+  model          String?        @db.VarChar(100)
+  inputTokens    Int?           @map("input_tokens")
+  outputTokens   Int?           @map("output_tokens")
   inputPayload   Json           @map("input_payload")
   payloadHash    String?        @map("payload_hash") @db.VarChar(64)
   idempotencyKey String?        @unique @map("idempotency_key") @db.Uuid
