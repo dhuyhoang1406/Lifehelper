@@ -8,13 +8,16 @@ import { PrismaService } from "./prisma.service";
 import { validateEnvironment } from "./env.validation";
 import {
   AI_ACTION_LOG_REPOSITORY,
+  AI_OUTBOX_REPOSITORY,
   CONVERSATION_REPOSITORY,
   MESSAGE_REPOSITORY,
   type ConversationRepository,
   type MessageRepository,
+  type AIOutboxRepository,
 } from "./application/repositories/ai.repositories";
 import {
   PrismaAIActionLogRepository,
+  PrismaAIOutboxRepository,
   PrismaConversationRepository,
   PrismaMessageRepository,
 } from "./persistence/ai.repositories";
@@ -44,12 +47,18 @@ import { AIConversationController } from "./presentation/ai-conversation.control
 import { AIConversationUseCases } from "./application/services/ai-conversation.use-cases";
 import { AIProviderExceptionFilter } from "./presentation/ai-provider-exception.filter";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
-import { PRODUCTIVITY_READ_CLIENT, type ProductivityReadClient } from "./application/ports/productivity-read.port";
+import {
+  PRODUCTIVITY_READ_CLIENT,
+  type ProductivityReadClient,
+} from "./application/ports/productivity-read.port";
 import { ProductivityHttpClient } from "./infrastructure/productivity/productivity-http.client";
 import { AIToolRegistry } from "./application/services/ai-tool-registry";
 import { AIActionUseCases } from "./application/services/ai-action.use-cases";
 import { AIActionController } from "./presentation/ai-action.controller";
-import { PRODUCTIVITY_WRITE_CLIENT, type ProductivityWriteClient } from "./application/ports/productivity-write.port";
+import {
+  PRODUCTIVITY_WRITE_CLIENT,
+  type ProductivityWriteClient,
+} from "./application/ports/productivity-write.port";
 import type { AIActionLogRepository } from "./application/repositories/ai.repositories";
 import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recovery.worker";
 @Module({
@@ -62,23 +71,33 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
     StructuredLoggerModule,
     JwtModule.register({}),
   ],
-  controllers: [HealthController, AIController, AIConversationController, AIActionController],
+  controllers: [
+    HealthController,
+    AIController,
+    AIConversationController,
+    AIActionController,
+  ],
   providers: [
     PrismaService,
     AIActionRecoveryWorker,
     JwtAuthGuard,
     {
       provide: PRODUCTIVITY_READ_CLIENT,
-      useFactory: (config: ConfigService) => new ProductivityHttpClient(
-        config.getOrThrow<string>("PRODUCTIVITY_SERVICE_URL"),
-        config.getOrThrow<number>("PRODUCTIVITY_TIMEOUT_MS"),
-      ),
+      useFactory: (config: ConfigService) =>
+        new ProductivityHttpClient(
+          config.getOrThrow<string>("PRODUCTIVITY_SERVICE_URL"),
+          config.getOrThrow<number>("PRODUCTIVITY_TIMEOUT_MS"),
+        ),
       inject: [ConfigService],
     },
-    { provide: PRODUCTIVITY_WRITE_CLIENT, useExisting: PRODUCTIVITY_READ_CLIENT },
+    {
+      provide: PRODUCTIVITY_WRITE_CLIENT,
+      useExisting: PRODUCTIVITY_READ_CLIENT,
+    },
     {
       provide: AIToolRegistry,
-      useFactory: (client: ProductivityReadClient) => new AIToolRegistry(client),
+      useFactory: (client: ProductivityReadClient) =>
+        new AIToolRegistry(client),
       inject: [PRODUCTIVITY_READ_CLIENT],
     },
     { provide: APP_FILTER, useClass: AIProviderExceptionFilter },
@@ -91,7 +110,8 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
       provide: AI_PROVIDER_INSTANCE,
       useFactory: (config: AIProviderConfig): AIProvider => {
         if (config.provider === "ollama") return new OllamaProvider(config);
-        if (config.provider === "cloudflare") return new CloudflareWorkersAIProvider(config);
+        if (config.provider === "cloudflare")
+          return new CloudflareWorkersAIProvider(config);
         throw new Error(`AI provider '${config.provider}' is not implemented`);
       },
       inject: [AI_PROVIDER_CONFIG],
@@ -129,10 +149,27 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
       inject: [PrismaService],
     },
     {
+      provide: AI_OUTBOX_REPOSITORY,
+      useFactory: (db: PrismaService) => new PrismaAIOutboxRepository(db),
+      inject: [PrismaService],
+    },
+    {
       provide: AIActionUseCases,
-      useFactory: (actions: AIActionLogRepository, client: ProductivityWriteClient, config: ConfigService) =>
-        new AIActionUseCases(actions, client, config.getOrThrow<number>("AI_ACTION_CONFIRM_TTL_SECONDS")),
-      inject: [AI_ACTION_LOG_REPOSITORY, PRODUCTIVITY_WRITE_CLIENT, ConfigService],
+      useFactory: (
+        actions: AIActionLogRepository,
+        client: ProductivityWriteClient,
+        config: ConfigService,
+      ) =>
+        new AIActionUseCases(
+          actions,
+          client,
+          config.getOrThrow<number>("AI_ACTION_CONFIRM_TTL_SECONDS"),
+        ),
+      inject: [
+        AI_ACTION_LOG_REPOSITORY,
+        PRODUCTIVITY_WRITE_CLIENT,
+        ConfigService,
+      ],
     },
     {
       provide: AIConversationUseCases,
@@ -143,6 +180,7 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
         config: AIProviderConfig,
         tools: AIToolRegistry,
         actions: AIActionUseCases,
+        outbox: AIOutboxRepository,
       ) =>
         new AIConversationUseCases(
           conversations,
@@ -153,6 +191,7 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
           undefined,
           undefined,
           actions,
+          outbox,
         ),
       inject: [
         CONVERSATION_REPOSITORY,
@@ -161,6 +200,7 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
         AI_PROVIDER_CONFIG,
         AIToolRegistry,
         AIActionUseCases,
+        AI_OUTBOX_REPOSITORY,
       ],
     },
   ],
