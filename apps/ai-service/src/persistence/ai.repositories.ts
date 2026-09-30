@@ -1,6 +1,10 @@
 import type { Prisma } from "../../generated/client";
+import type { OutboxEventInput } from "@lifehelper/shared-types";
+import { PrismaService } from "../prisma.service";
+import { aiOutboxEvent } from "../application/services/ai-audit-events";
 import type {
   AIActionLogRepository,
+  AIOutboxRepository,
   AIPage,
   AIPageQuery,
   ConversationRepository,
@@ -15,10 +19,11 @@ import {
   MessageMapper,
 } from "./ai.mappers";
 
-type AIDatabase = Pick<
-  Prisma.TransactionClient,
-  "conversation" | "message" | "aIActionLog" | "$queryRaw"
->;
+type AIDatabase = PrismaService;
+
+function outboxData(event: OutboxEventInput) {
+  return { ...event, payload: event.payload as Prisma.InputJsonValue };
+}
 
 const pageOffset = ({ page, limit }: AIPageQuery): number => (page - 1) * limit;
 
@@ -132,6 +137,13 @@ export class PrismaMessageRepository implements MessageRepository {
     await this.db.message.create({ data });
   }
 
+  async saveWithEvent(entity: Message, event: OutboxEventInput): Promise<void> {
+    await this.db.$transaction(async (tx) => {
+      await tx.message.create({ data: MessageMapper.toPersistence(entity) });
+      await tx.outboxEvent.create({ data: outboxData(event) });
+    });
+  }
+
   async saveMany(entities: readonly Message[]): Promise<void> {
     await this.db.message.createMany({
       data: entities.map(MessageMapper.toPersistence),
@@ -149,10 +161,18 @@ export class PrismaAIActionLogRepository implements AIActionLogRepository {
     return record ? AIActionLogMapper.toDomain(record) : null;
   }
 
-  async claim(id: string, userId: string, payloadHash: string, now: Date): Promise<boolean> {
+  async claim(
+    id: string,
+    userId: string,
+    payloadHash: string,
+    now: Date,
+  ): Promise<boolean> {
     const result = await this.db.aIActionLog.updateMany({
       where: {
-        id, userId, payloadHash, status: "REQUESTED",
+        id,
+        userId,
+        payloadHash,
+        status: "REQUESTED",
         expiresAt: { gt: now },
       },
       data: { status: "EXECUTING" },
@@ -160,37 +180,88 @@ export class PrismaAIActionLogRepository implements AIActionLogRepository {
     return result.count === 1;
   }
 
-  async rejectIfRequested(id: string, userId: string, payloadHash: string, reason: string): Promise<boolean> {
-    const result = await this.db.aIActionLog.updateMany({
-      where: { id, userId, payloadHash, status: "REQUESTED" },
-      data: { status: "REJECTED", errorCode: reason },
+  async rejectIfRequested(
+    id: string,
+    userId: string,
+    payloadHash: string,
+    reason: string,
+    event?: OutboxEventInput,
+  ): Promise<boolean> {
+    return this.db.$transaction(async (tx) => {
+      const result = await tx.aIActionLog.updateMany({
+        where: { id, userId, payloadHash, status: "REQUESTED" },
+        data: { status: "REJECTED", errorCode: reason },
+      });
+      if (result.count === 1 && event)
+        await tx.outboxEvent.create({ data: outboxData(event) });
+      return result.count === 1;
     });
-    return result.count === 1;
   }
 
   async recoverStale(now: Date, interruptedBefore: Date): Promise<void> {
-    await this.db.aIActionLog.updateMany({
-      where: { status: "REQUESTED", expiresAt: { lte: now } },
-      data: { status: "REJECTED", errorCode: "ACTION_EXPIRED" },
-    });
-    await this.db.aIActionLog.updateMany({
-      where: { status: "EXECUTING", expiresAt: { lte: interruptedBefore } },
-      data: { status: "FAILED", errorCode: "AI_ACTION_OUTCOME_UNKNOWN" },
+    type Recovered = {
+      id: string;
+      toolName: string;
+      correlationId: string | null;
+      status: "REJECTED" | "FAILED";
+      errorCode: string;
+    };
+    await this.db.$transaction(async (tx) => {
+      const expired = await tx.$queryRaw<Recovered[]>`
+        UPDATE ai_action_logs
+        SET status = 'REJECTED', error_code = 'ACTION_EXPIRED'
+        WHERE status = 'REQUESTED' AND expires_at <= ${now}
+        RETURNING id, tool_name AS "toolName", correlation_id AS "correlationId",
+          status::text AS status, error_code AS "errorCode"
+      `;
+      const interrupted = await tx.$queryRaw<Recovered[]>`
+        UPDATE ai_action_logs
+        SET status = 'FAILED', error_code = 'AI_ACTION_OUTCOME_UNKNOWN'
+        WHERE status = 'EXECUTING' AND expires_at <= ${interruptedBefore}
+        RETURNING id, tool_name AS "toolName", correlation_id AS "correlationId",
+          status::text AS status, error_code AS "errorCode"
+      `;
+      const events = [...expired, ...interrupted].map((row) =>
+        outboxData(
+          aiOutboxEvent({
+            type: "ai.failed",
+            aggregateType: "action",
+            aggregateId: row.id,
+            correlationId: row.correlationId ?? row.id,
+            occurredAt: now,
+            payload: {
+              actionId: row.id,
+              toolName: row.toolName,
+              status: row.status,
+              errorCode: row.errorCode,
+            },
+          }),
+        ),
+      );
+      if (events.length) await tx.outboxEvent.createMany({ data: events });
     });
   }
 
-  async finalize(entity: AIActionLog): Promise<void> {
+  async finalize(entity: AIActionLog, event?: OutboxEventInput): Promise<void> {
     const data = AIActionLogMapper.toPersistence(entity);
-    const result = await this.db.aIActionLog.updateMany({
-      where: { id: entity.state.id, userId: entity.state.userId, status: "EXECUTING" },
-      data: {
-        status: data.status,
-        outputPayload: data.outputPayload,
-        errorCode: data.errorCode,
-        durationMs: data.durationMs,
-      },
+    await this.db.$transaction(async (tx) => {
+      const result = await tx.aIActionLog.updateMany({
+        where: {
+          id: entity.state.id,
+          userId: entity.state.userId,
+          status: "EXECUTING",
+        },
+        data: {
+          status: data.status,
+          outputPayload: data.outputPayload,
+          errorCode: data.errorCode,
+          durationMs: data.durationMs,
+        },
+      });
+      if (result.count !== 1)
+        throw new Error("Action state changed during execution");
+      if (event) await tx.outboxEvent.create({ data: outboxData(event) });
     });
-    if (result.count !== 1) throw new Error("Action state changed during execution");
   }
 
   async findPageByUserId(
@@ -222,6 +293,17 @@ export class PrismaAIActionLogRepository implements AIActionLogRepository {
     });
   }
 
+  async saveWithEvent(
+    entity: AIActionLog,
+    event: OutboxEventInput,
+  ): Promise<void> {
+    const data = AIActionLogMapper.toPersistence(entity);
+    await this.db.$transaction(async (tx) => {
+      await tx.aIActionLog.create({ data });
+      await tx.outboxEvent.create({ data: outboxData(event) });
+    });
+  }
+
   private async findPage(
     where: { userId: string; conversationId?: string },
     query: AIPageQuery,
@@ -240,5 +322,13 @@ export class PrismaAIActionLogRepository implements AIActionLogRepository {
       total,
       ...query,
     };
+  }
+}
+
+export class PrismaAIOutboxRepository implements AIOutboxRepository {
+  constructor(private readonly db: PrismaService) {}
+
+  async save(event: OutboxEventInput): Promise<void> {
+    await this.db.outboxEvent.create({ data: outboxData(event) });
   }
 }

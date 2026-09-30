@@ -58,6 +58,10 @@ class TestMessages implements MessageRepository {
   readonly rows: Message[] = [];
   constructor(private readonly conversations: TestConversations) {}
 
+  async saveWithEvent(entity: Message) {
+    await this.save(entity);
+  }
+
   async saveMany(entities: readonly Message[]) {
     this.rows.push(...entities);
   }

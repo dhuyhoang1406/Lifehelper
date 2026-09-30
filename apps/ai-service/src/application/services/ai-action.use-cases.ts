@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { AIJsonObject } from "../ports/ai-provider.port";
+import type { AIJsonObject, AIResponse } from "../ports/ai-provider.port";
+import { actionAuditFields, aiOutboxEvent } from "./ai-audit-events";
 import type { ToolUserContext } from "../ports/productivity-read.port";
 import type { ProductivityWriteClient } from "../ports/productivity-write.port";
 import type { AIActionLogRepository } from "../repositories/ai.repositories";
@@ -41,12 +42,14 @@ export class AIActionUseCases {
     private readonly ttlSeconds: number,
     private readonly now: () => Date = () => new Date(),
     private readonly newId: () => string = randomUUID,
+    private readonly elapsedNow: () => number = () => performance.now(),
   ) {}
 
   async request(
     context: ToolUserContext,
     conversationId: string,
     call: ValidatedWriteCall,
+    source?: Pick<AIResponse, "metadata" | "usage">,
   ) {
     const at = this.now();
     const expiresAt = new Date(at.getTime() + this.ttlSeconds * 1000);
@@ -56,13 +59,33 @@ export class AIActionUseCases {
       userId: context.userId,
       conversationId,
       toolName: call.name,
+      correlationId: context.correlationId,
+      provider: source?.metadata.provider,
+      model: source?.metadata.model,
+      inputTokens: source?.usage.inputTokens,
+      outputTokens: source?.usage.outputTokens,
       inputPayload: call.arguments,
       payloadHash,
       idempotencyKey: this.newId(),
       expiresAt,
       createdAt: at,
     });
-    await this.actions.save(action);
+    await this.actions.saveWithEvent(
+      action,
+      aiOutboxEvent({
+        type: "ai.requested",
+        aggregateType: "action",
+        aggregateId: action.state.id,
+        correlationId: context.correlationId,
+        occurredAt: at,
+        payload: {
+          actionId: action.state.id,
+          conversationId,
+          toolName: call.name,
+          ...actionAuditFields(call),
+        },
+      }),
+    );
     return {
       actionId: action.state.id,
       status: AIActionStatus.REQUESTED,
@@ -112,11 +135,13 @@ export class AIActionUseCases {
         "Action cannot be rejected",
         409,
       );
+    action.reject("USER_REJECTED");
     const changed = await this.actions.rejectIfRequested(
       id,
       context.userId,
       payloadHash,
       "USER_REJECTED",
+      this.actionEvent(action, context, "ai.failed", "USER_REJECTED"),
     );
     if (!changed) return this.get(context, id);
     return this.get(context, id);
@@ -127,11 +152,13 @@ export class AIActionUseCases {
     if (action.state.status !== AIActionStatus.REQUESTED)
       return this.view(action);
     if (!action.state.expiresAt || action.state.expiresAt <= this.now()) {
+      action.reject("ACTION_EXPIRED");
       await this.actions.rejectIfRequested(
         id,
         context.userId,
         payloadHash,
         "ACTION_EXPIRED",
+        this.actionEvent(action, context, "ai.failed", "ACTION_EXPIRED"),
       );
       throw new AIApplicationError(
         AIErrorCode.AI_ACTION_EXPIRED,
@@ -147,7 +174,7 @@ export class AIActionUseCases {
     );
     if (!claimed) return this.get(context, id);
     action.start();
-    const start = this.now().getTime();
+    const start = this.elapsedNow();
     try {
       const call = validateWriteCall({
         id: action.state.id,
@@ -168,16 +195,68 @@ export class AIActionUseCases {
         call,
         action.state.idempotencyKey!,
       );
-      action.succeed(output, Math.max(0, this.now().getTime() - start));
+      if (typeof output.id !== "string")
+        throw new AIApplicationError(
+          AIErrorCode.AI_PRODUCTIVITY_INVALID_RESPONSE,
+          "Productivity returned an invalid action result",
+          502,
+        );
+      action.succeed(
+        { id: output.id },
+        Math.max(0, Math.round(this.elapsedNow() - start)),
+      );
     } catch (error) {
       const code =
         error instanceof AIApplicationError
           ? error.code
           : AIErrorCode.AI_PRODUCTIVITY_UNAVAILABLE;
-      action.fail(code, Math.max(0, this.now().getTime() - start));
+      action.fail(code, Math.max(0, Math.round(this.elapsedNow() - start)));
     }
-    await this.actions.finalize(action);
+    await this.actions.finalize(
+      action,
+      this.actionEvent(
+        action,
+        context,
+        action.state.errorCode ? "ai.failed" : "ai.tool.executed",
+        action.state.errorCode,
+      ),
+    );
     return this.view(action);
+  }
+
+  private actionEvent(
+    action: AIActionLog,
+    context: ToolUserContext,
+    type: "ai.tool.executed" | "ai.failed",
+    errorCode: string | null,
+  ) {
+    const output = action.state.outputPayload;
+    const resourceId =
+      output &&
+      typeof output === "object" &&
+      !Array.isArray(output) &&
+      typeof output.id === "string"
+        ? output.id
+        : null;
+    return aiOutboxEvent({
+      type,
+      aggregateType: "action",
+      aggregateId: action.state.id,
+      correlationId: context.correlationId,
+      occurredAt: this.now(),
+      payload: {
+        actionId: action.state.id,
+        toolName: action.state.toolName,
+        status: action.state.status,
+        provider: action.state.provider,
+        model: action.state.model,
+        inputTokens: action.state.inputTokens,
+        outputTokens: action.state.outputTokens,
+        durationMs: action.state.durationMs,
+        errorCode,
+        resourceId,
+      },
+    });
   }
 
   private async checked(

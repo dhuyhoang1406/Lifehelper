@@ -117,8 +117,6 @@ export class ProductivityHttpClient implements ProductivityReadClient, Productiv
       return {
         id: payload.id,
         ...(typeof payload.status === "string" ? { status: payload.status } : {}),
-        ...(typeof payload.title === "string" ? { title: payload.title } : {}),
-        ...(typeof payload.name === "string" ? { name: payload.name } : {}),
       };
     } catch (error) {
       if (error instanceof AIApplicationError) throw error;
