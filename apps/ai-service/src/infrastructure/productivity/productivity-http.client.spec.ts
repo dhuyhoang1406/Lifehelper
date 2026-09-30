@@ -91,7 +91,7 @@ describe("Productivity HTTP read adapter", () => {
     const call = validateWriteCall({ id: "call", name: item.name, arguments: item.args });
     if (!call) throw new Error("Test tool was not registered");
     const result = await new ProductivityHttpClient(baseUrl, 1000).execute(context, call, "00000000-0000-4000-8000-000000000099");
-    expect(result).toEqual({ id: taskId, title: "Safe" });
+    expect(result).toEqual({ id: taskId });
   });
 
   it("maps write validation and timeout failures without exposing raw upstream bodies", async () => {

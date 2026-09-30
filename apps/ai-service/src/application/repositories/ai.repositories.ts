@@ -1,4 +1,4 @@
-import type { UUID } from "@lifehelper/shared-types";
+import type { UUID, OutboxEventInput } from "@lifehelper/shared-types";
 import type { Conversation } from "../../modules/ai/domain/entities/conversation.entity";
 import type { Message } from "../../modules/ai/domain/entities/message.entity";
 import type { AIActionLog } from "../../modules/ai/domain/entities/ai-action-log.entity";
@@ -34,14 +34,26 @@ export interface MessageRepository {
     limit: number,
   ): Promise<Message[]>;
   save(entity: Message): Promise<void>;
+  saveWithEvent(entity: Message, event: OutboxEventInput): Promise<void>;
   saveMany(entities: readonly Message[]): Promise<void>;
 }
 export interface AIActionLogRepository {
   findByIdAndUserId(id: UUID, userId: UUID): Promise<AIActionLog | null>;
-  claim(id: UUID, userId: UUID, payloadHash: string, now: Date): Promise<boolean>;
-  rejectIfRequested(id: UUID, userId: UUID, payloadHash: string, reason: string): Promise<boolean>;
+  claim(
+    id: UUID,
+    userId: UUID,
+    payloadHash: string,
+    now: Date,
+  ): Promise<boolean>;
+  rejectIfRequested(
+    id: UUID,
+    userId: UUID,
+    payloadHash: string,
+    reason: string,
+    event?: OutboxEventInput,
+  ): Promise<boolean>;
   recoverStale(now: Date, interruptedBefore: Date): Promise<void>;
-  finalize(entity: AIActionLog): Promise<void>;
+  finalize(entity: AIActionLog, event?: OutboxEventInput): Promise<void>;
   findPageByUserId(
     userId: UUID,
     query: AIPageQuery,
@@ -52,8 +64,14 @@ export interface AIActionLogRepository {
     query: AIPageQuery,
   ): Promise<AIPage<AIActionLog>>;
   save(entity: AIActionLog): Promise<void>;
+  saveWithEvent(entity: AIActionLog, event: OutboxEventInput): Promise<void>;
 }
 
+export interface AIOutboxRepository {
+  save(event: OutboxEventInput): Promise<void>;
+}
+
+export const AI_OUTBOX_REPOSITORY = Symbol("AI_OUTBOX_REPOSITORY");
 export const CONVERSATION_REPOSITORY = Symbol("CONVERSATION_REPOSITORY");
 export const MESSAGE_REPOSITORY = Symbol("MESSAGE_REPOSITORY");
 export const AI_ACTION_LOG_REPOSITORY = Symbol("AI_ACTION_LOG_REPOSITORY");

@@ -117,23 +117,36 @@ describe("AI write actions with PostgreSQL and HTTP", () => {
       options,
     );
   });
-  beforeEach(async () => {
+  async function clearSyntheticRecords() {
+    const [actions, conversations] = await Promise.all([
+      db.aIActionLog.findMany({
+        where: { userId: { in: [userA, userB] } },
+        select: { id: true },
+      }),
+      db.conversation.findMany({
+        where: { userId: { in: [userA, userB] } },
+        select: { id: true },
+      }),
+    ]);
+    await db.outboxEvent.deleteMany({
+      where: {
+        aggregateId: { in: [...actions, ...conversations].map(({ id }) => id) },
+      },
+    });
     await db.aIActionLog.deleteMany({
       where: { userId: { in: [userA, userB] } },
     });
     await db.conversation.deleteMany({
       where: { userId: { in: [userA, userB] } },
     });
+  }
+  beforeEach(async () => {
+    await clearSyntheticRecords();
     client.execute.mockReset();
     provider.requests.length = 0;
   });
   afterAll(async () => {
-    await db.aIActionLog.deleteMany({
-      where: { userId: { in: [userA, userB] } },
-    });
-    await db.conversation.deleteMany({
-      where: { userId: { in: [userA, userB] } },
-    });
+    await clearSyntheticRecords();
     await app.close();
   });
 
@@ -208,6 +221,60 @@ describe("AI write actions with PostgreSQL and HTTP", () => {
       expect(await db.aIActionLog.count({ where: { userId: userA } })).toBe(0);
     },
   );
+
+  it("stores sanitized correlated request and execution events with provider usage", async () => {
+    const pending = await propose({
+      name: "create_task",
+      args: { title: "Private health appointment" },
+    });
+    const action = await db.aIActionLog.findUniqueOrThrow({
+      where: { id: pending.actionId },
+    });
+    expect(action).toMatchObject({
+      provider: "ollama",
+      model: "fake",
+      inputTokens: 8,
+      outputTokens: 8,
+    });
+    client.execute.mockResolvedValue({
+      id: taskId,
+      title: "Private output",
+      apiKey: "hidden",
+    });
+    const confirmed = await confirm(pending)
+      .set("x-correlation-id", "trace-confirm-123")
+      .expect(201);
+    expect(confirmed.body.output).toEqual({ id: taskId });
+    const events = await db.outboxEvent.findMany({
+      where: { aggregateId: pending.actionId },
+      orderBy: { occurredAt: "asc" },
+    });
+    expect(events.map((event) => event.eventType).sort()).toEqual([
+      "ai.requested",
+      "ai.tool.executed",
+    ]);
+    const executed = events.find(
+      (event) => event.eventType === "ai.tool.executed",
+    );
+    expect(executed?.payload).toMatchObject({
+      version: 1,
+      correlationId: "trace-confirm-123",
+      payload: {
+        actionId: pending.actionId,
+        toolName: "create_task",
+        status: "SUCCESS",
+        provider: "ollama",
+        model: "fake",
+        inputTokens: 8,
+        outputTokens: 8,
+        resourceId: taskId,
+      },
+    });
+    expect(JSON.stringify(events)).not.toContain("Private health appointment");
+    expect(JSON.stringify(events)).not.toContain("Private output");
+    expect(JSON.stringify(events)).not.toContain("hidden");
+    expect(JSON.stringify(events)).not.toContain(tokenA);
+  });
 
   it.each(writes)(
     "proposes and executes $name only after explicit confirmation",
@@ -318,14 +385,20 @@ describe("AI write actions with PostgreSQL and HTTP", () => {
         },
       ],
     });
-    provider.enqueueResponse({ ...finalReply, content: "Please check your timezone." });
+    provider.enqueueResponse({
+      ...finalReply,
+      content: "Please check your timezone.",
+    });
     await request(app.getHttpServer())
       .post("/ai/chat")
       .set(auth(tokenA))
       .send({ prompt: "Set reminder", timezone: "Europe/Paris" })
       .expect(200);
-    expect(provider.requests.at(-1)?.messages.find((message) => message.role === "TOOL")?.content)
-      .toBe('{"error":"AI_TOOL_CALL_INVALID"}');
+    expect(
+      provider.requests
+        .at(-1)
+        ?.messages.find((message) => message.role === "TOOL")?.content,
+    ).toBe('{"error":"AI_TOOL_CALL_INVALID"}');
     expect(await db.aIActionLog.count({ where: { userId: userA } })).toBe(0);
     expect(client.execute).not.toHaveBeenCalled();
   });
