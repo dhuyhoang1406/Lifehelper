@@ -7,7 +7,9 @@ export class AIProviderExceptionFilter implements ExceptionFilter {
   catch(error: AIApplicationError, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
     const request = host.switchToHttp().getRequest<Request>();
-    const correlationId = response.getHeader("x-correlation-id") ?? request.headers["x-correlation-id"];
+    const correlationId =
+      response.getHeader("x-correlation-id") ??
+      request.headers["x-correlation-id"];
     response.status(error.statusCode).json({
       code: error.code,
       message: error.message,

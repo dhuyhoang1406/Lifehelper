@@ -9,7 +9,10 @@ describe("AI conversation Swagger documentation", () => {
     const module = await Test.createTestingModule({
       controllers: [AIConversationController],
       providers: [{ provide: AIConversationUseCases, useValue: {} }],
-    }).overrideGuard(JwtAuthGuard).useValue({ canActivate: () => true }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
     const app = module.createNestApplication();
     await app.init();
 
@@ -19,15 +22,32 @@ describe("AI conversation Swagger documentation", () => {
         new DocumentBuilder().addBearerAuth(undefined, "access-token").build(),
       );
       const list = document.paths["/ai/conversations"]?.get?.parameters ?? [];
-      const history = document.paths["/ai/conversations/{id}"]?.get?.parameters ?? [];
-      expect(list).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: "page", schema: expect.objectContaining({ type: "number" }) }),
-        expect.objectContaining({ name: "limit", schema: expect.objectContaining({ type: "number" }) }),
-      ]));
-      expect(history).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: "limit", schema: expect.objectContaining({ type: "number" }) }),
-        expect.objectContaining({ name: "cursor", schema: expect.objectContaining({ type: "string" }) }),
-      ]));
+      const history =
+        document.paths["/ai/conversations/{id}"]?.get?.parameters ?? [];
+      expect(list).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "page",
+            schema: expect.objectContaining({ type: "number" }),
+          }),
+          expect.objectContaining({
+            name: "limit",
+            schema: expect.objectContaining({ type: "number" }),
+          }),
+        ]),
+      );
+      expect(history).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "limit",
+            schema: expect.objectContaining({ type: "number" }),
+          }),
+          expect.objectContaining({
+            name: "cursor",
+            schema: expect.objectContaining({ type: "string" }),
+          }),
+        ]),
+      );
     } finally {
       await app.close();
     }

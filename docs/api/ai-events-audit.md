@@ -5,14 +5,14 @@ Publishing/Analytics consumption is not enabled in this branch. The shared
 `EventEnvelope` (`version: 1`) is stored in `payload`; the outbox row repeats
 its event type and UTC `occurredAt` for querying.
 
-| Event | Aggregate | Trigger |
-| --- | --- | --- |
-| `ai.requested` | conversation | User message persisted |
-| `ai.completed` | conversation | Assistant message persisted |
-| `ai.failed` | conversation | Provider request failed |
-| `ai.requested` | action | Pending write action persisted |
-| `ai.tool.executed` | action | Confirmed write completed |
-| `ai.failed` | action | Confirmed write failed, expired, was rejected, or had an unknown interrupted outcome |
+| Event              | Aggregate    | Trigger                                                                              |
+| ------------------ | ------------ | ------------------------------------------------------------------------------------ |
+| `ai.requested`     | conversation | User message persisted                                                               |
+| `ai.completed`     | conversation | Assistant message persisted                                                          |
+| `ai.failed`        | conversation | Provider request failed                                                              |
+| `ai.requested`     | action       | Pending write action persisted                                                       |
+| `ai.tool.executed` | action       | Confirmed write completed                                                            |
+| `ai.failed`        | action       | Confirmed write failed, expired, was rejected, or had an unknown interrupted outcome |
 
 Events carry a request `correlationId`. Action records also store their initial
 correlation ID so the recovery sweep can emit correlated failure events. Each

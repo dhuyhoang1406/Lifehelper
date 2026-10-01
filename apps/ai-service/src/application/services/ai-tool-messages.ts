@@ -1,4 +1,8 @@
-import type { AIRequestMessage, AIToolCall, AIJsonObject } from "../ports/ai-provider.port";
+import type {
+  AIRequestMessage,
+  AIToolCall,
+  AIJsonObject,
+} from "../ports/ai-provider.port";
 import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
 import type { Message } from "../../modules/ai/domain/entities/message.entity";
 
@@ -23,14 +27,27 @@ function object(value: unknown): value is Record<string, unknown> {
 
 export function toProviderMessage(message: Message): AIRequestMessage {
   const { role, content, toolPayload } = message.state;
-  if (role === MessageRole.ASSISTANT && object(toolPayload) &&
-      toolPayload.kind === "tool_calls" && Array.isArray(toolPayload.calls))
-    return { role, content, toolCalls: toolPayload.calls as unknown as AIToolCall[] };
-  if (role === MessageRole.TOOL && object(toolPayload) &&
-      toolPayload.kind === "tool_result" &&
-      typeof toolPayload.id === "string" && typeof toolPayload.name === "string")
+  if (
+    role === MessageRole.ASSISTANT &&
+    object(toolPayload) &&
+    toolPayload.kind === "tool_calls" &&
+    Array.isArray(toolPayload.calls)
+  )
     return {
-      role, content,
+      role,
+      content,
+      toolCalls: toolPayload.calls as unknown as AIToolCall[],
+    };
+  if (
+    role === MessageRole.TOOL &&
+    object(toolPayload) &&
+    toolPayload.kind === "tool_result" &&
+    typeof toolPayload.id === "string" &&
+    typeof toolPayload.name === "string"
+  )
+    return {
+      role,
+      content,
       toolCallId: toolPayload.id,
       toolName: toolPayload.name,
     };

@@ -46,10 +46,12 @@ describe("AI persistence mappers", () => {
       createdAt,
     };
 
-    expect(MessageMapper.toPersistence(MessageMapper.toDomain(record))).toEqual({
-      ...record,
-      toolPayload: Prisma.DbNull,
-    });
+    expect(MessageMapper.toPersistence(MessageMapper.toDomain(record))).toEqual(
+      {
+        ...record,
+        toolPayload: Prisma.DbNull,
+      },
+    );
   });
 
   it("restores an action log without leaking Prisma enum types", () => {
@@ -60,7 +62,10 @@ describe("AI persistence mappers", () => {
       messageId: null,
       toolName: "list_tasks",
       correlationId: null,
-      provider: null, model: null, inputTokens: null, outputTokens: null,
+      provider: null,
+      model: null,
+      inputTokens: null,
+      outputTokens: null,
       inputPayload: { page: 1 },
       payloadHash: null,
       idempotencyKey: null,

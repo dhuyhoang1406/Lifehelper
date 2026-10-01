@@ -71,16 +71,24 @@ describe("OllamaProvider HTTP contract", () => {
   });
 
   it("keeps the trusted system timezone context when history is truncated", async () => {
-    const provider = new OllamaProvider({ ...baseConfig, baseUrl, maxContextMessages: 1 });
-    await provider.generate({ messages: [
-      { role: MessageRole.SYSTEM, content: "Timezone: Asia/Ho_Chi_Minh" },
-      { role: MessageRole.USER, content: "Old" },
-      { role: MessageRole.USER, content: "Today" },
-    ] });
-    expect(received[0]?.body).toMatchObject({ messages: [
-      { role: "system", content: "Timezone: Asia/Ho_Chi_Minh" },
-      { role: "user", content: "Today" },
-    ] });
+    const provider = new OllamaProvider({
+      ...baseConfig,
+      baseUrl,
+      maxContextMessages: 1,
+    });
+    await provider.generate({
+      messages: [
+        { role: MessageRole.SYSTEM, content: "Timezone: Asia/Ho_Chi_Minh" },
+        { role: MessageRole.USER, content: "Old" },
+        { role: MessageRole.USER, content: "Today" },
+      ],
+    });
+    expect(received[0]?.body).toMatchObject({
+      messages: [
+        { role: "system", content: "Timezone: Asia/Ho_Chi_Minh" },
+        { role: "user", content: "Today" },
+      ],
+    });
   });
 
   it("maps messages, tool definitions, text, usage and metadata", async () => {

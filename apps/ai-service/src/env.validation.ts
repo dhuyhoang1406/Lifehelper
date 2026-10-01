@@ -9,8 +9,12 @@ const schema = Joi.object({
   AI_MODEL: Joi.string().trim().min(1).max(200).required(),
   AI_BASE_URL: Joi.when("AI_PROVIDER", {
     is: "cloudflare",
-    then: Joi.string().uri({ scheme: ["https"] }).required(),
-    otherwise: Joi.string().uri({ scheme: ["http", "https"] }).required(),
+    then: Joi.string()
+      .uri({ scheme: ["https"] })
+      .required(),
+    otherwise: Joi.string()
+      .uri({ scheme: ["http", "https"] })
+      .required(),
   }),
   AI_TIMEOUT_MS: Joi.number().integer().min(100).max(300_000).required(),
   AI_MAX_OUTPUT_TOKENS: Joi.number()
@@ -29,9 +33,19 @@ const schema = Joi.object({
     .positive()
     .max(10_000)
     .required(),
-  PRODUCTIVITY_SERVICE_URL: Joi.string().uri({ scheme: ["http", "https"] }).required(),
-  PRODUCTIVITY_TIMEOUT_MS: Joi.number().integer().min(100).max(30_000).required(),
-  AI_ACTION_CONFIRM_TTL_SECONDS: Joi.number().integer().min(60).max(3600).default(600),
+  PRODUCTIVITY_SERVICE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .required(),
+  PRODUCTIVITY_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30_000)
+    .required(),
+  AI_ACTION_CONFIRM_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(3600)
+    .default(600),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().trim().min(1).required(),
   JWT_AUDIENCE: Joi.string().trim().min(1).required(),

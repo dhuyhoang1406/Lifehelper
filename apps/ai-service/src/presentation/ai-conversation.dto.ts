@@ -21,7 +21,10 @@ export class ChatDto {
   @Matches(/\S/)
   prompt!: string;
 
-  @ApiPropertyOptional({ example: "Asia/Ho_Chi_Minh", description: "User's IANA timezone for date-based read tools" })
+  @ApiPropertyOptional({
+    example: "Asia/Ho_Chi_Minh",
+    description: "User's IANA timezone for date-based read tools",
+  })
   @IsOptional()
   @IsString()
   @IsTimeZone()
@@ -43,7 +46,12 @@ export class ConversationIdDto {
 }
 
 export class ConversationPageDto {
-  @ApiPropertyOptional({ type: Number, default: 1, minimum: 1, maximum: 1_000_000 })
+  @ApiPropertyOptional({
+    type: Number,
+    default: 1,
+    minimum: 1,
+    maximum: 1_000_000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -66,7 +74,9 @@ export class ConversationMessagesQueryDto {
   @Max(100)
   limit = 20;
 
-  @ApiPropertyOptional({ description: "Opaque nextCursor from the previous page" })
+  @ApiPropertyOptional({
+    description: "Opaque nextCursor from the previous page",
+  })
   @IsOptional()
   @IsString()
   @MaxLength(512)

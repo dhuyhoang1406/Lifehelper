@@ -27,14 +27,38 @@ const baseEnvironment = {
 
 describe("AI environment validation", () => {
   it("requires a bounded internal Productivity client configuration", () => {
-    expect(() => validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_SERVICE_URL: "file:///tmp/data" })).toThrow();
-    expect(() => validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_TIMEOUT_MS: "0" })).toThrow();
-    expect(() => validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_SERVICE_URL: undefined })).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...baseEnvironment,
+        PRODUCTIVITY_SERVICE_URL: "file:///tmp/data",
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({ ...baseEnvironment, PRODUCTIVITY_TIMEOUT_MS: "0" }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...baseEnvironment,
+        PRODUCTIVITY_SERVICE_URL: undefined,
+      }),
+    ).toThrow();
   });
   it("defaults to a bounded action confirmation window", () => {
-    expect(validateEnvironment(baseEnvironment).AI_ACTION_CONFIRM_TTL_SECONDS).toBe(600);
-    expect(() => validateEnvironment({ ...baseEnvironment, AI_ACTION_CONFIRM_TTL_SECONDS: "0" })).toThrow();
-    expect(() => validateEnvironment({ ...baseEnvironment, AI_ACTION_CONFIRM_TTL_SECONDS: "3601" })).toThrow();
+    expect(
+      validateEnvironment(baseEnvironment).AI_ACTION_CONFIRM_TTL_SECONDS,
+    ).toBe(600);
+    expect(() =>
+      validateEnvironment({
+        ...baseEnvironment,
+        AI_ACTION_CONFIRM_TTL_SECONDS: "0",
+      }),
+    ).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...baseEnvironment,
+        AI_ACTION_CONFIRM_TTL_SECONDS: "3601",
+      }),
+    ).toThrow();
   });
   it("accepts Ollama without Cloudflare credentials and converts numbers", () => {
     const result = validateEnvironment(baseEnvironment);

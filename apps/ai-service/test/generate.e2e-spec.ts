@@ -91,16 +91,14 @@ describe("AI generation (e2e)", () => {
   });
 
   it("rejects a signed token with an invalid user ID before invoking the provider", async () => {
-    const invalidToken = await app
-      .get(JwtService)
-      .signAsync(
-        { sub: "invalid-owner", sessionId: "session-1", tokenType: "access" },
-        {
-          secret: process.env.JWT_ACCESS_SECRET,
-          issuer: process.env.JWT_ISSUER,
-          audience: process.env.JWT_AUDIENCE,
-        },
-      );
+    const invalidToken = await app.get(JwtService).signAsync(
+      { sub: "invalid-owner", sessionId: "session-1", tokenType: "access" },
+      {
+        secret: process.env.JWT_ACCESS_SECRET,
+        issuer: process.env.JWT_ISSUER,
+        audience: process.env.JWT_AUDIENCE,
+      },
+    );
     const count = provider.requests.length;
     await request(app.getHttpServer())
       .post("/ai/generate")

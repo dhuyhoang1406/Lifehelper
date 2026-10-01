@@ -6,7 +6,8 @@ export interface MessagePosition {
   id: UUID;
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function invalidCursor(): AIApplicationError {
   return new AIApplicationError(
@@ -37,7 +38,9 @@ export function decodeMessageCursor(
   if (encoded.length > 512 || !/^[A-Za-z0-9_-]+$/.test(encoded))
     throw invalidCursor();
   try {
-    const value: unknown = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    const value: unknown = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8"),
+    );
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw invalidCursor();
     const payload = value as Record<string, unknown>;
@@ -53,7 +56,8 @@ export function decodeMessageCursor(
     if (
       !Number.isFinite(createdAt.getTime()) ||
       createdAt.toISOString() !== payload.createdAt ||
-      encodeMessageCursor(conversationId, { createdAt, id: payload.id }) !== encoded
+      encodeMessageCursor(conversationId, { createdAt, id: payload.id }) !==
+        encoded
     )
       throw invalidCursor();
     return { createdAt, id: payload.id };
