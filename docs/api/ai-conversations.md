@@ -30,3 +30,5 @@ The real PostgreSQL HTTP integration suite runs with
 `pnpm --filter @lifehelper/ai-service test:persistence` after migrations are
 applied and `DATABASE_URL` points to the AI database. Routine unit and HTTP
 tests use a fake provider; they do not consume external inference quota.
+
+See [AI operational runbook](ai-runbook.md) for confirmed actions, error recovery and verification.

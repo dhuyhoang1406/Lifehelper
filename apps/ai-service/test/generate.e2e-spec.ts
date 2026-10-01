@@ -33,7 +33,11 @@ describe("AI generation (e2e)", () => {
     );
     await app.init();
     token = await app.get(JwtService).signAsync(
-      { sub: "user-1", sessionId: "session-1", tokenType: "access" },
+      {
+        sub: "00000000-0000-4000-8000-000000000001",
+        sessionId: "session-1",
+        tokenType: "access",
+      },
       {
         secret: process.env.JWT_ACCESS_SECRET,
         issuer: process.env.JWT_ISSUER,
@@ -81,14 +85,49 @@ describe("AI generation (e2e)", () => {
         });
       });
     expect(provider.requests.at(-1)).toMatchObject({
-      messages: [
-        { role: "SYSTEM" },
-        { role: "USER", content: "Hi" },
-      ],
-      maxOutputTokens: 256,
+      messages: [{ role: "SYSTEM" }, { role: "USER", content: "Hi" }],
       disableReasoning: true,
     });
   });
+
+  it("rejects a signed token with an invalid user ID before invoking the provider", async () => {
+    const invalidToken = await app
+      .get(JwtService)
+      .signAsync(
+        { sub: "invalid-owner", sessionId: "session-1", tokenType: "access" },
+        {
+          secret: process.env.JWT_ACCESS_SECRET,
+          issuer: process.env.JWT_ISSUER,
+          audience: process.env.JWT_AUDIENCE,
+        },
+      );
+    const count = provider.requests.length;
+    await request(app.getHttpServer())
+      .post("/ai/generate")
+      .set("Authorization", `Bearer ${invalidToken}`)
+      .send({ prompt: "Hi" })
+      .expect(401);
+    expect(provider.requests).toHaveLength(count);
+  });
+
+  it.each([undefined, "client-request:123", "x".repeat(129)])(
+    "returns a bounded correlation ID for header %s",
+    async (header) => {
+      provider.enqueueError(
+        new AIProviderFailure("unavailable", "offline", false),
+      );
+      const call = request(app.getHttpServer())
+        .post("/ai/generate")
+        .set("Authorization", `Bearer ${token}`);
+      if (header) call.set("x-correlation-id", header);
+      const response = await call.send({ prompt: "Hi" }).expect(503);
+      expect(response.headers["x-correlation-id"]).toMatch(
+        /^[A-Za-z0-9._:-]{1,128}$/,
+      );
+      if (header === "client-request:123")
+        expect(response.headers["x-correlation-id"]).toBe(header);
+    },
+  );
 
   it("returns stable provider error codes", async () => {
     provider.enqueueError(

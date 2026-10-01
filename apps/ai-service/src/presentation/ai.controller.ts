@@ -14,7 +14,6 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { MessageRole } from "../modules/ai/domain/enums/ai.enums";
 import { GenerateDto } from "./generate.dto";
 
-const SIMPLE_CHAT_MAX_OUTPUT_TOKENS = 256;
 const SIMPLE_CHAT_INSTRUCTIONS =
   "Trả lời ngắn gọn bằng ngôn ngữ của người dùng. Không tự tạo sự kiện, dữ liệu cá nhân hoặc nguồn tham khảo. Nếu không có dữ liệu cần thiết, hãy nói rõ bạn không biết hoặc chưa được cung cấp dữ liệu.";
 
@@ -37,7 +36,6 @@ export class AIController {
         { role: MessageRole.SYSTEM, content: SIMPLE_CHAT_INSTRUCTIONS },
         { role: MessageRole.USER, content: body.prompt },
       ],
-      maxOutputTokens: SIMPLE_CHAT_MAX_OUTPUT_TOKENS,
       disableReasoning: true,
     });
     this.logger.log({
@@ -48,7 +46,7 @@ export class AIController {
       providerLatencyMs: response.metadata.latencyMs,
       totalLatencyMs: response.metadata.totalLatencyMs,
       retryCount: response.metadata.retryCount,
-      usage: response.metadata.rawUsage,
+      usage: response.usage,
     });
     return response;
   }

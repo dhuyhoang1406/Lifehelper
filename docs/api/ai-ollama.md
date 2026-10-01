@@ -57,3 +57,5 @@ curl -X POST http://localhost:3003/ai/generate \
 `/health/ready` checks the database. `/health/provider` checks Ollama and the
 configured model. Automated tests use a fake provider and stub HTTP server;
 they do not need a local model.
+
+See [AI operational runbook](ai-runbook.md) for confirmed actions, error recovery and verification.

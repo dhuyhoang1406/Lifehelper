@@ -71,3 +71,5 @@ Do not put real token values in a command line, script, or CI logs. A live
 test consumes your account's Workers AI allowance. Run `/health/provider` to
 check authenticated Cloudflare model-list access without inference; it does
 not guarantee the selected model has available capacity.
+
+See [AI operational runbook](ai-runbook.md) for confirmed actions, error recovery and verification.

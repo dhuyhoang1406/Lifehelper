@@ -102,6 +102,13 @@ jobs:
               pnpm --filter "@lifehelper/${service}-service" test:persistence
           done
 
+      - name: Run AI to Productivity workflows
+        env:
+          DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_ai_ci?schema=public
+          PRODUCTIVITY_DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_productivity_ci?schema=public
+          LOG_LEVEL: fatal
+        run: pnpm --filter @lifehelper/ai-service test:workflow
+
   mobile:
     name: Flutter quality checks
     runs-on: ubuntu-latest

@@ -1,3 +1,4 @@
+import { boundedAIContext } from "../../application/services/bounded-ai-context";
 import { randomUUID } from "node:crypto";
 import {
   AIApplicationError,
@@ -39,7 +40,7 @@ export class OllamaProvider implements AIProvider {
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
-    const startedAt = Date.now();
+    const startedAt = performance.now();
     const payload = await this.request("api/chat", {
       model: this.config.model,
       stream: false,
@@ -56,19 +57,25 @@ export class OllamaProvider implements AIProvider {
             })),
           }
         : {}),
-      options: { num_predict: request.maxOutputTokens ?? this.config.maxOutputTokens },
+      options: {
+        num_predict: request.maxOutputTokens ?? this.config.maxOutputTokens,
+      },
       ...(request.responseFormat
         ? { format: request.responseFormat.schema }
         : {}),
     });
-    return this.mapResponse(payload, Date.now() - startedAt, request);
+    return this.mapResponse(
+      payload,
+      Math.max(0, Math.round(performance.now() - startedAt)),
+      request,
+    );
   }
 
   private mapMessages(request: AIRequest): unknown[] {
-    const system = request.messages.find((message) => message.role === "SYSTEM");
-    const recent = request.messages.filter((message) => message !== system)
-      .slice(-this.config.maxContextMessages);
-    const messages = system ? [system, ...recent] : recent;
+    const messages = boundedAIContext(
+      request.messages,
+      this.config.maxContextMessages,
+    );
     const namesById = new Map<string, string>();
     return messages.map((message) => {
       if (message.role === "ASSISTANT" && message.toolCalls?.length) {

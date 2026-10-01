@@ -16,7 +16,9 @@
     "prisma:validate": "prisma validate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "test:workflow": "jest --runInBand --config test/jest-workflow.json",
+    "test:ollama-smoke": "jest --runInBand --config test/jest-ollama-smoke.json"
   },
   "dependencies": {
     "@lifehelper/logger": "workspace:*",
@@ -70,7 +72,7 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.ts$": "ts-jest"
     },
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
