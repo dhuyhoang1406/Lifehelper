@@ -8,6 +8,7 @@ export interface DocumentProcessingJobProps {
   generation: number;
   status: ProcessingJobStatus;
   attemptCount: number;
+  leaseToken: number;
   nextAttemptAt: Date;
   leaseOwner: string | null;
   leaseExpiresAt: Date | null;
@@ -31,6 +32,7 @@ export class DocumentProcessingJob {
       generation,
       status: "PENDING",
       attemptCount: 0,
+      leaseToken: 0,
       nextAttemptAt: at,
       leaseOwner: null,
       leaseExpiresAt: null,
@@ -57,6 +59,7 @@ export class DocumentProcessingJob {
       throw new DocumentDomainError("Invalid job claim");
     this.props.status = "RUNNING";
     this.props.attemptCount += 1;
+    this.props.leaseToken += 1;
     this.props.leaseOwner = owner;
     this.props.leaseExpiresAt = expiresAt;
     this.props.updatedAt = at;
