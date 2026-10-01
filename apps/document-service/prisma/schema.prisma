@@ -17,51 +17,116 @@ enum DocumentStatus {
   DELETED
 }
 
+enum ProcessingGenerationStatus {
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+enum ProcessingJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 model Document {
-  id               String          @id @db.Uuid
-  userId           String          @map("user_id") @db.Uuid
-  originalFilename String          @map("original_filename") @db.VarChar(255)
-  storageFilename  String          @map("storage_filename") @db.VarChar(255)
-  mimeType         String          @map("mime_type") @db.VarChar(120)
-  sizeBytes        BigInt          @map("size_bytes")
-  s3Bucket         String          @map("s3_bucket") @db.VarChar(255)
-  s3Key            String          @unique @map("s3_key")
-  status           DocumentStatus
-  checksumSha256   String?         @map("checksum_sha256") @db.VarChar(64)
-  processingError  String?         @map("processing_error")
-  createdAt        DateTime        @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime        @map("updated_at") @db.Timestamptz(6)
-  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(6)
-  chunks           DocumentChunk[]
+  id                   String                  @id @db.Uuid
+  userId               String                  @map("user_id") @db.Uuid
+  originalFilename     String                  @map("original_filename") @db.VarChar(255)
+  storageFilename      String                  @map("storage_filename") @db.VarChar(255)
+  mimeType             String                  @map("mime_type") @db.VarChar(120)
+  sizeBytes            BigInt                  @map("size_bytes")
+  s3Bucket             String                  @map("s3_bucket") @db.VarChar(255)
+  s3Key                String                  @unique @map("s3_key")
+  status               DocumentStatus
+  checksumSha256       String?                 @map("checksum_sha256") @db.VarChar(64)
+  processingError      String?                 @map("processing_error")
+  createdAt            DateTime                @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  processingGeneration Int                     @default(0) @map("processing_generation")
+  activeGeneration     Int?                    @map("active_generation")
+  revision             Int                     @default(0)
+  generations          DocumentGeneration[]    @relation("DocumentGenerations")
+  active               DocumentGeneration?     @relation("ActiveGeneration", fields: [id, activeGeneration], references: [documentId, generation], onDelete: NoAction, onUpdate: NoAction)
+  chunks               DocumentChunk[]
+  jobs                 DocumentProcessingJob[]
 
   @@index([userId, status])
+  @@index([userId, deletedAt, createdAt, id])
   @@map("documents")
 }
 
 model DocumentChunk {
-  id         String             @id @db.Uuid
-  documentId String             @map("document_id") @db.Uuid
-  chunkIndex Int                @map("chunk_index")
-  content    String
-  tokenCount Int?               @map("token_count")
-  metadata   Json?
-  createdAt  DateTime           @map("created_at") @db.Timestamptz(6)
-  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  embedding  DocumentEmbedding?
+  id                   String             @id @db.Uuid
+  documentId           String             @map("document_id") @db.Uuid
+  generation           Int                @default(1)
+  locatorKind          String?            @map("locator_kind") @db.VarChar(10)
+  locatorStart         Int?               @map("locator_start")
+  locatorEnd           Int?               @map("locator_end")
+  processingGeneration DocumentGeneration @relation(fields: [documentId, generation], references: [documentId, generation], onDelete: Cascade)
+  chunkIndex           Int                @map("chunk_index")
+  content              String
+  tokenCount           Int?               @map("token_count")
+  metadata             Json?
+  createdAt            DateTime           @map("created_at") @db.Timestamptz(6)
+  document             Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  embedding            DocumentEmbedding?
 
-  @@unique([documentId, chunkIndex])
+  @@unique([documentId, generation, chunkIndex])
   @@map("document_chunks")
 }
 
 model DocumentEmbedding {
-  id             String                @id @db.Uuid
-  chunkId        String                @unique @map("chunk_id") @db.Uuid
-  embeddingModel String                @map("embedding_model") @db.VarChar(100)
-  embedding      Unsupported("vector")
-  createdAt      DateTime              @map("created_at") @db.Timestamptz(6)
-  chunk          DocumentChunk         @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  id             String                 @id @db.Uuid
+  chunkId        String                 @unique @map("chunk_id") @db.Uuid
+  embeddingModel String                 @map("embedding_model") @db.VarChar(100)
+  modelVersion   String                 @default("legacy") @map("model_version") @db.VarChar(100)
+  dimensions     Int
+  embedding      Unsupported("vector")?
+  createdAt      DateTime               @map("created_at") @db.Timestamptz(6)
+  chunk          DocumentChunk          @relation(fields: [chunkId], references: [id], onDelete: Cascade)
 
   @@map("document_embeddings")
+}
+
+model DocumentGeneration {
+  documentId      String                     @map("document_id") @db.Uuid
+  generation      Int
+  status          ProcessingGenerationStatus @default(PROCESSING)
+  chunkCount      Int?                       @map("chunk_count")
+  createdAt       DateTime                   @map("created_at") @db.Timestamptz(6)
+  completedAt     DateTime?                  @map("completed_at") @db.Timestamptz(6)
+  document        Document                   @relation("DocumentGenerations", fields: [documentId], references: [id], onDelete: Cascade)
+  activeDocuments Document[]                 @relation("ActiveGeneration")
+  chunks          DocumentChunk[]
+  job             DocumentProcessingJob?
+
+  @@id([documentId, generation])
+  @@map("document_generations")
+}
+
+model DocumentProcessingJob {
+  id                   String              @id @db.Uuid
+  documentId           String              @map("document_id") @db.Uuid
+  generation           Int
+  status               ProcessingJobStatus @default(PENDING)
+  attemptCount         Int                 @default(0) @map("attempt_count")
+  nextAttemptAt        DateTime            @map("next_attempt_at") @db.Timestamptz(6)
+  leaseOwner           String?             @map("lease_owner") @db.VarChar(128)
+  leaseExpiresAt       DateTime?           @map("lease_expires_at") @db.Timestamptz(6)
+  errorCode            String?             @map("error_code") @db.VarChar(100)
+  createdAt            DateTime            @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @map("updated_at") @db.Timestamptz(6)
+  document             Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  processingGeneration DocumentGeneration  @relation(fields: [documentId, generation], references: [documentId, generation], onDelete: Cascade)
+
+  @@unique([documentId, generation])
+  @@index([status, nextAttemptAt, id])
+  @@index([status, leaseExpiresAt])
+  @@map("document_processing_jobs")
 }
 
 model OutboxEvent {
