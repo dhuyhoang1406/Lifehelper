@@ -80,6 +80,7 @@ model AIActionLog {
 
   @@index([userId, createdAt])
   @@index([userId, status, expiresAt])
+  @@index([status, expiresAt])
   @@index([conversationId, createdAt])
   @@map("ai_action_logs")
 }

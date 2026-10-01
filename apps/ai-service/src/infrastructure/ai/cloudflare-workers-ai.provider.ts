@@ -1,3 +1,4 @@
+import { boundedAIContext } from "../../application/services/bounded-ai-context";
 import {
   AIApplicationError,
   AIErrorCode,
@@ -80,7 +81,8 @@ export class CloudflareWorkersAIProvider implements AIProvider {
     const payload = await this.request("v1/chat/completions", {
       model: this.config.model,
       stream: false,
-      max_completion_tokens: request.maxOutputTokens ?? this.config.maxOutputTokens,
+      max_completion_tokens:
+        request.maxOutputTokens ?? this.config.maxOutputTokens,
       ...(request.disableReasoning
         ? { chat_template_kwargs: { enable_thinking: false } }
         : {}),
@@ -124,39 +126,39 @@ export class CloudflareWorkersAIProvider implements AIProvider {
   }
 
   private mapMessages(request: AIRequest): unknown[] {
-    const system = request.messages.find((message) => message.role === "SYSTEM");
-    const recent = request.messages.filter((message) => message !== system)
-      .slice(-this.config.maxContextMessages);
-    return (system ? [system, ...recent] : recent)
-      .map((message) => {
-        if (message.role === "TOOL") {
-          if (!message.toolCallId)
-            throw new AIApplicationError(
-              AIErrorCode.AI_TOOL_CALL_INVALID,
-              "Tool result has no call ID",
-              400,
-            );
-          return {
-            role: "tool",
-            tool_call_id: message.toolCallId,
-            content: message.content,
-          };
-        }
-        if (message.role === "ASSISTANT" && message.toolCalls?.length)
-          return {
-            role: "assistant",
-            content: message.content || null,
-            tool_calls: message.toolCalls.map((call) => ({
-              id: call.id,
-              type: "function",
-              function: {
-                name: call.name,
-                arguments: JSON.stringify(call.arguments),
-              },
-            })),
-          };
-        return { role: message.role.toLowerCase(), content: message.content };
-      });
+    const messages = boundedAIContext(
+      request.messages,
+      this.config.maxContextMessages,
+    );
+    return messages.map((message) => {
+      if (message.role === "TOOL") {
+        if (!message.toolCallId)
+          throw new AIApplicationError(
+            AIErrorCode.AI_TOOL_CALL_INVALID,
+            "Tool result has no call ID",
+            400,
+          );
+        return {
+          role: "tool",
+          tool_call_id: message.toolCallId,
+          content: message.content,
+        };
+      }
+      if (message.role === "ASSISTANT" && message.toolCalls?.length)
+        return {
+          role: "assistant",
+          content: message.content || null,
+          tool_calls: message.toolCalls.map((call) => ({
+            id: call.id,
+            type: "function",
+            function: {
+              name: call.name,
+              arguments: JSON.stringify(call.arguments),
+            },
+          })),
+        };
+      return { role: message.role.toLowerCase(), content: message.content };
+    });
   }
 
   private async request(path: string, body?: unknown): Promise<unknown> {

@@ -72,16 +72,18 @@ describe("Cloudflare AI Service boundary (e2e)", () => {
       }),
     );
     await app.init();
-    token = await app
-      .get(JwtService)
-      .signAsync(
-        { sub: "user-1", sessionId: "session-1", tokenType: "access" },
-        {
-          secret: process.env.JWT_ACCESS_SECRET,
-          issuer: process.env.JWT_ISSUER,
-          audience: process.env.JWT_AUDIENCE,
-        },
-      );
+    token = await app.get(JwtService).signAsync(
+      {
+        sub: "00000000-0000-4000-8000-000000000001",
+        sessionId: "session-1",
+        tokenType: "access",
+      },
+      {
+        secret: process.env.JWT_ACCESS_SECRET,
+        issuer: process.env.JWT_ISSUER,
+        audience: process.env.JWT_AUDIENCE,
+      },
+    );
   });
 
   afterAll(async () => {
@@ -108,7 +110,7 @@ describe("Cloudflare AI Service boundary (e2e)", () => {
       authorization: "Bearer test-provider-token",
       body: {
         model: "@cf/test/model",
-        max_completion_tokens: 256,
+        max_completion_tokens: 64,
         chat_template_kwargs: { enable_thinking: false },
         messages: [{ role: "system" }, { role: "user", content: "Hi" }],
       },

@@ -2,7 +2,6 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": "..",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
-  "setupFiles": ["<rootDir>/test/setup-env.ts"],
+  "testRegex": "ollama\\.smoke\\.ts$",
   "transform": { "^.+\\.ts$": "ts-jest" }
 }

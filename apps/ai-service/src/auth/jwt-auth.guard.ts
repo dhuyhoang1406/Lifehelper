@@ -7,6 +7,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import type { Request } from "express";
+import { isUUID } from "class-validator";
 
 export interface AuthenticatedAIRequest extends Request {
   auth?: { userId: string; accessToken: string };
@@ -33,7 +34,12 @@ export class JwtAuthGuard implements CanActivate {
         issuer: this.config.getOrThrow("JWT_ISSUER"),
         audience: this.config.getOrThrow("JWT_AUDIENCE"),
       });
-      if (!payload.sub || !payload.sessionId || payload.tokenType !== "access")
+      if (
+        typeof payload.sub !== "string" ||
+        !isUUID(payload.sub) ||
+        !payload.sessionId ||
+        payload.tokenType !== "access"
+      )
         throw new UnauthorizedException();
       request.auth = { userId: payload.sub, accessToken: token };
       return true;
