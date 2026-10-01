@@ -15,6 +15,9 @@ export interface DocumentProps {
   processingGeneration: number;
   activeGeneration: number | null;
   revision: number;
+  uploadExpiresAt: Date | null;
+  storageVersionId: string | null;
+  expectedChecksumSha256: string | null;
   checksumSha256: string | null;
   processingError: string | null;
   createdAt: Date;
@@ -35,7 +38,15 @@ export class Document {
       | "s3Bucket"
       | "s3Key"
     > &
-      Partial<Pick<DocumentProps, "checksumSha256" | "createdAt">>,
+      Partial<
+        Pick<
+          DocumentProps,
+          | "checksumSha256"
+          | "createdAt"
+          | "uploadExpiresAt"
+          | "expectedChecksumSha256"
+        >
+      >,
   ): Document {
     if (input.sizeBytes < 0n)
       throw new DocumentDomainError("Document size cannot be negative");
@@ -57,6 +68,9 @@ export class Document {
     return new Document({
       ...input,
       checksumSha256: input.checksumSha256 ?? null,
+      uploadExpiresAt: input.uploadExpiresAt ?? null,
+      storageVersionId: null,
+      expectedChecksumSha256: input.expectedChecksumSha256 ?? null,
       status: DocumentStatus.PENDING_UPLOAD,
       processingGeneration: 0,
       activeGeneration: null,

@@ -5,6 +5,54 @@ const schema = Joi.object({
     .default("development"),
   SERVICE_NAME: Joi.string().default("document-service"),
   DOCUMENT_PORT: Joi.number().port().default(3004),
+  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  JWT_ISSUER: Joi.string().trim().min(1).required(),
+  JWT_AUDIENCE: Joi.string().trim().min(1).required(),
+  DOCUMENT_S3_BUCKET: Joi.string()
+    .pattern(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/)
+    .required(),
+  DOCUMENT_S3_PUBLIC_ENDPOINT: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .required(),
+  DOCUMENT_ALLOWED_EXTENSIONS: Joi.string()
+    .pattern(/^(txt|md|pdf)(,(txt|md|pdf))*$/)
+    .default("txt,md,pdf"),
+  DOCUMENT_MAX_FILE_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .max(50 * 1024 * 1024)
+    .default(10 * 1024 * 1024),
+  DOCUMENT_MAX_STORAGE_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .max(Number.MAX_SAFE_INTEGER)
+    .default(100 * 1024 * 1024),
+  DOCUMENT_MAX_DOCUMENTS: Joi.number().integer().min(1).max(10000).default(100),
+  DOCUMENT_UPLOAD_EXPIRY_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .max(900)
+    .default(300),
+  DOCUMENT_DOWNLOAD_EXPIRY_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .max(300)
+    .default(60),
+  DOCUMENT_STORAGE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(60000)
+    .default(10000),
+  DOCUMENT_STORAGE_MAX_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3)
+    .default(2),
+  DOCUMENT_STORAGE_MAX_CONCURRENT_READS: Joi.number()
+    .integer()
+    .min(1)
+    .max(8)
+    .default(2),
   DATABASE_URL: Joi.string()
     .uri({ scheme: ["postgresql", "postgres"] })
     .required(),
