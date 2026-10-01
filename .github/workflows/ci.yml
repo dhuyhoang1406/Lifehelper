@@ -37,6 +37,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      localstack:
+        image: localstack/localstack:4.8
+        env:
+          SERVICES: s3
+          AWS_DEFAULT_REGION: ap-southeast-1
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -fs http://localhost:4566/_localstack/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_identity_ci?schema=public
     steps:
@@ -101,6 +113,12 @@ jobs:
             DATABASE_URL="postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_${service}_ci?schema=public" \
               pnpm --filter "@lifehelper/${service}-service" test:persistence
           done
+
+      - name: Run private Document S3 workflows
+        env:
+          DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_document_ci?schema=public
+          DOCUMENT_STORAGE_TEST_ENDPOINT: http://localhost:4566
+        run: pnpm --filter @lifehelper/document-service test:storage
 
       - name: Run AI to Productivity workflows
         env:
