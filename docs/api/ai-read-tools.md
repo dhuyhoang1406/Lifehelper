@@ -5,11 +5,11 @@ For Branch 7 write tools and confirmation, see [AI productivity actions](./ai-ac
 `POST /ai/chat` can use the following registered, read-only tools when the selected
 provider requests them:
 
-| Tool | Productivity API | Arguments |
-| --- | --- | --- |
-| `get_tasks` | `GET /tasks` | Optional `page` (1–100), `limit` (1–20), `status`, `search` (up to 100 characters) |
-| `get_today_tasks` | `GET /tasks` with DB-backed `dueFrom`/`dueTo` | Required IANA `timezone`; optional `limit` (1–20) |
-| `get_schedule` | `GET /calendar-events` | Required ISO-8601 `from`/`to` timestamps with offsets and IANA `timezone`; optional `limit` (1–50). Range is at most 31 days. |
+| Tool              | Productivity API                              | Arguments                                                                                                                     |
+| ----------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `get_tasks`       | `GET /tasks`                                  | Optional `page` (1–100), `limit` (1–20), `status`, `search` (up to 100 characters)                                            |
+| `get_today_tasks` | `GET /tasks` with DB-backed `dueFrom`/`dueTo` | Required IANA `timezone`; optional `limit` (1–20)                                                                             |
+| `get_schedule`    | `GET /calendar-events`                        | Required ISO-8601 `from`/`to` timestamps with offsets and IANA `timezone`; optional `limit` (1–50). Range is at most 31 days. |
 
 `get_productivity_summary` is not registered because Productivity Service has no
 summary API yet. Unknown tool names and extra arguments (including a model-supplied

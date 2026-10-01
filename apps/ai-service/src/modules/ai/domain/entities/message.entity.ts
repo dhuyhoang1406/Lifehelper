@@ -21,13 +21,19 @@ export class Message {
       Partial<
         Pick<
           MessageProps,
-          "provider" | "model" | "inputTokens" | "outputTokens" | "createdAt" | "toolPayload"
+          | "provider"
+          | "model"
+          | "inputTokens"
+          | "outputTokens"
+          | "createdAt"
+          | "toolPayload"
         >
       >,
   ): Message {
     if (!Object.values(MessageRole).includes(input.role))
       throw new AIDomainError("Unsupported message role");
-    const toolCallAssistant = input.role === MessageRole.ASSISTANT &&
+    const toolCallAssistant =
+      input.role === MessageRole.ASSISTANT &&
       input.toolPayload !== null &&
       typeof input.toolPayload === "object" &&
       !Array.isArray(input.toolPayload) &&

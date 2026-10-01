@@ -206,7 +206,9 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
       .send({ prompt: "Bad tool" })
       .expect(400);
     expect(response.body.code).toBe(AIErrorCode.AI_TOOL_CALL_INVALID);
-    const conversation = await db.conversation.findFirstOrThrow({ where: { userId: userA } });
+    const conversation = await db.conversation.findFirstOrThrow({
+      where: { userId: userA },
+    });
     const failed = await db.outboxEvent.findFirstOrThrow({
       where: { aggregateId: conversation.id, eventType: "ai.failed" },
     });

@@ -33,7 +33,9 @@ class TestConversations implements ConversationRepository {
   async nextMessageAt(id: string, userId: string): Promise<Date | null> {
     const row = await this.findByIdAndUserId(id, userId);
     if (!row) return null;
-    const at = new Date(Math.max(Date.now(), row.state.updatedAt.getTime() + 1));
+    const at = new Date(
+      Math.max(Date.now(), row.state.updatedAt.getTime() + 1),
+    );
     row.rename(row.state.title, at);
     return at;
   }
@@ -43,7 +45,10 @@ class TestConversations implements ConversationRepository {
       (row) => row.state.userId === userId && !row.state.deletedAt,
     );
     return {
-      items: rows.slice((query.page - 1) * query.limit, query.page * query.limit),
+      items: rows.slice(
+        (query.page - 1) * query.limit,
+        query.page * query.limit,
+      ),
       total: rows.length,
       ...query,
     };
@@ -89,7 +94,10 @@ class TestMessages implements MessageRepository {
     before: { createdAt: Date; id: string } | null,
     limit: number,
   ) {
-    const rows = (await this.conversations.findByIdAndUserId(conversationId, userId))
+    const rows = (await this.conversations.findByIdAndUserId(
+      conversationId,
+      userId,
+    ))
       ? this.rows.filter((row) => row.state.conversationId === conversationId)
       : [];
     return rows
@@ -123,7 +131,12 @@ describe("AIConversationUseCases", () => {
     conversations = new TestConversations();
     messages = new TestMessages(conversations);
     generate = jest.fn().mockResolvedValue(success);
-    useCases = new AIConversationUseCases(conversations, messages, { generate }, 2);
+    useCases = new AIConversationUseCases(
+      conversations,
+      messages,
+      { generate },
+      2,
+    );
   });
 
   it("creates and continues a conversation with bounded chronological context", async () => {
@@ -154,17 +167,27 @@ describe("AIConversationUseCases", () => {
 
   it("preserves the user message and no assistant message when provider fails", async () => {
     generate.mockRejectedValueOnce(
-      new AIApplicationError(AIErrorCode.AI_PROVIDER_UNAVAILABLE, "Offline", 503),
+      new AIApplicationError(
+        AIErrorCode.AI_PROVIDER_UNAVAILABLE,
+        "Offline",
+        503,
+      ),
     );
     await expect(useCases.chat(userA, "Keep this")).rejects.toMatchObject({
       code: AIErrorCode.AI_PROVIDER_UNAVAILABLE,
     });
-    expect(messages.rows.map((row) => row.state.content)).toEqual(["Keep this"]);
+    expect(messages.rows.map((row) => row.state.content)).toEqual([
+      "Keep this",
+    ]);
     expect(conversations.rows.size).toBe(1);
   });
 
   it("does not save an empty or tool-only provider response as a successful chat", async () => {
-    generate.mockResolvedValueOnce({ ...success, content: null, toolCalls: [] });
+    generate.mockResolvedValueOnce({
+      ...success,
+      content: null,
+      toolCalls: [],
+    });
     await expect(useCases.chat(userA, "Question")).rejects.toMatchObject({
       code: AIErrorCode.AI_PROVIDER_INVALID_RESPONSE,
     });
@@ -174,18 +197,24 @@ describe("AIConversationUseCases", () => {
   it("hides another user's conversation and soft-deleted history", async () => {
     const chat = await useCases.chat(userA, "Private");
     const query = { page: 1, limit: 20 };
-    await expect(useCases.get(userB, chat.conversationId, query)).rejects.toMatchObject({
+    await expect(
+      useCases.get(userB, chat.conversationId, query),
+    ).rejects.toMatchObject({
       code: AIErrorCode.AI_CONVERSATION_NOT_FOUND,
       statusCode: 404,
     });
-    await expect(useCases.delete(userB, chat.conversationId)).rejects.toMatchObject({
+    await expect(
+      useCases.delete(userB, chat.conversationId),
+    ).rejects.toMatchObject({
       code: AIErrorCode.AI_CONVERSATION_NOT_FOUND,
     });
     expect((await useCases.list(userA, query)).total).toBe(1);
     expect((await useCases.list(userB, query)).total).toBe(0);
     await useCases.delete(userA, chat.conversationId);
     expect((await useCases.list(userA, query)).total).toBe(0);
-    await expect(useCases.get(userA, chat.conversationId, query)).rejects.toMatchObject({
+    await expect(
+      useCases.get(userA, chat.conversationId, query),
+    ).rejects.toMatchObject({
       code: AIErrorCode.AI_CONVERSATION_NOT_FOUND,
     });
   });
@@ -215,8 +244,9 @@ describe("AIConversationUseCases", () => {
   it("rejects malformed and cross-conversation cursors", async () => {
     const first = await useCases.chat(userA, "First");
     const second = await useCases.chat(userA, "Second");
-    const cursor = (await useCases.get(userA, first.conversationId, { limit: 1 }))
-      .messages.nextCursor!;
+    const cursor = (
+      await useCases.get(userA, first.conversationId, { limit: 1 })
+    ).messages.nextCursor!;
     await expect(
       useCases.get(userA, first.conversationId, { limit: 2, cursor: "bad" }),
     ).rejects.toMatchObject({ code: AIErrorCode.AI_INVALID_CURSOR });
@@ -231,10 +261,14 @@ describe("AIConversationUseCases", () => {
       useCases.chat(userA, "Parallel A", chat.conversationId),
       useCases.chat(userA, "Parallel B", chat.conversationId),
     ]);
-    expect(messages.rows.filter((row) => row.state.conversationId === chat.conversationId))
-      .toHaveLength(6);
-    expect(messages.rows.filter((row) => row.state.role === MessageRole.USER))
-      .toHaveLength(3);
+    expect(
+      messages.rows.filter(
+        (row) => row.state.conversationId === chat.conversationId,
+      ),
+    ).toHaveLength(6);
+    expect(
+      messages.rows.filter((row) => row.state.role === MessageRole.USER),
+    ).toHaveLength(3);
   });
 
   it.each(["ollama", "cloudflare"] as const)(

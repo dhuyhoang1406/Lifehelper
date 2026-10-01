@@ -46,15 +46,19 @@ describe("CloudflareWorkersAIProvider HTTP contract", () => {
       }>;
 
   it("keeps the trusted system timezone context when history is truncated", async () => {
-    await provider(baseUrl, { maxContextMessages: 1 }).generate({ messages: [
-      { role: MessageRole.SYSTEM, content: "Timezone: Asia/Ho_Chi_Minh" },
-      { role: MessageRole.USER, content: "Old" },
-      { role: MessageRole.USER, content: "Today" },
-    ] });
-    expect(received[0]?.body).toMatchObject({ messages: [
-      { role: "system", content: "Timezone: Asia/Ho_Chi_Minh" },
-      { role: "user", content: "Today" },
-    ] });
+    await provider(baseUrl, { maxContextMessages: 1 }).generate({
+      messages: [
+        { role: MessageRole.SYSTEM, content: "Timezone: Asia/Ho_Chi_Minh" },
+        { role: MessageRole.USER, content: "Old" },
+        { role: MessageRole.USER, content: "Today" },
+      ],
+    });
+    expect(received[0]?.body).toMatchObject({
+      messages: [
+        { role: "system", content: "Timezone: Asia/Ho_Chi_Minh" },
+        { role: "user", content: "Today" },
+      ],
+    });
   });
 
   beforeEach(async () => {

@@ -3,12 +3,12 @@
 All endpoints require the Identity access token. AI Service derives the user ID
 from the verified token; callers cannot supply an owner ID.
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/ai/chat` | Start or continue a conversation and persist both messages |
-| GET | `/ai/conversations?page=1&limit=20` | List the user's active conversations |
-| GET | `/ai/conversations/:id?page=1&limit=20` | Get a conversation and its oldest-first message page |
-| DELETE | `/ai/conversations/:id` | Soft-delete a conversation (204) |
+| Method | Path                                    | Purpose                                                    |
+| ------ | --------------------------------------- | ---------------------------------------------------------- |
+| POST   | `/ai/chat`                              | Start or continue a conversation and persist both messages |
+| GET    | `/ai/conversations?page=1&limit=20`     | List the user's active conversations                       |
+| GET    | `/ai/conversations/:id?page=1&limit=20` | Get a conversation and its oldest-first message page       |
+| DELETE | `/ai/conversations/:id`                 | Soft-delete a conversation (204)                           |
 
 Start a conversation with `{ "prompt": "Xin chào" }`. Continue it by adding
 `"conversationId": "<UUID returned by the first call>"`. A successful chat

@@ -46,6 +46,56 @@ runs every service's persistence suite. See
 [`docs/api/identity-auth.md`](docs/api/identity-auth.md) for the opt-in live
 Google OAuth smoke test and session-revocation behavior.
 
+## AI Service
+
+AI Service exposes authenticated inference, persistent conversations and
+Productivity tools at `http://localhost:3003`; Swagger is available at `/docs`
+when enabled. Use an Identity access token for AI requests. AI owns the
+`lifehelper_ai` database and accesses Productivity through its HTTP API.
+
+Configure the provider in the root `.env` for Docker Compose, or
+`apps/ai-service/.env` for direct development, using
+[`apps/ai-service/.env.example`](apps/ai-service/.env.example) as the template.
+Set the AI JWT secret, issuer and audience to match Identity Service.
+
+- [Ollama setup](docs/api/ai-ollama.md): local inference without a paid API.
+  Install the configured model; chat tools require a model that supports tool calls.
+- [Cloudflare Workers AI setup](docs/api/ai-cloudflare.md): online inference with
+  explicit account, token and model configuration. Keep credentials out of Git.
+
+After configuring the provider and applying AI migrations, rebuild AI Service:
+
+```bash
+pnpm --filter @lifehelper/ai-service db:migrate
+docker compose up -d --no-deps --build ai-service
+```
+
+The migration command reads the service's configured `DATABASE_URL`; ensure it
+points to the intended AI database. Identity and Productivity must also be running
+for authenticated Productivity workflows.
+
+For example, with an access token in `ACCESS_TOKEN`:
+
+```bash
+curl --fail-with-body http://localhost:3003/ai/chat \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"Tạo task đọc sách","timezone":"Asia/Ho_Chi_Minh"}'
+```
+
+Read tools run during chat. Write tools return `pendingActions`; inspect the
+proposal and send its `payloadHash` to `POST /ai/actions/{actionId}/confirm`
+before it executes. Include the returned `conversationId` to continue a chat.
+Repeating confirmation of the same action does not repeat its completed write;
+recovery after an ambiguous downstream failure has documented limitations.
+
+See the [operational runbook](docs/api/ai-runbook.md) for test commands, isolated
+PostgreSQL workflows, provider smoke tests and recovery guidance; see also
+[conversations](docs/api/ai-conversations.md), [read tools](docs/api/ai-read-tools.md),
+[confirmed actions](docs/api/ai-actions.md) and [audit events](docs/api/ai-events-audit.md).
+Voice, Vision, Document/RAG, notification delivery and analytics consumption remain
+deferred. Outbox events are persisted locally; external publishing is deferred.
+
 ## Flutter
 
 ```bash

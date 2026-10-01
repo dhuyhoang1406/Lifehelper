@@ -40,7 +40,10 @@ describe("AIActionLog", () => {
 
   it("allows only requested to executing to final transitions", () => {
     const action = AIActionLog.create({
-      id: "action-id", userId: "user-id", toolName: "create_task", inputPayload: {},
+      id: "action-id",
+      userId: "user-id",
+      toolName: "create_task",
+      inputPayload: {},
     });
     expect(() => action.succeed({}, 1)).toThrow("Only executing");
     action.start();
