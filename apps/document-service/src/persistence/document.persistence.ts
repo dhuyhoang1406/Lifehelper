@@ -130,7 +130,7 @@ export class PrismaDocumentRepository implements DocumentRepository {
         UPDATE documents SET status = 'PROCESSING', processing_generation = processing_generation + 1,
           processing_error = NULL, updated_at = ${at}, revision = revision + 1
         WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND revision = ${expectedRevision}
-          AND deleted_at IS NULL AND status IN ('UPLOADED', 'FAILED', 'READY')
+          AND deleted_at IS NULL AND storage_version_id IS NULL AND status IN ('UPLOADED', 'FAILED', 'READY')
         RETURNING processing_generation AS generation`;
       const generation = rows[0]?.generation;
       if (!generation) return null;
@@ -156,6 +156,11 @@ export class PrismaDocumentRepository implements DocumentRepository {
         SELECT id FROM documents WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
           AND deleted_at IS NULL AND status = 'PROCESSING' AND processing_generation = ${generation}
           AND revision = ${expectedRevision} FOR UPDATE`;
+      // Verified sources must use the fenced processing publisher, never this legacy adapter.
+      if (docs.length) {
+        const document = await tx.document.findUniqueOrThrow({ where: { id } });
+        if (document.storageVersionId !== null) return false;
+      }
       if (!docs.length) return false;
       const counts = await tx.$queryRaw<
         Array<{ count: number; valid: number; maximum: number }>
@@ -222,7 +227,7 @@ export class PrismaDocumentChunkRepository implements DocumentChunkRepository {
         Array<{ id: string }>
       >`SELECT id FROM documents
         WHERE id = ${e.state.documentId}::uuid AND user_id = ${userId}::uuid AND deleted_at IS NULL
-          AND status = 'PROCESSING' AND processing_generation = ${e.state.generation} FOR UPDATE`;
+          AND storage_version_id IS NULL AND status = 'PROCESSING' AND processing_generation = ${e.state.generation} FOR UPDATE`;
       if (!owner.length)
         throw new DocumentDomainError("Processing document not found");
       await tx.documentChunk.create({
@@ -273,7 +278,7 @@ export class PrismaDocumentEmbeddingRepository implements DocumentEmbeddingRepos
       >`SELECT d.id FROM documents d
         JOIN document_chunks c ON c.document_id = d.id AND c.generation = d.processing_generation
         WHERE c.id = ${e.chunkId}::uuid AND d.user_id = ${userId}::uuid
-          AND d.deleted_at IS NULL AND d.status = 'PROCESSING' FOR UPDATE OF d`;
+          AND d.deleted_at IS NULL AND d.storage_version_id IS NULL AND d.status = 'PROCESSING' FOR UPDATE OF d`;
       if (!owner.length)
         throw new DocumentDomainError("Processing chunk not found");
       await tx.documentEmbedding.create({ data: e });
