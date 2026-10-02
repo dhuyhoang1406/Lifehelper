@@ -25,7 +25,7 @@ curl http://localhost:3001/health/live
 curl http://localhost:3001/health/ready
 ```
 
-Readiness checks verify the service's PostgreSQL connection. LocalStack creates the `lifehelper-local` S3 bucket plus the `lifehelper-events` queue and its dead-letter queue automatically.
+Readiness checks verify the service's PostgreSQL connection. LocalStack creates the `lifehelper-local` S3 bucket, the versioned `lifehelper-documents` bucket, and the `lifehelper-events` queue and its dead-letter queue automatically.
 
 ## Development
 
@@ -95,6 +95,21 @@ PostgreSQL workflows, provider smoke tests and recovery guidance; see also
 [confirmed actions](docs/api/ai-actions.md) and [audit events](docs/api/ai-events-audit.md).
 Voice, Vision, Document/RAG, notification delivery and analytics consumption remain
 deferred. Outbox events are persisted locally; external publishing is deferred.
+
+## Document Service
+
+Document Service exposes authenticated upload, completion, metadata, download and
+soft-deletion APIs at `http://localhost:3004`. Set its JWT values to match Identity,
+apply Document migrations and provision the dedicated versioned bucket. Clients
+upload with presigned POST fields; completion reads the actual bytes, computes
+SHA-256 and commits an immutable S3 version. Downloads use that committed version.
+
+See [upload API and local walkthrough](docs/api/document-upload.md), including
+configuration, a real-file example and PostgreSQL/LocalStack test commands.
+LocalStack Community does not enforce anonymous S3 denial: its host port is bound
+to localhost, and local tests verify private bucket configuration and API ownership.
+Anonymous-denial verification requires an S3 environment that enforces access rules.
+Processing jobs/outbox and the cleanup worker arrive in later Phase 5 branches.
 
 ## Flutter
 

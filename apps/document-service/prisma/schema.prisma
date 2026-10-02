@@ -32,27 +32,31 @@ enum ProcessingJobStatus {
 }
 
 model Document {
-  id                   String                  @id @db.Uuid
-  userId               String                  @map("user_id") @db.Uuid
-  originalFilename     String                  @map("original_filename") @db.VarChar(255)
-  storageFilename      String                  @map("storage_filename") @db.VarChar(255)
-  mimeType             String                  @map("mime_type") @db.VarChar(120)
-  sizeBytes            BigInt                  @map("size_bytes")
-  s3Bucket             String                  @map("s3_bucket") @db.VarChar(255)
-  s3Key                String                  @unique @map("s3_key")
-  status               DocumentStatus
-  checksumSha256       String?                 @map("checksum_sha256") @db.VarChar(64)
-  processingError      String?                 @map("processing_error")
-  createdAt            DateTime                @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime                @map("updated_at") @db.Timestamptz(6)
-  deletedAt            DateTime?               @map("deleted_at") @db.Timestamptz(6)
-  processingGeneration Int                     @default(0) @map("processing_generation")
-  activeGeneration     Int?                    @map("active_generation")
-  revision             Int                     @default(0)
-  generations          DocumentGeneration[]    @relation("DocumentGenerations")
-  active               DocumentGeneration?     @relation("ActiveGeneration", fields: [id, activeGeneration], references: [documentId, generation], onDelete: NoAction, onUpdate: NoAction)
-  chunks               DocumentChunk[]
-  jobs                 DocumentProcessingJob[]
+  id                     String                  @id @db.Uuid
+  userId                 String                  @map("user_id") @db.Uuid
+  originalFilename       String                  @map("original_filename") @db.VarChar(255)
+  storageFilename        String                  @map("storage_filename") @db.VarChar(255)
+  mimeType               String                  @map("mime_type") @db.VarChar(120)
+  sizeBytes              BigInt                  @map("size_bytes")
+  s3Bucket               String                  @map("s3_bucket") @db.VarChar(255)
+  s3Key                  String                  @unique @map("s3_key")
+  status                 DocumentStatus
+  checksumSha256         String?                 @map("checksum_sha256") @db.VarChar(64)
+  processingError        String?                 @map("processing_error")
+  createdAt              DateTime                @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  processingGeneration   Int                     @default(0) @map("processing_generation")
+  activeGeneration       Int?                    @map("active_generation")
+  uploadExpiresAt        DateTime?               @map("upload_expires_at") @db.Timestamptz(6)
+  storageVersionId       String?                 @map("storage_version_id") @db.VarChar(1024)
+  expectedChecksumSha256 String?                 @map("expected_checksum_sha256") @db.VarChar(64)
+  cleanup                DocumentCleanupTask?
+  revision               Int                     @default(0)
+  generations            DocumentGeneration[]    @relation("DocumentGenerations")
+  active                 DocumentGeneration?     @relation("ActiveGeneration", fields: [id, activeGeneration], references: [documentId, generation], onDelete: NoAction, onUpdate: NoAction)
+  chunks                 DocumentChunk[]
+  jobs                   DocumentProcessingJob[]
 
   @@index([userId, status])
   @@index([userId, deletedAt, createdAt, id])
@@ -142,4 +146,16 @@ model OutboxEvent {
 
   @@index([processedAt, occurredAt])
   @@map("outbox_events")
+}
+
+model DocumentCleanupTask {
+  documentId    String    @id @map("document_id") @db.Uuid
+  nextAttemptAt DateTime  @map("next_attempt_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(6)
+  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([completedAt, nextAttemptAt])
+  @@map("document_cleanup_tasks")
 }

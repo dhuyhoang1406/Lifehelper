@@ -1,4 +1,4 @@
-# Document persistence — Phase 5 Branch 1
+# Document persistence — Phase 5
 
 Document Service owns `lifehelper_document` (the repository name for the spec's
 `document_db`). Prisma and pgvector access stay inside this service. Owner IDs have
@@ -104,7 +104,38 @@ transaction rollback, generation uniqueness, constraints, mapper round trips,
 activation and deletion. Synthetic two-dimensional vectors in a DB test are fixtures,
 not a choice of production embedding dimensions.
 
-Deferred: upload/download/S3 verification, parsing/chunking, actual worker/recovery,
+Deferred after Branch 1: upload/download/S3 verification, parsing/chunking, actual worker/recovery,
 embedding HTTP adapters/indexes, retrieval/citations, AI document tools and RAG,
 lifecycle cleanup/outbox, OCR, delivery, analytics and Flutter screens. No public
 API/event contract is added by Branch 1; existing health routes remain unchanged.
+
+## Branch 2 private upload migration
+
+`20261001000200_document_private_upload` adds nullable upload expiry, expected
+checksum and committed S3 version columns, plus `document_cleanup_tasks`. All foreign
+keys remain inside Document's database. Existing rows retain null upload fields;
+the migration does not trust an old checksum or infer an S3 version. Legacy pending
+uploads must be recreated through the new authorization API; legacy uploaded rows
+without a verified version cannot receive a download URL until explicitly reconciled.
+
+The migration runs transactionally and adds immutability guards for declared upload
+size/type/checksum/expiry and committed version/checksum. Owner and object path remain
+protected by Branch 1's guard. A failed migration can be marked rolled back with
+`prisma migrate resolve --rolled-back 20261001000200_document_private_upload` after
+inspecting the failure and correcting its cause. Do not mark it applied on failure.
+
+New upload reservations insert metadata and a cleanup task in one transaction under
+a per-owner PostgreSQL advisory lock. Failed signing hides the reservation and releases
+logical quota. Completion changes PENDING_UPLOAD to UPLOADED exactly once with revision
+and expiry checks. It creates no processing job or outbox event in this branch.
+
+Cleanup tasks schedule reconciliation at upload expiry. Deletion hides metadata and
+clears the active generation immediately, but final cleanup is scheduled no earlier
+than authorization expiry: the POST can still be reused before then. Branch 8 must
+re-read current document state, preserve the committed version of a live document,
+remove uncommitted versions, and remove all versions/delete markers for expired
+pending or deleted documents. It must coordinate with concurrent completion and
+retry failed cleanup. This branch persists that schedule and starts no cleanup worker.
+
+See [upload API](../api/document-upload.md) for versioned storage provisioning,
+local verification and the Community LocalStack security limitation.
