@@ -127,7 +127,7 @@ inspecting the failure and correcting its cause. Do not mark it applied on failu
 New upload reservations insert metadata and a cleanup task in one transaction under
 a per-owner PostgreSQL advisory lock. Failed signing hides the reservation and releases
 logical quota. Completion changes PENDING_UPLOAD to UPLOADED exactly once with revision
-and expiry checks. It creates no processing job or outbox event in this branch.
+and expiry checks. Branch 2 creates no job/event; Branch 3 adds atomic scheduling.
 
 Cleanup tasks schedule reconciliation at upload expiry. Deletion hides metadata and
 clears the active generation immediately, but final cleanup is scheduled no earlier
@@ -139,3 +139,29 @@ retry failed cleanup. This branch persists that schedule and starts no cleanup w
 
 See [upload API](../api/document-upload.md) for versioned storage provisioning,
 local verification and the Community LocalStack security limitation.
+
+## Branch 3 processing leases and recovery
+
+`20261002000100_document_processing_leases` adds a nonnegative job fencing token
+and requires a positive token on RUNNING jobs. Stop old workers before migration;
+unfenced RUNNING leases become PENDING with cleared lease fields and a sanitized
+recovery code. Attempt count is retained. The migration transaction also schedules
+missing generation/jobs and version-1 uploaded events for verified, nondeleted
+UPLOADED rows from Branch 2. It never fabricates a version or checksum. Queued
+legacy jobs with unverified sources fail explicitly rather than hanging PROCESSING.
+
+Completion now atomically persists source identity, UPLOADED state, one generation/job
+and event. Worker claim/recovery/publication/failure and owner-authorized retry use
+Document-first locks, leases and monotonic fencing tokens. Publication writes prepared
+domain results only after its fence matches; failure/deletion/retry cannot activate
+stale work. The old unfenced generation/chunk/embedding writers remain available only
+for legacy unverified fixtures; verified sources require the fenced publisher.
+
+The migration is transactional. Inspect/correct a failed deployment, then resolve
+`--rolled-back 20261002000100_document_processing_leases` before retrying; do not mark
+a failed migration applied. A successful rollback needs a reviewed forward migration
+or backup restore: dropping the fence while workers run would invalidate its guarantee.
+No database reset is needed. Clean deployment and Branch 2 existing-data upgrade were
+tested on dedicated fixture databases, including legacy lease invalidation and UTC
+event identity. See the [worker runbook](../api/document-processing.md) for commands,
+configuration, retry semantics, unavailable stages and deferred relay/cleanup.
