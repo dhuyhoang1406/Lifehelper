@@ -3,11 +3,15 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { DocumentController } from "./document.controller";
 import { DocumentUploadUseCases } from "../application/services/document-upload.use-cases";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { DocumentProcessingRetryUseCase } from "../application/services/document-processing-retry.use-case";
 
 it("uses the registered access-token scheme for every Document operation", async () => {
   const module = await Test.createTestingModule({
     controllers: [DocumentController],
-    providers: [{ provide: DocumentUploadUseCases, useValue: {} }],
+    providers: [
+      { provide: DocumentUploadUseCases, useValue: {} },
+      { provide: DocumentProcessingRetryUseCase, useValue: {} },
+    ],
   })
     .overrideGuard(JwtAuthGuard)
     .useValue({ canActivate: () => true })
@@ -23,7 +27,7 @@ it("uses the registered access-token scheme for every Document operation", async
         (operation) => operation !== undefined,
       ),
     );
-    expect(operations).toHaveLength(6);
+    expect(operations).toHaveLength(7);
     expect(
       document.paths["/documents/upload-url"]?.post?.requestBody,
     ).toMatchObject({
