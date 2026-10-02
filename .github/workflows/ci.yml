@@ -114,6 +114,11 @@ jobs:
               pnpm --filter "@lifehelper/${service}-service" test:persistence
           done
 
+      - name: Run durable Document processing tests
+        env:
+          DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_document_ci?schema=public
+        run: pnpm --filter @lifehelper/document-service test:worker
+
       - name: Run private Document S3 workflows
         env:
           DATABASE_URL: postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_document_ci?schema=public
