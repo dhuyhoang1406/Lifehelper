@@ -1,4 +1,5 @@
 process.env.NODE_ENV = "test";
+process.env.DOCUMENT_WORKER_ENABLED = "false";
 process.env.SERVICE_NAME = "document-service";
 process.env.DOCUMENT_PORT = "3004";
 process.env.DATABASE_URL =

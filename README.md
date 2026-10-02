@@ -109,7 +109,11 @@ configuration, a real-file example and PostgreSQL/LocalStack test commands.
 LocalStack Community does not enforce anonymous S3 denial: its host port is bound
 to localhost, and local tests verify private bucket configuration and API ownership.
 Anonymous-denial verification requires an S3 environment that enforces access rules.
-Processing jobs/outbox and the cleanup worker arrive in later Phase 5 branches.
+Processing jobs and lifecycle outbox events now persist atomically; the
+[processing worker runbook](docs/api/document-processing.md) explains leases, crash
+recovery, bounded retry and the owner-authorized retry API. Extraction/embedding stages
+arrive in Branches 4–5; until then the worker reports a controlled unavailable-stage
+failure and never claims a placeholder generation READY. Cleanup arrives in Branch 8.
 
 ## Flutter
 

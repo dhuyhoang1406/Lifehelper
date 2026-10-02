@@ -53,11 +53,16 @@ export class S3DocumentStorage implements DocumentStorage {
   }
   private async bounded<T>(
     operation: (signal: AbortSignal) => Promise<T>,
+    parentSignal?: AbortSignal,
   ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
     try {
-      return await operation(controller.signal);
+      return await operation(
+        parentSignal
+          ? AbortSignal.any([controller.signal, parentSignal])
+          : controller.signal,
+      );
     } catch (error) {
       if (error instanceof DocumentApplicationError) throw error;
       if (controller.signal.aborted)
@@ -138,7 +143,12 @@ export class S3DocumentStorage implements DocumentStorage {
       });
     });
   }
-  async readForVerification(object: StoredObject, maximumBytes: number) {
+  async readForVerification(
+    object: StoredObject,
+    maximumBytes: number,
+    versionId?: string,
+    signal?: AbortSignal,
+  ) {
     if (this.activeReads >= (this.config.maxConcurrentReads ?? 2))
       throw new DocumentApplicationError(
         "DOCUMENT_STORAGE_BUSY",
@@ -149,7 +159,11 @@ export class S3DocumentStorage implements DocumentStorage {
     try {
       return await this.bounded(async (signal) => {
         const head = await this.internal.send(
-          new HeadObjectCommand({ Bucket: object.bucket, Key: object.key }),
+          new HeadObjectCommand({
+            Bucket: object.bucket,
+            Key: object.key,
+            VersionId: versionId,
+          }),
           { abortSignal: signal },
         );
         if (!head.VersionId || head.VersionId === "null")
@@ -212,7 +226,7 @@ export class S3DocumentStorage implements DocumentStorage {
           mimeType: response.ContentType ?? "",
           bytes: Buffer.concat(parts),
         };
-      });
+      }, signal);
     } finally {
       this.activeReads--;
     }

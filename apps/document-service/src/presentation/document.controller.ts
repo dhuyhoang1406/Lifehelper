@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiTags, ApiOperation, ApiBody } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentDocumentUser } from "../auth/current-document-user.decorator";
 import { DocumentUploadUseCases } from "../application/services/document-upload.use-cases";
+import { DocumentProcessingRetryUseCase } from "../application/services/document-processing-retry.use-case";
 import { DocumentExceptionFilter } from "./document-exception.filter";
 import {
   UploadDocumentDto,
@@ -26,7 +27,19 @@ import {
 @UseGuards(JwtAuthGuard)
 @UseFilters(DocumentExceptionFilter)
 export class DocumentController {
-  constructor(private readonly uploads: DocumentUploadUseCases) {}
+  constructor(
+    private readonly uploads: DocumentUploadUseCases,
+    private readonly retries: DocumentProcessingRetryUseCase,
+  ) {}
+  @Post(":id/retry-processing")
+  @HttpCode(202)
+  @ApiOperation({
+    summary:
+      "Schedule an owner-authorized retry for an eligible failed document",
+  })
+  retry(@CurrentDocumentUser() user: string, @Param() dto: DocumentIdDto) {
+    return this.retries.execute(dto.id, user);
+  }
   @Post("upload-url")
   @ApiBody({
     type: UploadDocumentDto,

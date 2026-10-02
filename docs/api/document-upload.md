@@ -185,6 +185,10 @@ only for a local S3 environment that enforces IAM. This test is explicitly skipp
 Community LocalStack; do not report its privacy gate as passed. CI runs the same
 PostgreSQL/Community LocalStack workflows and does not need cloud credentials.
 
-Deferred: Branch 3 atomic processing jobs/outbox dispatch, Branch 4 parsing/extraction,
+Branch 3 adds [durable jobs and lifecycle events](document-processing.md) atomically
+with upload completion. Metadata now includes processingError and retryEligible; the
+worker may update status after completion. Read the worker runbook before enabling it.
+
+Deferred: Branch 4 parsing/extraction,
 later chunking/embeddings/retrieval/RAG, Branch 8 cleanup worker/reconciliation/audit,
 full Flutter screens, OCR, notification delivery, analytics and production deployment.

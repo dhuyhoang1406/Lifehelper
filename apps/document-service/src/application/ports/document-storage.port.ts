@@ -23,6 +23,8 @@ export interface DocumentStorage {
   readForVerification(
     object: StoredObject,
     maximumBytes: number,
+    versionId?: string,
+    signal?: AbortSignal,
   ): Promise<VerifiedObject>;
   authorizeDownload(
     object: StoredObject,

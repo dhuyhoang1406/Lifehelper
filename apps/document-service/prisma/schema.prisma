@@ -118,6 +118,7 @@ model DocumentProcessingJob {
   generation           Int
   status               ProcessingJobStatus @default(PENDING)
   attemptCount         Int                 @default(0) @map("attempt_count")
+  leaseToken           Int                 @default(0) @map("lease_token")
   nextAttemptAt        DateTime            @map("next_attempt_at") @db.Timestamptz(6)
   leaseOwner           String?             @map("lease_owner") @db.VarChar(128)
   leaseExpiresAt       DateTime?           @map("lease_expires_at") @db.Timestamptz(6)

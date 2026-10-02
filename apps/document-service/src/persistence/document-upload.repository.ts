@@ -3,6 +3,8 @@ import type { Document } from "../modules/document/domain/entities/document.enti
 import type { DocumentUploadRepository } from "../application/ports/document-upload.repository";
 import { DocumentApplicationError } from "../application/errors/document.errors";
 import { DocumentMapper } from "./document.persistence";
+import { randomUUID } from "node:crypto";
+import { documentEvent } from "./document-outbox";
 export class PrismaDocumentUploadRepository implements DocumentUploadRepository {
   constructor(private readonly db: PrismaService) {}
   async reserve(
@@ -47,26 +49,54 @@ export class PrismaDocumentUploadRepository implements DocumentUploadRepository 
     checksumSha256: string,
     at: Date,
   ) {
-    const result = await this.db.document.updateMany({
-      where: {
+    return this.db.$transaction(async (tx) => {
+      const result = await tx.document.updateMany({
+        where: {
+          id,
+          userId,
+          revision,
+          deletedAt: null,
+          status: "PENDING_UPLOAD",
+          storageVersionId: null,
+          uploadExpiresAt: { gt: at },
+        },
+        data: {
+          status: "UPLOADED",
+          storageVersionId: versionId,
+          checksumSha256,
+          updatedAt: at,
+          processingError: null,
+          revision: { increment: 1 },
+        },
+      });
+      if (!result.count) return false;
+      const document = await tx.document.findUniqueOrThrow({ where: { id } });
+      const generation = document.processingGeneration + 1;
+      const jobId = randomUUID();
+      await tx.documentGeneration.create({
+        data: { documentId: id, generation, createdAt: at },
+      });
+      await tx.documentProcessingJob.create({
+        data: {
+          id: jobId,
+          documentId: id,
+          generation,
+          nextAttemptAt: at,
+          createdAt: at,
+          updatedAt: at,
+        },
+      });
+      await documentEvent(
+        tx,
+        "document.uploaded",
         id,
-        userId,
-        revision,
-        deletedAt: null,
-        status: "PENDING_UPLOAD",
-        storageVersionId: null,
-        uploadExpiresAt: { gt: at },
-      },
-      data: {
-        status: "UPLOADED",
-        storageVersionId: versionId,
-        checksumSha256,
-        updatedAt: at,
-        processingError: null,
-        revision: { increment: 1 },
-      },
+        jobId,
+        generation,
+        0,
+        at,
+      );
+      return true;
     });
-    return result.count === 1;
   }
   async deleteAndScheduleCleanup(id: string, userId: string, at: Date) {
     return this.db.$transaction(async (tx) => {
@@ -81,6 +111,19 @@ export class PrismaDocumentUploadRepository implements DocumentUploadRepository 
         },
       });
       if (!rows.count) return false;
+      await tx.documentProcessingJob.updateMany({
+        where: { documentId: id, status: { in: ["PENDING", "RUNNING"] } },
+        data: {
+          status: "CANCELLED",
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          updatedAt: at,
+        },
+      });
+      await tx.documentGeneration.updateMany({
+        where: { documentId: id, status: "PROCESSING" },
+        data: { status: "FAILED" },
+      });
       const document = await tx.document.findUniqueOrThrow({ where: { id } });
       // A reusable POST can recreate an object after deletion until it expires.
       // Delay final cleanup until that window has closed.

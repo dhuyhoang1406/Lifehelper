@@ -21,6 +21,11 @@ import { DOCUMENT_UPLOAD_REPOSITORY } from "../src/application/ports/document-up
 import { DOCUMENT_STORAGE } from "../src/application/ports/document-storage.port";
 import { DocumentUploadUseCases } from "../src/application/services/document-upload.use-cases";
 import { S3DocumentStorage } from "../src/infrastructure/storage/s3-document-storage";
+import { DocumentJobProcessor } from "../src/application/services/document-job-processor";
+import {
+  DOCUMENT_PROCESSING_REPOSITORY,
+  type DocumentProcessingRepository,
+} from "../src/application/ports/document-processing.port";
 
 const userId = randomUUID();
 const otherId = randomUUID();
@@ -135,6 +140,15 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
     } while (keyMarker);
   }
   afterEach(async () => {
+    if (db) {
+      const documents = await db.document.findMany({
+        where: { userId: { in: [userId, otherId] } },
+        select: { id: true },
+      });
+      await db.outboxEvent.deleteMany({
+        where: { aggregateId: { in: documents.map((d) => d.id) } },
+      });
+    }
     if (db)
       await db.document.deleteMany({
         where: { userId: { in: [userId, otherId] } },
@@ -259,6 +273,66 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
         data: { storageVersionId: "different" },
       }),
     ).rejects.toThrow();
+  });
+  it("processing reads committed bytes after the upload source is overwritten", async () => {
+    const p = await propose();
+    await upload(p);
+    await complete(p).expect(200);
+    await upload(p, Buffer.from("change"));
+    const jobs = app.get<DocumentProcessingRepository>(
+      DOCUMENT_PROCESSING_REPOSITORY,
+    );
+    const lease = (await jobs.claim("source-verification"))!;
+    const prepare = jest.fn().mockResolvedValue({ chunks: [], embeddings: [] });
+    await new DocumentJobProcessor(
+      jobs,
+      app.get(DOCUMENT_STORAGE),
+      { available: true, prepare },
+      64,
+      5000,
+    ).run(lease, new AbortController().signal);
+    expect(prepare).toHaveBeenCalledWith(lease, body, expect.any(AbortSignal));
+    expect(
+      (await db.document.findUniqueOrThrow({ where: { id: p.document.id } }))
+        .processingError,
+    ).toBe("DOCUMENT_PROCESSING_RESULT_INVALID");
+  });
+  it("exposes controlled unavailable stages and owner-only idempotent retry API", async () => {
+    const p = await propose();
+    await upload(p);
+    await complete(p).expect(200);
+    const jobs = app.get<DocumentProcessingRepository>(
+      DOCUMENT_PROCESSING_REPOSITORY,
+    );
+    const lease = (await jobs.claim("unconfigured"))!;
+    await app
+      .get(DocumentJobProcessor)
+      .run(lease, new AbortController().signal);
+    const metadata = await request(app.getHttpServer())
+      .get(`/documents/${p.document.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(metadata.body).toMatchObject({
+      status: "FAILED",
+      processingError: "DOCUMENT_PROCESSING_UNAVAILABLE",
+      retryEligible: true,
+    });
+    const path = `/documents/${p.document.id}/retry-processing`;
+    await request(app.getHttpServer()).post(path).expect(401);
+    await request(app.getHttpServer())
+      .post(path)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .expect(404);
+    const queued = await Promise.all(
+      [0, 1].map(() =>
+        request(app.getHttpServer())
+          .post(path)
+          .set("Authorization", `Bearer ${token}`)
+          .expect(202),
+      ),
+    );
+    expect(queued[0].body).toEqual(queued[1].body);
+    expect(queued[0].body.generation).toBe(2);
   });
   it("rejects absent objects and uncompleted downloads", async () => {
     const p = await propose();

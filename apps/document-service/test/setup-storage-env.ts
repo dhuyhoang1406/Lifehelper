@@ -1,6 +1,7 @@
 if (!process.env.DATABASE_URL)
   throw new Error("Set DATABASE_URL to a migrated *_test or *_ci database");
 process.env.NODE_ENV = "test";
+process.env.DOCUMENT_WORKER_ENABLED = "false";
 process.env.SERVICE_NAME = "document-service";
 process.env.DOCUMENT_PORT = "3004";
 process.env.REDIS_URL = "redis://localhost:6379";
