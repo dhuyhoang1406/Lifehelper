@@ -29,6 +29,18 @@ import type { DocumentRepository } from "./application/repositories/document.rep
 import { PrismaDocumentUploadRepository } from "./persistence/document-upload.repository";
 import { S3DocumentStorage } from "./infrastructure/storage/s3-document-storage";
 import { DocumentUploadUseCases } from "./application/services/document-upload.use-cases";
+import { PinoLogger } from "nestjs-pino";
+import {
+  DOCUMENT_PROCESSING_REPOSITORY,
+  DOCUMENT_PROCESSING_STAGES,
+  type DocumentProcessingRepository,
+  type DocumentProcessingStages,
+} from "./application/ports/document-processing.port";
+import { PrismaDocumentProcessingRepository } from "./persistence/document-processing.repository";
+import { DocumentProcessingRetryUseCase } from "./application/services/document-processing-retry.use-case";
+import { DocumentJobProcessor } from "./application/services/document-job-processor";
+import { DocumentProcessingWorker } from "./infrastructure/processing/document-processing-worker";
+import { UnavailableProcessingStages } from "./infrastructure/processing/unavailable-processing-stages";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -43,6 +55,80 @@ import { DocumentUploadUseCases } from "./application/services/document-upload.u
   providers: [
     PrismaService,
     JwtAuthGuard,
+    {
+      provide: DOCUMENT_PROCESSING_REPOSITORY,
+      useFactory: (db: PrismaService, c: ConfigService) =>
+        new PrismaDocumentProcessingRepository(db, {
+          leaseMs: c.getOrThrow("DOCUMENT_WORKER_LEASE_MS"),
+          maxAttempts: c.getOrThrow("DOCUMENT_PROCESSING_MAX_ATTEMPTS"),
+          baseDelayMs: c.getOrThrow("DOCUMENT_PROCESSING_RETRY_BASE_MS"),
+          maxDelayMs: c.getOrThrow("DOCUMENT_PROCESSING_RETRY_MAX_MS"),
+          maxChunks: c.getOrThrow("DOCUMENT_PROCESSING_MAX_CHUNKS"),
+          maxTextChars: c.getOrThrow("DOCUMENT_PROCESSING_MAX_TEXT_CHARS"),
+          maxVectorValues: c.getOrThrow(
+            "DOCUMENT_PROCESSING_MAX_VECTOR_VALUES",
+          ),
+        }),
+      inject: [PrismaService, ConfigService],
+    },
+    {
+      provide: DOCUMENT_PROCESSING_STAGES,
+      useClass: UnavailableProcessingStages,
+    },
+    {
+      provide: DocumentProcessingRetryUseCase,
+      useFactory: (jobs: DocumentProcessingRepository) =>
+        new DocumentProcessingRetryUseCase(jobs),
+      inject: [DOCUMENT_PROCESSING_REPOSITORY],
+    },
+    {
+      provide: DocumentJobProcessor,
+      useFactory: (
+        jobs: DocumentProcessingRepository,
+        storage: DocumentStorage,
+        stages: DocumentProcessingStages,
+        c: ConfigService,
+      ) =>
+        new DocumentJobProcessor(
+          jobs,
+          storage,
+          stages,
+          c.getOrThrow("DOCUMENT_MAX_FILE_BYTES"),
+          c.getOrThrow("DOCUMENT_PROCESSING_TIMEOUT_MS"),
+        ),
+      inject: [
+        DOCUMENT_PROCESSING_REPOSITORY,
+        DOCUMENT_STORAGE,
+        DOCUMENT_PROCESSING_STAGES,
+        ConfigService,
+      ],
+    },
+    {
+      provide: DocumentProcessingWorker,
+      useFactory: (
+        jobs: DocumentProcessingRepository,
+        processor: DocumentJobProcessor,
+        c: ConfigService,
+        logger: PinoLogger,
+      ) =>
+        new DocumentProcessingWorker(
+          jobs,
+          processor,
+          {
+            enabled: c.getOrThrow("DOCUMENT_WORKER_ENABLED"),
+            concurrency: c.getOrThrow("DOCUMENT_WORKER_CONCURRENCY"),
+            pollMs: c.getOrThrow("DOCUMENT_WORKER_POLL_MS"),
+            shutdownMs: c.getOrThrow("DOCUMENT_WORKER_SHUTDOWN_MS"),
+          },
+          logger,
+        ),
+      inject: [
+        DOCUMENT_PROCESSING_REPOSITORY,
+        DocumentJobProcessor,
+        ConfigService,
+        PinoLogger,
+      ],
+    },
     {
       provide: DOCUMENT_UPLOAD_REPOSITORY,
       useFactory: (db: PrismaService) => new PrismaDocumentUploadRepository(db),

@@ -5,6 +5,58 @@ const schema = Joi.object({
     .default("development"),
   SERVICE_NAME: Joi.string().default("document-service"),
   DOCUMENT_PORT: Joi.number().port().default(3004),
+  DOCUMENT_WORKER_ENABLED: Joi.boolean().default(true),
+  DOCUMENT_WORKER_CONCURRENCY: Joi.number().integer().min(1).max(8).default(2),
+  DOCUMENT_WORKER_POLL_MS: Joi.number()
+    .integer()
+    .min(50)
+    .max(60000)
+    .default(1000),
+  DOCUMENT_WORKER_LEASE_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(900000)
+    .default(60000),
+  DOCUMENT_PROCESSING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120000)
+    .default(30000),
+  DOCUMENT_WORKER_SHUTDOWN_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30000)
+    .default(5000),
+  DOCUMENT_PROCESSING_MAX_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .default(3),
+  DOCUMENT_PROCESSING_RETRY_BASE_MS: Joi.number()
+    .integer()
+    .min(10)
+    .max(60000)
+    .default(500),
+  DOCUMENT_PROCESSING_RETRY_MAX_MS: Joi.number()
+    .integer()
+    .min(Joi.ref("DOCUMENT_PROCESSING_RETRY_BASE_MS"))
+    .max(300000)
+    .default(30000),
+  DOCUMENT_PROCESSING_MAX_CHUNKS: Joi.number()
+    .integer()
+    .min(1)
+    .max(2000)
+    .default(1000),
+  DOCUMENT_PROCESSING_MAX_TEXT_CHARS: Joi.number()
+    .integer()
+    .min(1)
+    .max(5000000)
+    .default(1000000),
+  DOCUMENT_PROCESSING_MAX_VECTOR_VALUES: Joi.number()
+    .integer()
+    .min(1)
+    .max(4000000)
+    .default(1000000),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().trim().min(1).required(),
   JWT_AUDIENCE: Joi.string().trim().min(1).required(),
@@ -77,5 +129,12 @@ const schema = Joi.object({
 export function validateEnvironment(config: Record<string, unknown>) {
   const { error, value } = schema.validate(config, { abortEarly: false });
   if (error) throw new Error("Environment validation failed: " + error.message);
+  if (
+    value.DOCUMENT_WORKER_LEASE_MS <=
+    value.DOCUMENT_PROCESSING_TIMEOUT_MS + 10000
+  )
+    throw new Error(
+      "Environment validation failed: worker lease must exceed processing timeout by more than 10000ms",
+    );
   return value;
 }
