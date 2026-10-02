@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { retryEligible } from "../../modules/document/domain/processing-policy";
 import { Document } from "../../modules/document/domain/entities/document.entity";
 import type { DocumentRepository } from "../repositories/document.repositories";
 import type { DocumentUploadRepository } from "../ports/document-upload.repository";
@@ -242,6 +243,8 @@ export class DocumentUploadUseCases {
       mimeType: s.mimeType,
       sizeBytes: Number(s.sizeBytes),
       status: s.status,
+      processingError: s.processingError,
+      retryEligible: s.status === "FAILED" && retryEligible(s.processingError),
       checksumSha256: s.storageVersionId ? s.checksumSha256 : null,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
