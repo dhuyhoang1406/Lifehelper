@@ -3,8 +3,8 @@ import type {
   AIToolCall,
   AIJsonObject,
 } from "../ports/ai-provider.port";
-import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
-import type { Message } from "../../modules/ai/domain/entities/message.entity";
+import { MessageRole } from "../../domain/enums/ai.enums";
+import type { Message } from "../../domain/entities/message.entity";
 
 export function assistantToolPayload(calls: readonly AIToolCall[]) {
   return {

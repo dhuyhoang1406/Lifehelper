@@ -1,5 +1,5 @@
 import type { JsonValue } from "@lifehelper/shared-types";
-import type { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
+import type { MessageRole } from "../../domain/enums/ai.enums";
 
 export type AIProviderName = "ollama" | "cloudflare";
 export type AIJsonObject = { readonly [key: string]: JsonValue };

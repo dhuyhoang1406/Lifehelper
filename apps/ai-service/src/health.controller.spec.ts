@@ -1,7 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { HealthController } from "./health.controller";
 import { PrismaService } from "./prisma.service";
-import { AIProviderRouter } from "./application/services/ai-provider.router";
+import { AIProviderRouter } from "./modules/ai/application/services/ai-provider.router";
 describe("HealthController", () => {
   const prisma = {
     isHealthy: jest.fn().mockResolvedValue(true),

@@ -1,7 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import { AIConversationUseCases } from "../application/services/ai-conversation.use-cases";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { AIConversationUseCases } from "../application/use-cases/ai-conversation.use-cases";
+import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
 import { AIConversationController } from "./ai-conversation.controller";
 
 describe("AI conversation Swagger documentation", () => {

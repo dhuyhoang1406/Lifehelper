@@ -2,8 +2,8 @@ import type { OutboxEventInput } from "@lifehelper/shared-types";
 import type { AIActionLogRepository } from "../repositories/ai.repositories";
 import type { ProductivityWriteClient } from "../ports/productivity-write.port";
 import { AIActionUseCases } from "./ai-action.use-cases";
-import { validateWriteCall } from "./ai-write-tools";
-import type { AIActionLog } from "../../modules/ai/domain/entities/ai-action-log.entity";
+import { validateWriteCall } from "../services/ai-write-tools";
+import type { AIActionLog } from "../../domain/entities/ai-action-log.entity";
 
 it("measures execution with a monotonic clock despite a wall-clock adjustment", async () => {
   const context = {

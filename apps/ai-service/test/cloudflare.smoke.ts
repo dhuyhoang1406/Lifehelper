@@ -1,4 +1,4 @@
-import { CloudflareWorkersAIProvider } from "../src/infrastructure/ai/cloudflare-workers-ai.provider";
+import { CloudflareWorkersAIProvider } from "../src/modules/ai/infrastructure/ai/cloudflare-workers-ai.provider";
 import { MessageRole } from "../src/modules/ai/domain/enums/ai.enums";
 
 function required(name: string): string {

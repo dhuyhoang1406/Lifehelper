@@ -10,8 +10,8 @@ import {
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AI_PROVIDER_ROUTER } from "../application/ports/ai-provider.port";
 import { AIProviderRouter } from "../application/services/ai-provider.router";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { MessageRole } from "../modules/ai/domain/enums/ai.enums";
+import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { MessageRole } from "../domain/enums/ai.enums";
 import { GenerateDto } from "./generate.dto";
 
 const SIMPLE_CHAT_INSTRUCTIONS =

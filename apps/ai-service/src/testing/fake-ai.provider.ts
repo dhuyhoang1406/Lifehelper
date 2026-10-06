@@ -3,7 +3,7 @@ import type {
   AIProviderName,
   AIRequest,
   AIResponse,
-} from "../application/ports/ai-provider.port";
+} from "../modules/ai/application/ports/ai-provider.port";
 
 type FakeResult =
   | { response: AIResponse; error?: never }

@@ -1,14 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { AIJsonObject, AIResponse } from "../ports/ai-provider.port";
-import { actionAuditFields, aiOutboxEvent } from "./ai-audit-events";
+import { actionAuditFields, aiOutboxEvent } from "../services/ai-audit-events";
 import type { ToolUserContext } from "../ports/productivity-read.port";
 import type { ProductivityWriteClient } from "../ports/productivity-write.port";
 import type { AIActionLogRepository } from "../repositories/ai.repositories";
 import { AIApplicationError, AIErrorCode } from "../errors/ai.errors";
-import type { ValidatedWriteCall } from "./ai-write-tools";
-import { validateWriteCall } from "./ai-write-tools";
-import { AIActionLog } from "../../modules/ai/domain/entities/ai-action-log.entity";
-import { AIActionStatus } from "../../modules/ai/domain/enums/ai.enums";
+import type { ValidatedWriteCall } from "../services/ai-write-tools";
+import { validateWriteCall } from "../services/ai-write-tools";
+import { AIActionLog } from "../../domain/entities/ai-action-log.entity";
+import { AIActionStatus } from "../../domain/enums/ai.enums";
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";

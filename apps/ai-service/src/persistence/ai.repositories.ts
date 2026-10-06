@@ -1,7 +1,7 @@
 import type { Prisma } from "../../generated/client";
 import type { OutboxEventInput } from "@lifehelper/shared-types";
 import { PrismaService } from "../prisma.service";
-import { aiOutboxEvent } from "../application/services/ai-audit-events";
+import { aiOutboxEvent } from "../modules/ai/application/services/ai-audit-events";
 import type {
   AIActionLogRepository,
   AIOutboxRepository,
@@ -9,7 +9,7 @@ import type {
   AIPageQuery,
   ConversationRepository,
   MessageRepository,
-} from "../application/repositories/ai.repositories";
+} from "../modules/ai/application/repositories/ai.repositories";
 import type { Conversation } from "../modules/ai/domain/entities/conversation.entity";
 import type { Message } from "../modules/ai/domain/entities/message.entity";
 import type { AIActionLog } from "../modules/ai/domain/entities/ai-action-log.entity";

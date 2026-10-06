@@ -5,11 +5,11 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
-import { AIErrorCode } from "../src/application/errors/ai.errors";
+import { AIErrorCode } from "../src/modules/ai/application/errors/ai.errors";
 import {
   AI_PROVIDER_CONFIG,
   type AIProviderConfig,
-} from "../src/application/ports/ai-provider.port";
+} from "../src/modules/ai/application/ports/ai-provider.port";
 import { PrismaService } from "../src/prisma.service";
 
 describe("Cloudflare AI Service boundary (e2e)", () => {

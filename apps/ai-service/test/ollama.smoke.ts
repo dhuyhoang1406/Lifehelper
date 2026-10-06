@@ -1,4 +1,4 @@
-import { OllamaProvider } from "../src/infrastructure/ai/ollama.provider";
+import { OllamaProvider } from "../src/modules/ai/infrastructure/ai/ollama.provider";
 import { MessageRole } from "../src/modules/ai/domain/enums/ai.enums";
 
 function required(name: string): string {

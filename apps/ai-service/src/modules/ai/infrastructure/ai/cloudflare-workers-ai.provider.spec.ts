@@ -6,7 +6,7 @@ import {
 } from "../../application/errors/ai.errors";
 import type { AIProviderConfig } from "../../application/ports/ai-provider.port";
 import { AIProviderRetryPolicy } from "../../application/services/ai-provider-retry.policy";
-import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
+import { MessageRole } from "../../domain/enums/ai.enums";
 import { CloudflareWorkersAIProvider } from "./cloudflare-workers-ai.provider";
 
 const config: AIProviderConfig = {

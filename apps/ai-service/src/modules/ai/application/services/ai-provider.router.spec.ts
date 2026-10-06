@@ -1,7 +1,7 @@
 import { AIErrorCode, AIProviderFailure } from "../errors/ai.errors";
 import type { AIRequest, AIResponse } from "../ports/ai-provider.port";
-import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
-import { FakeAIProvider } from "../../testing/fake-ai.provider";
+import { MessageRole } from "../../domain/enums/ai.enums";
+import { FakeAIProvider } from "../../../../testing/fake-ai.provider";
 import { AIProviderRetryPolicy } from "./ai-provider-retry.policy";
 import { AIProviderRegistry, AIProviderRouter } from "./ai-provider.router";
 

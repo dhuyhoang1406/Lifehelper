@@ -11,13 +11,13 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { AIConversationUseCases } from "../application/services/ai-conversation.use-cases";
+import { AIConversationUseCases } from "../application/use-cases/ai-conversation.use-cases";
 import type { ToolUserContext } from "../application/ports/productivity-read.port";
 import {
   CurrentAIToolContext,
   CurrentUserId,
-} from "../auth/current-user.decorator";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+} from "../../../auth/current-user.decorator";
+import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
 import {
   ChatDto,
   ConversationIdDto,

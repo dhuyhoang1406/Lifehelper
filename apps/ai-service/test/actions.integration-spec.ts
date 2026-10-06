@@ -3,22 +3,22 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
-import { AI_PROVIDER_INSTANCE } from "../src/application/ports/ai-provider.port";
-import type { AIJsonObject } from "../src/application/ports/ai-provider.port";
+import { AI_PROVIDER_INSTANCE } from "../src/modules/ai/application/ports/ai-provider.port";
+import type { AIJsonObject } from "../src/modules/ai/application/ports/ai-provider.port";
 import {
   PRODUCTIVITY_WRITE_CLIENT,
   type ProductivityWriteClient,
-} from "../src/application/ports/productivity-write.port";
+} from "../src/modules/ai/application/ports/productivity-write.port";
 import {
   AIApplicationError,
   AIErrorCode,
-} from "../src/application/errors/ai.errors";
+} from "../src/modules/ai/application/errors/ai.errors";
 import { FakeAIProvider } from "../src/testing/fake-ai.provider";
 import { PrismaService } from "../src/prisma.service";
 import {
   AI_ACTION_LOG_REPOSITORY,
   type AIActionLogRepository,
-} from "../src/application/repositories/ai.repositories";
+} from "../src/modules/ai/application/repositories/ai.repositories";
 
 const userA = "00000000-0000-4000-8000-00000000da01";
 const userB = "00000000-0000-4000-8000-00000000db01";

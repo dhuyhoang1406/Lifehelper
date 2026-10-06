@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { AIErrorCode } from "../../application/errors/ai.errors";
 import type { AIProviderConfig } from "../../application/ports/ai-provider.port";
-import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
+import { MessageRole } from "../../domain/enums/ai.enums";
 import { OllamaProvider } from "./ollama.provider";
 
 const baseConfig: AIProviderConfig = {

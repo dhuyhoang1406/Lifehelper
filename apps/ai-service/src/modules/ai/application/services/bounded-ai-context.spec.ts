@@ -1,5 +1,5 @@
 import { boundedAIContext } from "./bounded-ai-context";
-import { MessageRole as Role } from "../../modules/ai/domain/enums/ai.enums";
+import { MessageRole as Role } from "../../domain/enums/ai.enums";
 import type { AIRequestMessage } from "../ports/ai-provider.port";
 
 const system: AIRequestMessage = { role: Role.SYSTEM, content: "rules" };

@@ -1,7 +1,7 @@
 import type { UUID, OutboxEventInput } from "@lifehelper/shared-types";
-import type { Conversation } from "../../modules/ai/domain/entities/conversation.entity";
-import type { Message } from "../../modules/ai/domain/entities/message.entity";
-import type { AIActionLog } from "../../modules/ai/domain/entities/ai-action-log.entity";
+import type { Conversation } from "../../domain/entities/conversation.entity";
+import type { Message } from "../../domain/entities/message.entity";
+import type { AIActionLog } from "../../domain/entities/ai-action-log.entity";
 
 export interface AIPageQuery {
   page: number;

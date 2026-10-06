@@ -5,8 +5,8 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { AI_PROVIDER_ROUTER } from "./application/ports/ai-provider.port";
-import { AIProviderRouter } from "./application/services/ai-provider.router";
+import { AI_PROVIDER_ROUTER } from "./modules/ai/application/ports/ai-provider.port";
+import { AIProviderRouter } from "./modules/ai/application/services/ai-provider.router";
 import { PrismaService } from "./prisma.service";
 @Controller("health")
 export class HealthController {

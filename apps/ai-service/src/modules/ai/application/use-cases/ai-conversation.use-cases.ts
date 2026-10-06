@@ -7,7 +7,7 @@ import type {
   MessageRepository,
   AIOutboxRepository,
 } from "../repositories/ai.repositories";
-import type { AIProviderRouter } from "./ai-provider.router";
+import type { AIProviderRouter } from "../services/ai-provider.router";
 import type {
   AIJsonObject,
   AIRequestMessage,
@@ -15,19 +15,22 @@ import type {
   AIToolCall,
 } from "../ports/ai-provider.port";
 import type { ToolUserContext } from "../ports/productivity-read.port";
-import { AIToolRegistry } from "./ai-tool-registry";
+import { AIToolRegistry } from "../services/ai-tool-registry";
 import { AIActionUseCases } from "./ai-action.use-cases";
 import {
   assistantToolPayload,
   toProviderMessage,
   toolResultContent,
   toolResultPayload,
-} from "./ai-tool-messages";
-import { Conversation } from "../../modules/ai/domain/entities/conversation.entity";
-import { Message } from "../../modules/ai/domain/entities/message.entity";
-import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
-import { aiOutboxEvent, usageAuditFields } from "./ai-audit-events";
-import { decodeMessageCursor, encodeMessageCursor } from "./ai-message-cursor";
+} from "../services/ai-tool-messages";
+import { Conversation } from "../../domain/entities/conversation.entity";
+import { Message } from "../../domain/entities/message.entity";
+import { MessageRole } from "../../domain/enums/ai.enums";
+import { aiOutboxEvent, usageAuditFields } from "../services/ai-audit-events";
+import {
+  decodeMessageCursor,
+  encodeMessageCursor,
+} from "../services/ai-message-cursor";
 
 const conversationNotFound = () =>
   new AIApplicationError(

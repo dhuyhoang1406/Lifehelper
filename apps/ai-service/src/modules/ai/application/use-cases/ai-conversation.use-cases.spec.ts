@@ -4,13 +4,16 @@ import type {
   MessageRepository,
 } from "../repositories/ai.repositories";
 import { AIApplicationError, AIErrorCode } from "../errors/ai.errors";
-import { Conversation } from "../../modules/ai/domain/entities/conversation.entity";
-import { Message } from "../../modules/ai/domain/entities/message.entity";
-import { MessageRole } from "../../modules/ai/domain/enums/ai.enums";
+import { Conversation } from "../../domain/entities/conversation.entity";
+import { Message } from "../../domain/entities/message.entity";
+import { MessageRole } from "../../domain/enums/ai.enums";
 import { AIConversationUseCases } from "./ai-conversation.use-cases";
-import { AIProviderRetryPolicy } from "./ai-provider-retry.policy";
-import { AIProviderRegistry, AIProviderRouter } from "./ai-provider.router";
-import { FakeAIProvider } from "../../testing/fake-ai.provider";
+import { AIProviderRetryPolicy } from "../services/ai-provider-retry.policy";
+import {
+  AIProviderRegistry,
+  AIProviderRouter,
+} from "../services/ai-provider.router";
+import { FakeAIProvider } from "../../../../testing/fake-ai.provider";
 
 const userA = "00000000-0000-4000-8000-0000000000a1";
 const userB = "00000000-0000-4000-8000-0000000000b1";
