@@ -6,7 +6,7 @@ import { PrismaService } from "../prisma.service";
 import type {
   DailyProductivityMetricRepository,
   EventProcessingLogRepository,
-} from "../application/repositories/analytics.repositories";
+} from "../modules/analytics/application/repositories/analytics.repositories";
 import { DailyProductivityMetric } from "../modules/analytics/domain/entities/daily-productivity-metric.entity";
 import { EventProcessingLog } from "../modules/analytics/domain/entities/event-processing-log.entity";
 const dateOnly = (d: Date) => d.toISOString().slice(0, 10);

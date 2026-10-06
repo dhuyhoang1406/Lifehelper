@@ -1,6 +1,6 @@
 import type { UUID } from "@lifehelper/shared-types";
-import type { DailyProductivityMetric } from "../../modules/analytics/domain/entities/daily-productivity-metric.entity";
-import type { EventProcessingLog } from "../../modules/analytics/domain/entities/event-processing-log.entity";
+import type { DailyProductivityMetric } from "../../domain/entities/daily-productivity-metric.entity";
+import type { EventProcessingLog } from "../../domain/entities/event-processing-log.entity";
 export interface DailyProductivityMetricRepository {
   findByUserAndDate(
     userId: UUID,
