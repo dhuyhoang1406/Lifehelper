@@ -37,7 +37,7 @@ import {
   GetReminder,
   ListReminders,
   UpdateReminder,
-} from "./modules/reminder/application/reminder.use-cases";
+} from "./modules/reminder/application/use-cases/reminder.use-cases";
 import { ReminderController } from "./modules/reminder/presentation/reminder.controller";
 import { ProductivityExceptionFilter } from "./presentation/productivity-exception.filter";
 import {

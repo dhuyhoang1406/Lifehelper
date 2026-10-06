@@ -3,15 +3,15 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   ProductivityErrorCode,
   productivityNotFound,
-} from "../../../application/errors/productivity.errors";
-import type { ReminderRepository } from "../../../application/repositories/productivity.repositories";
-import { REMINDER_REPOSITORY } from "../../../application/repositories/productivity.repositories";
-import { Reminder } from "../domain/entities/reminder.entity";
+} from "../../../../application/errors/productivity.errors";
+import type { ReminderRepository } from "../../../../application/repositories/productivity.repositories";
+import { REMINDER_REPOSITORY } from "../../../../application/repositories/productivity.repositories";
+import { Reminder } from "../../domain/entities/reminder.entity";
 import {
   ReminderResourceType,
   ReminderStatus,
-} from "../domain/enums/reminder.enums";
-import { ReminderDomainError } from "../domain/errors/reminder-domain.error";
+} from "../../domain/enums/reminder.enums";
+import { ReminderDomainError } from "../../domain/errors/reminder-domain.error";
 
 export interface ReminderInput {
   resourceType: ReminderResourceType;

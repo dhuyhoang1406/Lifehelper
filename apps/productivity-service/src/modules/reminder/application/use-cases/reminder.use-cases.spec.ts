@@ -1,7 +1,7 @@
-import { ProductivityErrorCode } from "../../../application/errors/productivity.errors";
-import type { ReminderRepository } from "../../../application/repositories/productivity.repositories";
-import { Reminder } from "../domain/entities/reminder.entity";
-import { ReminderResourceType } from "../domain/enums/reminder.enums";
+import { ProductivityErrorCode } from "../../../../application/errors/productivity.errors";
+import type { ReminderRepository } from "../../../../application/repositories/productivity.repositories";
+import { Reminder } from "../../domain/entities/reminder.entity";
+import { ReminderResourceType } from "../../domain/enums/reminder.enums";
 import {
   CancelReminder,
   CreateReminder,
