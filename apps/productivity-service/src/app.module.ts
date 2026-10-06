@@ -7,7 +7,7 @@ import { HealthController } from "./health.controller";
 import { PrismaService } from "./prisma.service";
 import { validateEnvironment } from "./env.validation";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
-import { TaskUseCases } from "./modules/task/application/task.use-cases";
+import { TaskUseCases } from "./modules/task/application/use-cases/task.use-cases";
 import { TaskController } from "./modules/task/presentation/task.controller";
 import {
   CreateCalendarEvent,

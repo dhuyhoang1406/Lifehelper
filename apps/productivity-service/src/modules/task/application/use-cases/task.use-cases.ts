@@ -4,24 +4,24 @@ import {
   ProductivityErrorCode,
   productivityConflict,
   productivityNotFound,
-} from "../../../application/errors/productivity.errors";
+} from "../../../../application/errors/productivity.errors";
 import type {
   SubtaskRepository,
   TagRepository,
   TaskQuery,
   TaskRepository,
   TaskTagRepository,
-} from "../../../application/repositories/productivity.repositories";
+} from "../../../../application/repositories/productivity.repositories";
 import {
   SUBTASK_REPOSITORY,
   TAG_REPOSITORY,
   TASK_REPOSITORY,
   TASK_TAG_REPOSITORY,
-} from "../../../application/repositories/productivity.repositories";
-import { Subtask } from "../domain/entities/subtask.entity";
-import { Tag } from "../domain/entities/tag.entity";
-import { Task } from "../domain/entities/task.entity";
-import type { TaskPriority } from "../domain/enums/task.enums";
+} from "../../../../application/repositories/productivity.repositories";
+import { Subtask } from "../../domain/entities/subtask.entity";
+import { Tag } from "../../domain/entities/tag.entity";
+import { Task } from "../../domain/entities/task.entity";
+import type { TaskPriority } from "../../domain/enums/task.enums";
 
 @Injectable()
 export class TaskUseCases {

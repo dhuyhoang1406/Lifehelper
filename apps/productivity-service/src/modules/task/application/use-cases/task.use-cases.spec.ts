@@ -3,10 +3,10 @@ import type {
   TagRepository,
   TaskRepository,
   TaskTagRepository,
-} from "../../../application/repositories/productivity.repositories";
-import { ProductivityErrorCode } from "../../../application/errors/productivity.errors";
-import { Task } from "../domain/entities/task.entity";
-import { Tag } from "../domain/entities/tag.entity";
+} from "../../../../application/repositories/productivity.repositories";
+import { ProductivityErrorCode } from "../../../../application/errors/productivity.errors";
+import { Task } from "../../domain/entities/task.entity";
+import { Tag } from "../../domain/entities/tag.entity";
 import { TaskUseCases } from "./task.use-cases";
 
 describe("TaskUseCases", () => {
