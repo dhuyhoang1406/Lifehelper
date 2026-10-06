@@ -3,20 +3,20 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   ProductivityErrorCode,
   productivityNotFound,
-} from "../../../application/errors/productivity.errors";
+} from "../../../../application/errors/productivity.errors";
 import type {
   HabitLogRepository,
   HabitRepository,
-} from "../../../application/repositories/productivity.repositories";
+} from "../../../../application/repositories/productivity.repositories";
 import {
   HABIT_LOG_REPOSITORY,
   HABIT_REPOSITORY,
-} from "../../../application/repositories/productivity.repositories";
-import { Habit } from "../domain/entities/habit.entity";
-import { HabitLog } from "../domain/entities/habit-log.entity";
-import { HabitSchedule } from "../domain/entities/habit-schedule.entity";
-import type { HabitFrequency } from "../domain/enums/habit-frequency.enum";
-import { HabitDomainError } from "../domain/errors/habit-domain.error";
+} from "../../../../application/repositories/productivity.repositories";
+import { Habit } from "../../domain/entities/habit.entity";
+import { HabitLog } from "../../domain/entities/habit-log.entity";
+import { HabitSchedule } from "../../domain/entities/habit-schedule.entity";
+import type { HabitFrequency } from "../../domain/enums/habit-frequency.enum";
+import { HabitDomainError } from "../../domain/errors/habit-domain.error";
 
 export interface HabitScheduleInput {
   dayOfWeek: number | null;

@@ -28,7 +28,7 @@ import {
   ResumeHabit,
   UpdateHabit,
   UpdateHabitLog,
-} from "./modules/habit/application/habit.use-cases";
+} from "./modules/habit/application/use-cases/habit.use-cases";
 import { HabitController } from "./modules/habit/presentation/habit.controller";
 import {
   CancelReminder,
