@@ -3,7 +3,10 @@ import {
   type OAuthProvider as PrismaOAuthProvider,
 } from "../../generated/client";
 import { PrismaService } from "../prisma.service";
-import { IdentityApplicationError, IdentityErrorCode } from "../modules/identity/application/errors/identity.errors";
+import {
+  IdentityApplicationError,
+  IdentityErrorCode,
+} from "../modules/identity/application/errors/identity.errors";
 import type {
   UserRepository,
   OAuthAccountRepository,
@@ -11,7 +14,7 @@ import type {
   RefreshTokenRepository,
   IdentityTransactionRepositories,
   IdentityUnitOfWork,
-} from "../application/repositories/identity.repositories";
+} from "../modules/identity/application/repositories/identity.repositories";
 import type { User } from "../modules/identity/domain/entities/user.entity";
 import type { OAuthAccount } from "../modules/identity/domain/entities/oauth-account.entity";
 import type { DeviceSession } from "../modules/identity/domain/entities/device-session.entity";
@@ -47,11 +50,20 @@ export class PrismaUserRepository implements UserRepository {
         update: data,
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
         const target = error.meta?.target;
-        const fields = Array.isArray(target) ? target.map(String) : [String(target)];
+        const fields = Array.isArray(target)
+          ? target.map(String)
+          : [String(target)];
         if (fields.includes("email")) {
-          throw new IdentityApplicationError(IdentityErrorCode.EMAIL_ALREADY_EXISTS, "Email is already registered", 409);
+          throw new IdentityApplicationError(
+            IdentityErrorCode.EMAIL_ALREADY_EXISTS,
+            "Email is already registered",
+            409,
+          );
         }
       }
       throw error;
@@ -116,10 +128,14 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
     return r ? RefreshTokenMapper.toDomain(r) : null;
   }
   async findBySessionId(deviceSessionId: string) {
-    return (await this.db.refreshToken.findMany({ where: { deviceSessionId } })).map(RefreshTokenMapper.toDomain);
+    return (
+      await this.db.refreshToken.findMany({ where: { deviceSessionId } })
+    ).map(RefreshTokenMapper.toDomain);
   }
   async findByUserId(userId: string) {
-    return (await this.db.refreshToken.findMany({ where: { userId } })).map(RefreshTokenMapper.toDomain);
+    return (await this.db.refreshToken.findMany({ where: { userId } })).map(
+      RefreshTokenMapper.toDomain,
+    );
   }
   async save(e: RefreshToken) {
     const data = RefreshTokenMapper.toPersistence(e);

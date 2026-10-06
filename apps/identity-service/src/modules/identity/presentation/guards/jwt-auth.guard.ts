@@ -9,8 +9,8 @@ import type { Request } from "express";
 import type { AuthenticatedUser } from "../../application/auth.types";
 import type { TokenService } from "../../application/ports/auth.ports";
 import { TOKEN_SERVICE } from "../../application/ports/auth.ports";
-import type { DeviceSessionRepository } from "../../../../application/repositories/identity.repositories";
-import { DEVICE_SESSION_REPOSITORY } from "../../../../application/repositories/identity.repositories";
+import type { DeviceSessionRepository } from "../../application/repositories/identity.repositories";
+import { DEVICE_SESSION_REPOSITORY } from "../../application/repositories/identity.repositories";
 
 export interface AuthenticatedRequest extends Request {
   auth?: AuthenticatedUser;

@@ -4,7 +4,7 @@ import type {
   IdentityTransactionRepositories,
   IdentityUnitOfWork,
   UserRepository,
-} from "../../../../application/repositories/identity.repositories";
+} from "../repositories/identity.repositories";
 import { DeviceSession } from "../../domain/entities/device-session.entity";
 import { User } from "../../domain/entities/user.entity";
 import { DevicePlatform, UserStatus } from "../../domain/enums/identity.enums";
@@ -26,20 +26,31 @@ describe("LoginUserUseCase", () => {
     createdAt: new Date("2026-09-03T00:00:00.000Z"),
   });
   const users = { findByEmail: jest.fn() } as unknown as UserRepository;
-  const sessions = { findByUserAndDevice: jest.fn() } as unknown as DeviceSessionRepository;
+  const sessions = {
+    findByUserAndDevice: jest.fn(),
+  } as unknown as DeviceSessionRepository;
   const transactional = {
     users: { save: jest.fn() },
     sessions: { save: jest.fn() },
     refreshTokens: { save: jest.fn() },
   } as unknown as IdentityTransactionRepositories;
   const unitOfWork = {
-    run: jest.fn((work: (repositories: IdentityTransactionRepositories) => Promise<unknown>) =>
-      work(transactional),
+    run: jest.fn(
+      (
+        work: (
+          repositories: IdentityTransactionRepositories,
+        ) => Promise<unknown>,
+      ) => work(transactional),
     ),
   } as unknown as IdentityUnitOfWork;
-  const passwords = { verify: jest.fn(), hash: jest.fn() } as unknown as PasswordHasher;
+  const passwords = {
+    verify: jest.fn(),
+    hash: jest.fn(),
+  } as unknown as PasswordHasher;
   const tokens = {
-    createRefreshToken: jest.fn().mockReturnValue({ raw: "raw-refresh", hash: "refresh-hash" }),
+    createRefreshToken: jest
+      .fn()
+      .mockReturnValue({ raw: "raw-refresh", hash: "refresh-hash" }),
     createAccessToken: jest.fn().mockResolvedValue("access-token"),
   } as unknown as TokenService;
   const config = {
@@ -49,7 +60,14 @@ describe("LoginUserUseCase", () => {
   beforeEach(() => jest.clearAllMocks());
 
   const build = () =>
-    new LoginUserUseCase(users, sessions, unitOfWork, passwords, tokens, config);
+    new LoginUserUseCase(
+      users,
+      sessions,
+      unitOfWork,
+      passwords,
+      tokens,
+      config,
+    );
 
   it("logs in with valid credentials and persists aggregate in one transaction", async () => {
     (users.findByEmail as jest.Mock).mockResolvedValue(userWithPassword);
@@ -59,12 +77,19 @@ describe("LoginUserUseCase", () => {
     const result = await build().execute(input);
 
     expect(users.findByEmail).toHaveBeenCalledWith("user@example.com");
-    expect(passwords.verify).toHaveBeenCalledWith("CorrectPass123", "hashed-password");
+    expect(passwords.verify).toHaveBeenCalledWith(
+      "CorrectPass123",
+      "hashed-password",
+    );
     expect(unitOfWork.run).toHaveBeenCalledTimes(1);
     expect(transactional.users.save).toHaveBeenCalledTimes(1);
     expect(transactional.sessions.save).toHaveBeenCalledTimes(1);
     expect(transactional.refreshTokens.save).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({ accessToken: "access-token", refreshToken: "raw-refresh", session: { deviceId: "phone-1" } });
+    expect(result).toMatchObject({
+      accessToken: "access-token",
+      refreshToken: "raw-refresh",
+      session: { deviceId: "phone-1" },
+    });
   });
 
   it("rejects an invalid password without persisting anything", async () => {
@@ -86,7 +111,10 @@ describe("LoginUserUseCase", () => {
       code: IdentityErrorCode.INVALID_CREDENTIALS,
       statusCode: 401,
     });
-    expect(passwords.verify).toHaveBeenCalledWith("CorrectPass123", DUMMY_PASSWORD_HASH);
+    expect(passwords.verify).toHaveBeenCalledWith(
+      "CorrectPass123",
+      DUMMY_PASSWORD_HASH,
+    );
     expect(unitOfWork.run).not.toHaveBeenCalled();
   });
 
@@ -104,7 +132,10 @@ describe("LoginUserUseCase", () => {
       code: IdentityErrorCode.INVALID_CREDENTIALS,
       statusCode: 401,
     });
-    expect(passwords.verify).toHaveBeenCalledWith("CorrectPass123", DUMMY_PASSWORD_HASH);
+    expect(passwords.verify).toHaveBeenCalledWith(
+      "CorrectPass123",
+      DUMMY_PASSWORD_HASH,
+    );
   });
 
   it("rejects a disabled account even with valid credentials", async () => {
@@ -153,7 +184,8 @@ describe("LoginUserUseCase", () => {
 
     const result = await build().execute(input);
 
-    const savedSession = (transactional.sessions.save as jest.Mock).mock.calls[0][0];
+    const savedSession = (transactional.sessions.save as jest.Mock).mock
+      .calls[0][0];
     expect(savedSession.state.userId).toBe("user-1");
     expect(savedSession.state.deviceId).toBe("phone-1");
     expect(result.session.deviceId).toBe("phone-1");

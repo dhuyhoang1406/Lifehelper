@@ -1,4 +1,4 @@
-import type { UserRepository } from "../../../../application/repositories/identity.repositories";
+import type { UserRepository } from "../repositories/identity.repositories";
 import { User } from "../../domain/entities/user.entity";
 import { UserStatus } from "../../domain/enums/identity.enums";
 import { IdentityErrorCode } from "../errors/identity.errors";

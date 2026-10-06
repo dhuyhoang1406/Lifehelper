@@ -1,17 +1,39 @@
+import { PrismaModule } from "../../prisma.module";
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "../../prisma.service";
-import { PrismaDeviceSessionRepository, PrismaIdentityUnitOfWork, PrismaOAuthAccountRepository, PrismaRefreshTokenRepository, PrismaUserRepository } from "../../persistence/identity.repositories";
-import { DEVICE_SESSION_REPOSITORY, IDENTITY_UNIT_OF_WORK, OAUTH_ACCOUNT_REPOSITORY, REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from "../../application/repositories/identity.repositories";
-import { OAUTH_IDENTITY_PROVIDER, PASSWORD_HASHER, TOKEN_SERVICE } from "./application/ports/auth.ports";
+import {
+  PrismaDeviceSessionRepository,
+  PrismaIdentityUnitOfWork,
+  PrismaOAuthAccountRepository,
+  PrismaRefreshTokenRepository,
+  PrismaUserRepository,
+} from "../../persistence/identity.repositories";
+import {
+  DEVICE_SESSION_REPOSITORY,
+  IDENTITY_UNIT_OF_WORK,
+  OAUTH_ACCOUNT_REPOSITORY,
+  REFRESH_TOKEN_REPOSITORY,
+  USER_REPOSITORY,
+} from "./application/repositories/identity.repositories";
+import {
+  OAUTH_IDENTITY_PROVIDER,
+  PASSWORD_HASHER,
+  TOKEN_SERVICE,
+} from "./application/ports/auth.ports";
 import { RegisterUserUseCase } from "./application/use-cases/register-user.use-case";
 import { LoginUserUseCase } from "./application/use-cases/login-user.use-case";
 import { RefreshAccessTokenUseCase } from "./application/use-cases/refresh-access-token.use-case";
 import { GetCurrentUserUseCase } from "./application/use-cases/get-current-user.use-case";
 import { JwtAuthGuard } from "./presentation/guards/jwt-auth.guard";
-import { ListDeviceSessionsUseCase, LogoutAllSessionsUseCase, LogoutUseCase, RevokeDeviceSessionUseCase } from "./application/use-cases/session-management.use-cases";
+import {
+  ListDeviceSessionsUseCase,
+  LogoutAllSessionsUseCase,
+  LogoutUseCase,
+  RevokeDeviceSessionUseCase,
+} from "./application/use-cases/session-management.use-cases";
 import { GoogleLoginUseCase } from "./application/use-cases/google-login.use-case";
 import { GoogleOAuthIdentityProvider } from "./infrastructure/security/google-oauth.provider";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -21,9 +43,29 @@ import { JwtTokenService } from "./infrastructure/security/jwt-token.service";
 import { AuthController } from "./presentation/auth.controller";
 import { IdentityExceptionFilter } from "./presentation/identity-exception.filter";
 
-const repository = (provide: symbol, useClass: new (db: PrismaService) => unknown) => ({ provide, useFactory: (db: PrismaService) => new useClass(db), inject: [PrismaService] });
+const repository = (
+  provide: symbol,
+  useClass: new (db: PrismaService) => unknown,
+) => ({
+  provide,
+  useFactory: (db: PrismaService) => new useClass(db),
+  inject: [PrismaService],
+});
 @Module({
-  imports: [JwtModule.register({}), ThrottlerModule.forRootAsync({ inject: [ConfigService], useFactory: (config: ConfigService) => [{ name: "auth", ttl: config.getOrThrow<number>("AUTH_RATE_LIMIT_TTL_MS"), limit: config.getOrThrow<number>("AUTH_RATE_LIMIT_MAX") }] })],
+  imports: [
+    PrismaModule,
+    JwtModule.register({}),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          name: "auth",
+          ttl: config.getOrThrow<number>("AUTH_RATE_LIMIT_TTL_MS"),
+          limit: config.getOrThrow<number>("AUTH_RATE_LIMIT_MAX"),
+        },
+      ],
+    }),
+  ],
   controllers: [AuthController],
   providers: [
     RegisterUserUseCase,

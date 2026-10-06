@@ -4,7 +4,7 @@ import { DeviceSession } from "../../domain/entities/device-session.entity";
 import { DevicePlatform } from "../../domain/enums/identity.enums";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import type { TokenService } from "../../application/ports/auth.ports";
-import type { DeviceSessionRepository } from "../../../../application/repositories/identity.repositories";
+import type { DeviceSessionRepository } from "../../application/repositories/identity.repositories";
 
 describe("JwtAuthGuard", () => {
   const request = {
