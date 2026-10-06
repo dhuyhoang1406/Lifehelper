@@ -9,7 +9,7 @@ import {
   PrismaDocumentRepository,
   PrismaDocumentChunkRepository,
 } from "../src/persistence/document.persistence";
-import type { ProcessingLease } from "../src/application/ports/document-processing.port";
+import type { ProcessingLease } from "../src/modules/document/application/ports/document-processing.port";
 const db = new PrismaService();
 const userId = randomUUID();
 const ids: string[] = [];

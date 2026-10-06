@@ -1,4 +1,4 @@
-import type { Document } from "../../modules/document/domain/entities/document.entity";
+import type { Document } from "../../domain/entities/document.entity";
 export interface DocumentUploadRepository {
   reserve(
     document: Document,

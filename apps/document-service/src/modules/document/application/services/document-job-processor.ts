@@ -7,7 +7,7 @@ import type { DocumentStorage } from "../ports/document-storage.port";
 import {
   DocumentProcessingFailure,
   processingFailure,
-} from "../../modules/document/domain/processing-policy";
+} from "../../domain/processing-policy";
 export class DocumentJobProcessor {
   constructor(
     private readonly jobs: DocumentProcessingRepository,

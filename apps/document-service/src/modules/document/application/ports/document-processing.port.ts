@@ -1,6 +1,6 @@
-import type { DocumentChunk } from "../../modules/document/domain/entities/document-chunk.entity";
-import type { DocumentEmbedding } from "../../modules/document/domain/entities/document-embedding.entity";
-import type { ProcessingFailureCode } from "../../modules/document/domain/processing-policy";
+import type { DocumentChunk } from "../../domain/entities/document-chunk.entity";
+import type { DocumentEmbedding } from "../../domain/entities/document-embedding.entity";
+import type { ProcessingFailureCode } from "../../domain/processing-policy";
 export interface ProcessingLease {
   id: string;
   documentId: string;

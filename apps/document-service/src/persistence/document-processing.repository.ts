@@ -5,11 +5,11 @@ import type {
   DocumentProcessingRepository,
   ProcessingLease,
   PreparedGeneration,
-} from "../application/ports/document-processing.port";
+} from "../modules/document/application/ports/document-processing.port";
 import {
   DocumentApplicationError,
   documentNotFound,
-} from "../application/errors/document.errors";
+} from "../modules/document/application/errors/document.errors";
 import { DocumentChunk } from "../modules/document/domain/entities/document-chunk.entity";
 import { DocumentEmbedding } from "../modules/document/domain/entities/document-embedding.entity";
 import {

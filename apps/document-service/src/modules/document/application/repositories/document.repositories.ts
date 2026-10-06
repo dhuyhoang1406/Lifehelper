@@ -1,8 +1,8 @@
 import type { UUID } from "@lifehelper/shared-types";
-import type { Document } from "../../modules/document/domain/entities/document.entity";
-import type { DocumentChunk } from "../../modules/document/domain/entities/document-chunk.entity";
-import type { DocumentGeneration } from "../../modules/document/domain/entities/document-generation.entity";
-import type { DocumentProcessingJob } from "../../modules/document/domain/entities/document-processing-job.entity";
+import type { Document } from "../../domain/entities/document.entity";
+import type { DocumentChunk } from "../../domain/entities/document-chunk.entity";
+import type { DocumentGeneration } from "../../domain/entities/document-generation.entity";
+import type { DocumentProcessingJob } from "../../domain/entities/document-processing-job.entity";
 
 export interface DocumentRepository {
   findByIdAndUserId(id: UUID, userId: UUID): Promise<Document | null>;

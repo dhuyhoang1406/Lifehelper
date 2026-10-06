@@ -11,10 +11,10 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiBody } from "@nestjs/swagger";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { CurrentDocumentUser } from "../auth/current-document-user.decorator";
-import { DocumentUploadUseCases } from "../application/services/document-upload.use-cases";
-import { DocumentProcessingRetryUseCase } from "../application/services/document-processing-retry.use-case";
+import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { CurrentDocumentUser } from "../../../auth/current-document-user.decorator";
+import { DocumentUploadUseCases } from "../application/use-cases/document-upload.use-cases";
+import { DocumentProcessingRetryUseCase } from "../application/use-cases/document-processing-retry.use-case";
 import { DocumentExceptionFilter } from "./document-exception.filter";
 import {
   UploadDocumentDto,

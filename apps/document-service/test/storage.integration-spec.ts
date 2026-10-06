@@ -16,16 +16,16 @@ import {
 } from "@aws-sdk/client-s3";
 import { AppModule } from "../src/app.module";
 import { PrismaService } from "../src/prisma.service";
-import { DOCUMENT_REPOSITORY } from "../src/application/repositories/document.repositories";
-import { DOCUMENT_UPLOAD_REPOSITORY } from "../src/application/ports/document-upload.repository";
-import { DOCUMENT_STORAGE } from "../src/application/ports/document-storage.port";
-import { DocumentUploadUseCases } from "../src/application/services/document-upload.use-cases";
-import { S3DocumentStorage } from "../src/infrastructure/storage/s3-document-storage";
-import { DocumentJobProcessor } from "../src/application/services/document-job-processor";
+import { DOCUMENT_REPOSITORY } from "../src/modules/document/application/repositories/document.repositories";
+import { DOCUMENT_UPLOAD_REPOSITORY } from "../src/modules/document/application/ports/document-upload.repository";
+import { DOCUMENT_STORAGE } from "../src/modules/document/application/ports/document-storage.port";
+import { DocumentUploadUseCases } from "../src/modules/document/application/use-cases/document-upload.use-cases";
+import { S3DocumentStorage } from "../src/modules/document/infrastructure/storage/s3-document-storage";
+import { DocumentJobProcessor } from "../src/modules/document/application/services/document-job-processor";
 import {
   DOCUMENT_PROCESSING_REPOSITORY,
   type DocumentProcessingRepository,
-} from "../src/application/ports/document-processing.port";
+} from "../src/modules/document/application/ports/document-processing.port";
 
 const userId = randomUUID();
 const otherId = randomUUID();

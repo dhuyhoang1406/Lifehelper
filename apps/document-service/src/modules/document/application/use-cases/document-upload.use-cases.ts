@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { retryEligible } from "../../modules/document/domain/processing-policy";
-import { Document } from "../../modules/document/domain/entities/document.entity";
+import { retryEligible } from "../../domain/processing-policy";
+import { Document } from "../../domain/entities/document.entity";
 import type { DocumentRepository } from "../repositories/document.repositories";
 import type { DocumentUploadRepository } from "../ports/document-upload.repository";
 import type { DocumentStorage } from "../ports/document-storage.port";

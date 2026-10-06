@@ -1,9 +1,9 @@
 import { Test } from "@nestjs/testing";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { DocumentController } from "./document.controller";
-import { DocumentUploadUseCases } from "../application/services/document-upload.use-cases";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { DocumentProcessingRetryUseCase } from "../application/services/document-processing-retry.use-case";
+import { DocumentUploadUseCases } from "../application/use-cases/document-upload.use-cases";
+import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
+import { DocumentProcessingRetryUseCase } from "../application/use-cases/document-processing-retry.use-case";
 
 it("uses the registered access-token scheme for every Document operation", async () => {
   const module = await Test.createTestingModule({
