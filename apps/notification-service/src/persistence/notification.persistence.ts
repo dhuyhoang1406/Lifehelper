@@ -7,7 +7,7 @@ import { PrismaService } from "../prisma.service";
 import type {
   NotificationRepository,
   NotificationDeliveryRepository,
-} from "../application/repositories/notification.repositories";
+} from "../modules/notification/application/repositories/notification.repositories";
 import { Notification } from "../modules/notification/domain/entities/notification.entity";
 import { NotificationDelivery } from "../modules/notification/domain/entities/notification-delivery.entity";
 import {

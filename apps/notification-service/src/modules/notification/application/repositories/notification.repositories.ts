@@ -1,6 +1,6 @@
 import type { UUID } from "@lifehelper/shared-types";
-import type { Notification } from "../../modules/notification/domain/entities/notification.entity";
-import type { NotificationDelivery } from "../../modules/notification/domain/entities/notification-delivery.entity";
+import type { Notification } from "../../domain/entities/notification.entity";
+import type { NotificationDelivery } from "../../domain/entities/notification-delivery.entity";
 export interface NotificationRepository {
   findById(id: UUID): Promise<Notification | null>;
   findByUserId(userId: UUID): Promise<Notification[]>;
