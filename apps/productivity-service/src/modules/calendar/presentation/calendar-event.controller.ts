@@ -21,7 +21,7 @@ import {
   GetCalendarEvent,
   ListCalendarEvents,
   UpdateCalendarEvent,
-} from "../application/calendar-event.use-cases";
+} from "../application/use-cases/calendar-event.use-cases";
 import {
   CalendarEventListDto,
   CalendarEventIdParamDto,
@@ -71,7 +71,10 @@ export class CalendarEventController {
     return this.getEvent.execute(userId, params.id);
   }
   @Patch(":id")
-  @ApiBody({ type: UpdateCalendarEventDto, examples: { default: { value: swaggerExamples.calendarEventUpdate } } })
+  @ApiBody({
+    type: UpdateCalendarEventDto,
+    examples: { default: { value: swaggerExamples.calendarEventUpdate } },
+  })
   update(
     @CurrentUserId() userId: string,
     @Param() params: CalendarEventIdParamDto,

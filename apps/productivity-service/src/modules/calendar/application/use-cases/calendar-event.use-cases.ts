@@ -3,12 +3,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   ProductivityErrorCode,
   productivityNotFound,
-} from "../../../application/errors/productivity.errors";
-import type { CalendarEventRepository } from "../../../application/repositories/productivity.repositories";
-import { CALENDAR_EVENT_REPOSITORY } from "../../../application/repositories/productivity.repositories";
-import { CalendarEvent } from "../domain/entities/calendar-event.entity";
-import type { CalendarEventType } from "../domain/enums/calendar-event-type.enum";
-import { InvalidCalendarRangeError } from "../domain/errors/calendar-domain.error";
+} from "../../../../application/errors/productivity.errors";
+import type { CalendarEventRepository } from "../../../../application/repositories/productivity.repositories";
+import { CALENDAR_EVENT_REPOSITORY } from "../../../../application/repositories/productivity.repositories";
+import { CalendarEvent } from "../../domain/entities/calendar-event.entity";
+import type { CalendarEventType } from "../../domain/enums/calendar-event-type.enum";
+import { InvalidCalendarRangeError } from "../../domain/errors/calendar-domain.error";
 
 export interface CreateCalendarEventInput {
   title: string;

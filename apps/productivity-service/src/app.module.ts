@@ -15,7 +15,7 @@ import {
   GetCalendarEvent,
   ListCalendarEvents,
   UpdateCalendarEvent,
-} from "./modules/calendar/application/calendar-event.use-cases";
+} from "./modules/calendar/application/use-cases/calendar-event.use-cases";
 import { CalendarEventController } from "./modules/calendar/presentation/calendar-event.controller";
 import {
   ArchiveHabit,
