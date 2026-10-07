@@ -18,7 +18,9 @@
     "db:reset": "pnpm --filter './apps/*-service' --if-present db:reset",
     "prisma:validate": "pnpm --filter './apps/*-service' --if-present prisma:validate",
     "compose:up": "docker compose up -d --build",
-    "compose:down": "docker compose down"
+    "compose:down": "docker compose down",
+    "architecture:check": "node scripts/check-service-architecture.mjs",
+    "architecture:test": "node scripts/check-service-architecture.test.mjs"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

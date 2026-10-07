@@ -143,3 +143,5 @@ The repository administrator must configure the following outside this repositor
    statuses from the **Technical Verification** workflow.
 3. Keep the AI review informational; do not configure it as a required status
    check.
+
+Backend source organization and dependency rules: [service layout](docs/architecture/service-layout.md). Run `pnpm architecture:check` and `pnpm architecture:test` before changing service structure.

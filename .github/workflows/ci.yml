@@ -67,6 +67,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check service architecture
+        run: |
+          pnpm architecture:check
+          pnpm architecture:test
+
       - name: Validate Prisma schemas
         run: pnpm prisma:validate
 

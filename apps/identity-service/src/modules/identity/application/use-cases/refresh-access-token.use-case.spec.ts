@@ -4,7 +4,7 @@ import type {
   IdentityTransactionRepositories,
   IdentityUnitOfWork,
   RefreshTokenRepository,
-} from "../../../../application/repositories/identity.repositories";
+} from "../repositories/identity.repositories";
 import { DeviceSession } from "../../domain/entities/device-session.entity";
 import { RefreshToken } from "../../domain/entities/refresh-token.entity";
 import { DevicePlatform } from "../../domain/enums/identity.enums";
@@ -27,8 +27,11 @@ describe("RefreshAccessTokenUseCase", () => {
   } as unknown as IdentityTransactionRepositories;
   const unitOfWork = {
     run: jest.fn(
-      (work: (repositories: IdentityTransactionRepositories) => Promise<unknown>) =>
-        work(transactional),
+      (
+        work: (
+          repositories: IdentityTransactionRepositories,
+        ) => Promise<unknown>,
+      ) => work(transactional),
     ),
   } as unknown as IdentityUnitOfWork;
   const tokens = {
@@ -84,7 +87,10 @@ describe("RefreshAccessTokenUseCase", () => {
     expect(tokens.hashRefreshToken).toHaveBeenCalledWith("current-raw");
     expect(unitOfWork.run).toHaveBeenCalledTimes(1);
     expect(transactional.refreshTokens.save).toHaveBeenCalledTimes(2);
-    expect(transactional.refreshTokens.save).toHaveBeenNthCalledWith(1, current);
+    expect(transactional.refreshTokens.save).toHaveBeenNthCalledWith(
+      1,
+      current,
+    );
     expect(transactional.sessions.save).toHaveBeenCalledWith(session);
     expect(current.state.usedAt).toBeInstanceOf(Date);
     expect(current.state.replacedById).toBeTruthy();
@@ -157,7 +163,9 @@ describe("RefreshAccessTokenUseCase", () => {
       expiresAt: new Date(Date.now() - 1_000),
     });
     const session = createSession();
-    (refreshTokens.findByTokenHash as jest.Mock).mockResolvedValue(expiredAndSpent);
+    (refreshTokens.findByTokenHash as jest.Mock).mockResolvedValue(
+      expiredAndSpent,
+    );
     (sessions.findById as jest.Mock).mockResolvedValue(session);
 
     await expect(build().execute("expired-replay")).rejects.toMatchObject({

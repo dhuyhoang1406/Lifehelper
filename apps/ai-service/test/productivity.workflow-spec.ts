@@ -6,9 +6,9 @@ import { Test } from "@nestjs/testing";
 import { JwtService } from "@nestjs/jwt";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
-import { AI_PROVIDER_INSTANCE } from "../src/application/ports/ai-provider.port";
-import { PRODUCTIVITY_READ_CLIENT } from "../src/application/ports/productivity-read.port";
-import { ProductivityHttpClient } from "../src/infrastructure/productivity/productivity-http.client";
+import { AI_PROVIDER_INSTANCE } from "../src/modules/ai/application/ports/ai-provider.port";
+import { PRODUCTIVITY_READ_CLIENT } from "../src/modules/ai/application/ports/productivity-read.port";
+import { ProductivityHttpClient } from "../src/modules/ai/infrastructure/productivity/productivity-http.client";
 import { FakeAIProvider } from "../src/testing/fake-ai.provider";
 import { PrismaService } from "../src/prisma.service";
 

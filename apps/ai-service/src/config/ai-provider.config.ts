@@ -3,7 +3,7 @@ import {
   AI_PROVIDER_CONFIG,
   type AIProviderConfig,
   type AIProviderName,
-} from "../application/ports/ai-provider.port";
+} from "../modules/ai/application/ports/ai-provider.port";
 
 export { AI_PROVIDER_CONFIG };
 

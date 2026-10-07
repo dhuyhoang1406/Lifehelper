@@ -8,7 +8,7 @@ import {
   OAUTH_ACCOUNT_REPOSITORY,
   REFRESH_TOKEN_REPOSITORY,
   USER_REPOSITORY,
-} from "../src/application/repositories/identity.repositories";
+} from "../src/modules/identity/application/repositories/identity.repositories";
 import type { DeviceSession } from "../src/modules/identity/domain/entities/device-session.entity";
 import type { OAuthAccount } from "../src/modules/identity/domain/entities/oauth-account.entity";
 import type { RefreshToken } from "../src/modules/identity/domain/entities/refresh-token.entity";

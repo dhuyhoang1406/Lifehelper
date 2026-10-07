@@ -7,12 +7,12 @@ import {
   AIApplicationError,
   AIErrorCode,
   AIProviderFailure,
-} from "../src/application/errors/ai.errors";
-import { AI_PROVIDER_INSTANCE } from "../src/application/ports/ai-provider.port";
+} from "../src/modules/ai/application/errors/ai.errors";
+import { AI_PROVIDER_INSTANCE } from "../src/modules/ai/application/ports/ai-provider.port";
 import {
   PRODUCTIVITY_READ_CLIENT,
   type ProductivityReadClient,
-} from "../src/application/ports/productivity-read.port";
+} from "../src/modules/ai/application/ports/productivity-read.port";
 import { PrismaService } from "../src/prisma.service";
 import { FakeAIProvider } from "../src/testing/fake-ai.provider";
 

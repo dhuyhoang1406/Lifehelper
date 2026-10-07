@@ -11,7 +11,7 @@ import type {
   DocumentProcessingJobRepository,
   DocumentEmbeddingRepository,
   DocumentEmbeddingMetadata,
-} from "../application/repositories/document.repositories";
+} from "../modules/document/application/repositories/document.repositories";
 import { Document } from "../modules/document/domain/entities/document.entity";
 import { DocumentChunk } from "../modules/document/domain/entities/document-chunk.entity";
 import { DocumentGeneration } from "../modules/document/domain/entities/document-generation.entity";

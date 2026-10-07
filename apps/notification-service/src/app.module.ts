@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { StructuredLoggerModule } from "@lifehelper/logger";
 import { HealthController } from "./health.controller";
-import { PrismaService } from "./prisma.service";
+import { PrismaModule } from "./prisma.module";
 import { validateEnvironment } from "./env.validation";
 @Module({
   imports: [
@@ -12,8 +12,8 @@ import { validateEnvironment } from "./env.validation";
       validate: validateEnvironment,
     }),
     StructuredLoggerModule,
+    PrismaModule,
   ],
   controllers: [HealthController],
-  providers: [PrismaService],
 })
 export class AppModule {}

@@ -44,3 +44,25 @@ Flutter client, and small shared technical packages.
   validation/generation where applicable, build, and relevant integration tests.
 - Flutter changes should pass `flutter analyze` and `flutter test`.
 - CI runs automatically on pushes to pull request branches; the AI review is informational and does not gate merging.
+
+## Implementation conventions
+
+- Read adjacent code and [service layout](docs/architecture/service-layout.md) before
+  implementing a feature; follow the existing naming and dependency direction.
+- Group feature-owned domain, application, presentation and integration adapters under
+  `src/modules/<feature>/`. Application entry points go in `application/use-cases/`;
+  supporting orchestration/policies go in `application/services/`. Keep tests adjacent.
+- Keep service-wide persistence implementations at `src/persistence/`. Feature-owned
+  repository contracts belong to the feature; contracts/errors and HTTP helpers used
+  by multiple features may stay at service level. Do not invent empty layers/modules.
+- Keep `AppModule` limited to service bootstrap configuration, logger, health and
+  imports of composition modules. Register business controllers/providers/factories
+  in their composition modules. Preserve global filter/guard scope when moving them.
+- Import `PrismaModule` explicitly where required; it exports a single service-local
+  `PrismaService`. Do not register duplicate clients or make Prisma a global provider.
+- Preserve existing grouped CRUD use cases and decorator/factory injection choices
+  unless a concrete problem requires a change. Do not introduce generic abstractions
+  just to make services look identical.
+- Run `pnpm architecture:check` and `pnpm architecture:test` for backend changes, plus
+  the affected lint/typecheck/build/unit/integration checks. Explain any new layout
+  exception in architecture documentation instead of silently choosing a new pattern.

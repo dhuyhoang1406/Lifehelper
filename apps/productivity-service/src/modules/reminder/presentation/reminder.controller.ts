@@ -22,7 +22,7 @@ import {
   GetReminder,
   ListReminders,
   UpdateReminder,
-} from "../application/reminder.use-cases";
+} from "../application/use-cases/reminder.use-cases";
 import {
   CreateReminderDto,
   ReminderIdParamDto,
@@ -64,7 +64,10 @@ export class ReminderController {
     return this.getReminder.execute(userId, params.id);
   }
   @Patch(":id")
-  @ApiBody({ type: UpdateReminderDto, examples: { default: { value: swaggerExamples.reminderUpdate } } })
+  @ApiBody({
+    type: UpdateReminderDto,
+    examples: { default: { value: swaggerExamples.reminderUpdate } },
+  })
   update(
     @CurrentUserId() userId: string,
     @Param() params: ReminderIdParamDto,

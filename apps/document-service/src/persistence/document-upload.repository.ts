@@ -1,7 +1,7 @@
 import { PrismaService } from "../prisma.service";
 import type { Document } from "../modules/document/domain/entities/document.entity";
-import type { DocumentUploadRepository } from "../application/ports/document-upload.repository";
-import { DocumentApplicationError } from "../application/errors/document.errors";
+import type { DocumentUploadRepository } from "../modules/document/application/ports/document-upload.repository";
+import { DocumentApplicationError } from "../modules/document/application/errors/document.errors";
 import { DocumentMapper } from "./document.persistence";
 import { randomUUID } from "node:crypto";
 import { documentEvent } from "./document-outbox";

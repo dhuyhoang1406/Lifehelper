@@ -1,28 +1,36 @@
 import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { IdentityUnitOfWork } from "../../../../application/repositories/identity.repositories";
-import { IDENTITY_UNIT_OF_WORK } from "../../../../application/repositories/identity.repositories";
+import type { IdentityUnitOfWork } from "../repositories/identity.repositories";
+import { IDENTITY_UNIT_OF_WORK } from "../repositories/identity.repositories";
 import { DeviceSession } from "../../domain/entities/device-session.entity";
 import { OAuthAccount } from "../../domain/entities/oauth-account.entity";
 import { RefreshToken } from "../../domain/entities/refresh-token.entity";
 import { User } from "../../domain/entities/user.entity";
 import { OAuthProvider } from "../../domain/enums/identity.enums";
 import type { AuthResult, DeviceInput } from "../auth.types";
-import { IdentityApplicationError, IdentityErrorCode } from "../errors/identity.errors";
+import {
+  IdentityApplicationError,
+  IdentityErrorCode,
+} from "../errors/identity.errors";
 import type { OAuthIdentityProvider, TokenService } from "../ports/auth.ports";
 import { OAUTH_IDENTITY_PROVIDER, TOKEN_SERVICE } from "../ports/auth.ports";
 
 @Injectable()
 export class GoogleLoginUseCase {
   constructor(
-    @Inject(IDENTITY_UNIT_OF_WORK) private readonly unitOfWork: IdentityUnitOfWork,
-    @Inject(OAUTH_IDENTITY_PROVIDER) private readonly google: OAuthIdentityProvider,
+    @Inject(IDENTITY_UNIT_OF_WORK)
+    private readonly unitOfWork: IdentityUnitOfWork,
+    @Inject(OAUTH_IDENTITY_PROVIDER)
+    private readonly google: OAuthIdentityProvider,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenService,
     private readonly config: ConfigService,
   ) {}
 
-  async execute(input: { idToken: string; device: DeviceInput }): Promise<AuthResult> {
+  async execute(input: {
+    idToken: string;
+    device: DeviceInput;
+  }): Promise<AuthResult> {
     let identity;
     try {
       identity = await this.google.verifyToken(input.idToken);
@@ -51,10 +59,13 @@ export class GoogleLoginUseCase {
           identity.providerUserId,
         );
         let accountToSave: OAuthAccount | null = null;
-        let currentUser = account ? await users.findById(account.state.userId) : null;
+        let currentUser = account
+          ? await users.findById(account.state.userId)
+          : null;
 
         if (!account) {
-          currentUser = currentUser ?? (await users.findByEmail(identity.email));
+          currentUser =
+            currentUser ?? (await users.findByEmail(identity.email));
           if (!currentUser) {
             currentUser = User.create({
               id: randomUUID(),
@@ -107,7 +118,8 @@ export class GoogleLoginUseCase {
           tokenFamilyId: randomUUID(),
           expiresAt: new Date(
             now.getTime() +
-              this.config.getOrThrow<number>("REFRESH_TOKEN_TTL_SECONDS") * 1000,
+              this.config.getOrThrow<number>("REFRESH_TOKEN_TTL_SECONDS") *
+                1000,
           ),
           createdAt: now,
         });

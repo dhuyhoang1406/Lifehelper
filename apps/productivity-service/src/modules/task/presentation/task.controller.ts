@@ -15,7 +15,7 @@ import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUserId } from "../../../auth/current-user.decorator";
 import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
 import { swaggerExamples } from "../../../presentation/swagger.examples";
-import { TaskUseCases } from "../application/task.use-cases";
+import { TaskUseCases } from "../application/use-cases/task.use-cases";
 import {
   CreateSubtaskDto,
   CreateTaskDto,
@@ -52,7 +52,10 @@ export class TaskController {
     return this.useCases.get(userId, params.id);
   }
   @Patch("tasks/:id")
-  @ApiBody({ type: UpdateTaskDto, examples: { default: { value: swaggerExamples.taskUpdate } } })
+  @ApiBody({
+    type: UpdateTaskDto,
+    examples: { default: { value: swaggerExamples.taskUpdate } },
+  })
   update(
     @CurrentUserId() userId: string,
     @Param() params: IdParamDto,
@@ -97,7 +100,10 @@ export class TaskController {
     return this.useCases.createSubtask(userId, params.id, body);
   }
   @Patch("tasks/:id/subtasks/:subtaskId")
-  @ApiBody({ type: UpdateSubtaskDto, examples: { default: { value: swaggerExamples.subtaskUpdate } } })
+  @ApiBody({
+    type: UpdateSubtaskDto,
+    examples: { default: { value: swaggerExamples.subtaskUpdate } },
+  })
   updateSubtask(
     @CurrentUserId() userId: string,
     @Param("id") taskId: string,
@@ -127,7 +133,10 @@ export class TaskController {
     return this.useCases.createTag(userId, body.name);
   }
   @Patch("tags/:id")
-  @ApiBody({ type: TagDto, examples: { default: { value: swaggerExamples.tagUpdate } } })
+  @ApiBody({
+    type: TagDto,
+    examples: { default: { value: swaggerExamples.tagUpdate } },
+  })
   renameTag(
     @CurrentUserId() userId: string,
     @Param() params: IdParamDto,

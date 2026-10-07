@@ -26,7 +26,7 @@ import {
   ResumeHabit,
   UpdateHabit,
   UpdateHabitLog,
-} from "../application/habit.use-cases";
+} from "../application/use-cases/habit.use-cases";
 import {
   CreateHabitDto,
   HabitIdParamDto,
@@ -73,7 +73,10 @@ export class HabitController {
     return this.getHabit.execute(userId, params.id);
   }
   @Patch(":id")
-  @ApiBody({ type: UpdateHabitDto, examples: { default: { value: swaggerExamples.habitUpdate } } })
+  @ApiBody({
+    type: UpdateHabitDto,
+    examples: { default: { value: swaggerExamples.habitUpdate } },
+  })
   update(
     @CurrentUserId() userId: string,
     @Param() params: HabitIdParamDto,
@@ -119,7 +122,10 @@ export class HabitController {
     return this.getLogs.execute(userId, params.id, query);
   }
   @Patch(":id/logs/:logId")
-  @ApiBody({ type: UpdateHabitLogDto, examples: { default: { value: swaggerExamples.habitLogUpdate } } })
+  @ApiBody({
+    type: UpdateHabitLogDto,
+    examples: { default: { value: swaggerExamples.habitLogUpdate } },
+  })
   patchLog(
     @CurrentUserId() userId: string,
     @Param() params: HabitLogIdParamDto,

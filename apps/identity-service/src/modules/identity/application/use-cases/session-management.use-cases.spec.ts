@@ -3,7 +3,7 @@ import type {
   IdentityTransactionRepositories,
   IdentityUnitOfWork,
   RefreshTokenRepository,
-} from "../../../../application/repositories/identity.repositories";
+} from "../repositories/identity.repositories";
 import { DeviceSession } from "../../domain/entities/device-session.entity";
 import { RefreshToken } from "../../domain/entities/refresh-token.entity";
 import { DevicePlatform } from "../../domain/enums/identity.enums";
@@ -33,8 +33,11 @@ describe("Session management use cases", () => {
   } as unknown as IdentityTransactionRepositories;
   const unitOfWork = {
     run: jest.fn(
-      (work: (repositories: IdentityTransactionRepositories) => Promise<unknown>) =>
-        work(transactional),
+      (
+        work: (
+          repositories: IdentityTransactionRepositories,
+        ) => Promise<unknown>,
+      ) => work(transactional),
     ),
   } as unknown as IdentityUnitOfWork;
   const auth = { userId: "user-1", sessionId: "session-1" };
@@ -130,7 +133,9 @@ describe("Session management use cases", () => {
   it("returns SESSION_NOT_FOUND when the session does not exist", async () => {
     (sessions.findById as jest.Mock).mockResolvedValue(null);
 
-    await expect(new LogoutUseCase(unitOfWork).execute(auth)).rejects.toMatchObject({
+    await expect(
+      new LogoutUseCase(unitOfWork).execute(auth),
+    ).rejects.toMatchObject({
       code: IdentityErrorCode.SESSION_NOT_FOUND,
       statusCode: 404,
     });
@@ -141,7 +146,10 @@ describe("Session management use cases", () => {
     const inactiveSession = createSession("inactive-session");
     inactiveSession.revoke();
     const activeToken = createToken("active-token", activeSession.state.id);
-    const inactiveToken = createToken("inactive-token", inactiveSession.state.id);
+    const inactiveToken = createToken(
+      "inactive-token",
+      inactiveSession.state.id,
+    );
     inactiveToken.revoke();
     (sessions.findByUserId as jest.Mock).mockResolvedValue([
       activeSession,
