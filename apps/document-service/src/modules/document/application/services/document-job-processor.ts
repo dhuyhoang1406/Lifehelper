@@ -53,7 +53,8 @@ export class DocumentJobProcessor {
     });
     try {
       const result = await Promise.race([processing, aborted]);
-      await this.jobs.publish(lease, result);
+      if ("kind" in result) await this.jobs.stageExtraction(lease, result);
+      else await this.jobs.publish(lease, result);
     } catch (error) {
       await this.jobs.fail(
         lease,

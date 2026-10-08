@@ -28,6 +28,7 @@ const lease: ProcessingLease = {
 function fixture() {
   const jobs: jest.Mocked<DocumentProcessingRepository> = {
     claim: jest.fn(),
+    stageExtraction: jest.fn().mockResolvedValue(true),
     publish: jest.fn().mockResolvedValue(true),
     fail: jest.fn().mockResolvedValue(true),
     retry: jest.fn(),
@@ -140,5 +141,19 @@ it("times out noncooperative stages, retains the slot and discards their late ou
   expect(f.jobs.publish).not.toHaveBeenCalled();
   release();
   await running;
+  expect(f.jobs.publish).not.toHaveBeenCalled();
+});
+it("routes extraction-only results to staging without publishing READY", async () => {
+  const f = fixture();
+  const extraction = {
+    kind: "extracted" as const,
+    chunks: [],
+    processingVersion: "v1",
+    sourceChecksumSha256: lease.source.checksumSha256,
+    sourceVersionId: lease.source.versionId,
+  };
+  f.stages.prepare.mockResolvedValue(extraction);
+  await f.processor.run(lease, new AbortController().signal);
+  expect(f.jobs.stageExtraction).toHaveBeenCalledWith(lease, extraction);
   expect(f.jobs.publish).not.toHaveBeenCalled();
 });

@@ -24,17 +24,28 @@ export interface PreparedGeneration {
   chunks: readonly DocumentChunk[];
   embeddings: readonly DocumentEmbedding[];
 }
+export interface PreparedExtraction {
+  kind: "extracted";
+  chunks: readonly DocumentChunk[];
+  processingVersion: string;
+  sourceChecksumSha256: string;
+  sourceVersionId: string;
+}
 export interface DocumentProcessingStages {
   readonly available: boolean;
   prepare(
     lease: ProcessingLease,
     bytes: Uint8Array,
     signal: AbortSignal,
-  ): Promise<PreparedGeneration>;
+  ): Promise<PreparedGeneration | PreparedExtraction>;
 }
 export interface DocumentProcessingRepository {
   claim(owner: string): Promise<ProcessingLease | null>;
   publish(lease: ProcessingLease, result: PreparedGeneration): Promise<boolean>;
+  stageExtraction(
+    lease: ProcessingLease,
+    result: PreparedExtraction,
+  ): Promise<boolean>;
   fail(lease: ProcessingLease, code: ProcessingFailureCode): Promise<boolean>;
   retry(
     documentId: string,
