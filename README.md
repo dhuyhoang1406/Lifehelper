@@ -145,3 +145,5 @@ The repository administrator must configure the following outside this repositor
    check.
 
 Backend source organization and dependency rules: [service layout](docs/architecture/service-layout.md). Run `pnpm architecture:check` and `pnpm architecture:test` before changing service structure.
+
+Document Branch 4 implements real TXT/Markdown/PDF extraction and stages reproducible chunks without embeddings or READY activation. See [extraction and chunking](docs/api/document-extraction.md) for limits, migration, expected states and testing.

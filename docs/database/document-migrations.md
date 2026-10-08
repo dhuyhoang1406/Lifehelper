@@ -165,3 +165,12 @@ No database reset is needed. Clean deployment and Branch 2 existing-data upgrade
 tested on dedicated fixture databases, including legacy lease invalidation and UTC
 event identity. See the [worker runbook](../api/document-processing.md) for commands,
 configuration, retry semantics, unavailable stages and deferred relay/cleanup.
+
+## Branch 4 extraction staging
+
+`20261008000100_document_extraction_staging` adds the EXTRACTED generation state,
+processing version, immutable source checksum/version and extractedAt (TIMESTAMPTZ).
+New constraints require complete identity and positive chunk count for staged rows.
+Existing generations remain unchanged; no active generation or READY state is assigned.
+Stop old workers, back up Document data, generate the client and apply migrations before
+rebuilding the service. See [extraction runbook](../api/document-extraction.md).
