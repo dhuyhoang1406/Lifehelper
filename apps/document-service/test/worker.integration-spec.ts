@@ -105,7 +105,144 @@ async function fault(
     await db.$executeRawUnsafe("DROP FUNCTION test_document_outbox_failure()");
   }
 }
+function extracted(lease: ProcessingLease) {
+  return {
+    kind: "extracted" as const,
+    chunks: prepared(lease).chunks,
+    processingVersion: "extraction-v1/test-estimator",
+    sourceChecksumSha256: lease.source.checksumSha256,
+    sourceVersionId: lease.source.versionId,
+  };
+}
 describe("Durable fenced processing on real PostgreSQL", () => {
+  it("atomically stages chunks and source identity without activating READY or vectors", async () => {
+    const lease = await claimed();
+    const result = extracted(lease);
+    expect(await jobs.stageExtraction(lease, result)).toBe(true);
+    expect(await jobs.stageExtraction(lease, result)).toBe(false);
+    const d = await db.document.findUniqueOrThrow({
+      where: { id: lease.documentId },
+      include: { generations: true, chunks: true, jobs: true },
+    });
+    expect(d).toMatchObject({ status: "PROCESSING", activeGeneration: null });
+    expect(d.generations[0]).toMatchObject({
+      status: "EXTRACTED",
+      chunkCount: 1,
+      processingVersion: result.processingVersion,
+      sourceChecksumSha256: lease.source.checksumSha256,
+      sourceVersionId: lease.source.versionId,
+      completedAt: null,
+    });
+    expect(d.generations[0].extractedAt?.toISOString()).toMatch(/Z$/);
+    expect(d.chunks).toHaveLength(1);
+    expect(d.jobs[0]).toMatchObject({
+      status: "SUCCEEDED",
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    });
+    expect(
+      await db.documentEmbedding.count({
+        where: { chunk: { documentId: d.id } },
+      }),
+    ).toBe(0);
+    const events = await db.outboxEvent.findMany({
+      where: { aggregateId: d.id },
+    });
+    expect(
+      events.filter((e) => e.eventType === "document.processing.extracted"),
+    ).toHaveLength(1);
+    expect(
+      events.some((e) => e.eventType === "document.processing.ready"),
+    ).toBe(false);
+    const payload = JSON.stringify(events);
+    expect(payload).not.toContain(result.sourceChecksumSha256);
+    expect(payload).not.toContain("hello!");
+    expect(await jobs.claim("another-worker")).toBeNull();
+  });
+  it("rejects stale/deleted extraction and mismatched committed identity", async () => {
+    const lease = await claimed(),
+      result = extracted(lease);
+    expect(
+      await jobs.stageExtraction({ ...lease, token: lease.token + 1 }, result),
+    ).toBe(false);
+    await expect(
+      jobs.stageExtraction(lease, {
+        ...result,
+        sourceChecksumSha256: "b".repeat(64),
+      }),
+    ).rejects.toMatchObject({ code: "DOCUMENT_PROCESSING_RESULT_INVALID" });
+    expect(
+      await uploads.deleteAndScheduleCleanup(
+        lease.documentId,
+        userId,
+        new Date(),
+      ),
+    ).toBe(true);
+    expect(await jobs.stageExtraction(lease, result)).toBe(false);
+    expect(
+      await db.documentChunk.count({ where: { documentId: lease.documentId } }),
+    ).toBe(0);
+  });
+  it("rolls back extraction chunks/state when outbox writing fails", async () => {
+    const lease = await claimed();
+    await fault("document.processing.extracted", lease.documentId, async () => {
+      await expect(
+        jobs.stageExtraction(lease, extracted(lease)),
+      ).rejects.toThrow();
+    });
+    expect(
+      await db.documentChunk.count({ where: { documentId: lease.documentId } }),
+    ).toBe(0);
+    expect(
+      (
+        await db.documentProcessingJob.findUniqueOrThrow({
+          where: { id: lease.id },
+        })
+      ).status,
+    ).toBe("RUNNING");
+    expect(
+      (
+        await db.documentGeneration.findUniqueOrThrow({
+          where: {
+            documentId_generation: {
+              documentId: lease.documentId,
+              generation: lease.generation,
+            },
+          },
+        })
+      ).status,
+    ).toBe("PROCESSING");
+    expect(await jobs.stageExtraction(lease, extracted(lease))).toBe(true);
+  });
+  it("cancels an extracted generation on deletion and forbids activating it without embeddings", async () => {
+    const lease = await claimed();
+    expect(await jobs.stageExtraction(lease, extracted(lease))).toBe(true);
+    await expect(
+      db.document.update({
+        where: { id: lease.documentId },
+        data: { status: "READY", activeGeneration: lease.generation },
+      }),
+    ).rejects.toThrow();
+    expect(
+      await uploads.deleteAndScheduleCleanup(
+        lease.documentId,
+        userId,
+        new Date(),
+      ),
+    ).toBe(true);
+    expect(
+      (
+        await db.documentGeneration.findUniqueOrThrow({
+          where: {
+            documentId_generation: {
+              documentId: lease.documentId,
+              generation: lease.generation,
+            },
+          },
+        })
+      ).status,
+    ).toBe("FAILED");
+  });
   beforeAll(async () => {
     const rows = await db.$queryRaw<
       Array<{ name: string }>
@@ -379,44 +516,51 @@ describe("Durable fenced processing on real PostgreSQL", () => {
     expect(persisted.status).toBe("FAILED");
     expect(persisted.processingError).toBe("DOCUMENT_SOURCE_MISMATCH");
   });
-  it("rolls back prepared output if the lease expires during final publication", async () => {
-    const lease = await claimed();
-    await db.$executeRawUnsafe(`CREATE FUNCTION test_delay_document_event() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.aggregate_id='${lease.documentId}'::uuid AND NEW.event_type='document.processing.ready'
+  it.each(["ready", "extracted"] as const)(
+    "rolls back prepared output if the lease expires during %s publication",
+    async (stage) => {
+      const lease = await claimed();
+      await db.$executeRawUnsafe(`CREATE FUNCTION test_delay_document_event() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.aggregate_id='${lease.documentId}'::uuid AND NEW.event_type='document.processing.${stage}'
       THEN PERFORM pg_sleep(0.2); END IF; RETURN NEW; END $$`);
-    await db.$executeRawUnsafe(
-      "CREATE TRIGGER test_delay_document_event BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION test_delay_document_event()",
-    );
-    try {
-      await db.$executeRaw`UPDATE document_processing_jobs SET lease_expires_at=clock_timestamp()+interval '100 milliseconds' WHERE id=${lease.id}::uuid`;
-      expect(await jobs.publish(lease, prepared(lease))).toBe(false);
-      expect(
-        await db.documentChunk.count({
-          where: { documentId: lease.documentId },
-        }),
-      ).toBe(0);
-      expect(
-        (
-          await db.document.findUniqueOrThrow({
-            where: { id: lease.documentId },
-          })
-        ).status,
-      ).toBe("PROCESSING");
-      expect(
-        await db.outboxEvent.count({
-          where: {
-            aggregateId: lease.documentId,
-            eventType: "document.processing.ready",
-          },
-        }),
-      ).toBe(0);
-    } finally {
       await db.$executeRawUnsafe(
-        "DROP TRIGGER test_delay_document_event ON outbox_events",
+        "CREATE TRIGGER test_delay_document_event BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION test_delay_document_event()",
       );
-      await db.$executeRawUnsafe("DROP FUNCTION test_delay_document_event()");
-    }
-  });
+      try {
+        await db.$executeRaw`UPDATE document_processing_jobs SET lease_expires_at=clock_timestamp()+interval '100 milliseconds' WHERE id=${lease.id}::uuid`;
+        expect(
+          await (stage === "ready"
+            ? jobs.publish(lease, prepared(lease))
+            : jobs.stageExtraction(lease, extracted(lease))),
+        ).toBe(false);
+        expect(
+          await db.documentChunk.count({
+            where: { documentId: lease.documentId },
+          }),
+        ).toBe(0);
+        expect(
+          (
+            await db.document.findUniqueOrThrow({
+              where: { id: lease.documentId },
+            })
+          ).status,
+        ).toBe("PROCESSING");
+        expect(
+          await db.outboxEvent.count({
+            where: {
+              aggregateId: lease.documentId,
+              eventType: `document.processing.${stage}`,
+            },
+          }),
+        ).toBe(0);
+      } finally {
+        await db.$executeRawUnsafe(
+          "DROP TRIGGER test_delay_document_event ON outbox_events",
+        );
+        await db.$executeRawUnsafe("DROP FUNCTION test_delay_document_event()");
+      }
+    },
+  );
   it("serializes manual retry against deletion without leaving active jobs", async () => {
     const lease = await claimed();
     await jobs.fail(lease, "DOCUMENT_PROCESSING_UNAVAILABLE");
