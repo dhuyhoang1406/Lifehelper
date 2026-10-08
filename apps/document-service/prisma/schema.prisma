@@ -18,6 +18,7 @@ enum DocumentStatus {
 }
 
 enum ProcessingGenerationStatus {
+  EXTRACTED
   PROCESSING
   COMPLETE
   FAILED
@@ -97,16 +98,20 @@ model DocumentEmbedding {
 }
 
 model DocumentGeneration {
-  documentId      String                     @map("document_id") @db.Uuid
-  generation      Int
-  status          ProcessingGenerationStatus @default(PROCESSING)
-  chunkCount      Int?                       @map("chunk_count")
-  createdAt       DateTime                   @map("created_at") @db.Timestamptz(6)
-  completedAt     DateTime?                  @map("completed_at") @db.Timestamptz(6)
-  document        Document                   @relation("DocumentGenerations", fields: [documentId], references: [id], onDelete: Cascade)
-  activeDocuments Document[]                 @relation("ActiveGeneration")
-  chunks          DocumentChunk[]
-  job             DocumentProcessingJob?
+  documentId           String                     @map("document_id") @db.Uuid
+  generation           Int
+  status               ProcessingGenerationStatus @default(PROCESSING)
+  chunkCount           Int?                       @map("chunk_count")
+  createdAt            DateTime                   @map("created_at") @db.Timestamptz(6)
+  processingVersion    String?                    @map("processing_version") @db.VarChar(100)
+  sourceChecksumSha256 String?                    @map("source_checksum_sha256") @db.VarChar(64)
+  sourceVersionId      String?                    @map("source_version_id") @db.VarChar(1024)
+  extractedAt          DateTime?                  @map("extracted_at") @db.Timestamptz(6)
+  completedAt          DateTime?                  @map("completed_at") @db.Timestamptz(6)
+  document             Document                   @relation("DocumentGenerations", fields: [documentId], references: [id], onDelete: Cascade)
+  activeDocuments      Document[]                 @relation("ActiveGeneration")
+  chunks               DocumentChunk[]
+  job                  DocumentProcessingJob?
 
   @@id([documentId, generation])
   @@map("document_generations")
