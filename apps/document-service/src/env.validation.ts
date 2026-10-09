@@ -112,6 +112,12 @@ const schema = Joi.object({
     .max(120000)
     .default(10000),
   EMBEDDING_MAX_ATTEMPTS: Joi.number().integer().min(1).max(3).default(2),
+  DOCUMENT_RETRIEVAL_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120000)
+    .default(25000),
+  DOCUMENT_RETRIEVAL_MIN_SIMILARITY: Joi.number().min(-1).max(1).default(0.55),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().trim().min(1).required(),
   JWT_AUDIENCE: Joi.string().trim().min(1).required(),
