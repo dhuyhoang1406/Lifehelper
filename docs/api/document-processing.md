@@ -1,9 +1,10 @@
-# Durable Document processing — Phase 5 Branch 3
+# Durable Document processing — Phase 5 Branches 3–4
 
 Document Service uses persistent PostgreSQL jobs and its own transactional outbox.
-No BullMQ, SQS deployment or paid provider is required. Extraction/chunking/embedding
-stages arrive in Branches 4–5. The current adapter explicitly reports
-`DOCUMENT_PROCESSING_UNAVAILABLE`; it never creates fake chunks or marks no-op work READY.
+No BullMQ, SQS deployment or paid provider is required. Branch 4 now uses real bounded
+extraction/chunking and stages EXTRACTED generations; embedding arrives in Branch 5.
+The document remains PROCESSING until embeddings can activate READY. See the
+[extraction runbook](document-extraction.md).
 
 ## Lifecycle and fencing
 
@@ -98,15 +99,16 @@ is invented for legacy rows; queued legacy jobs without verified identity fail w
 deletes its output directory; repeated builds must include all runtime entry points.
 
 Upload/complete a real file with the [upload walkthrough](document-upload.md), then
-poll metadata. An enabled worker currently ends FAILED with
-`DOCUMENT_PROCESSING_UNAVAILABLE`, not READY. Disable the worker to inspect durable
+poll metadata. An enabled worker now stages real chunks for supported files and keeps the document
+PROCESSING (generation EXTRACTED), without READY. Unsupported files fail explicitly. Disable the worker to inspect durable
 queued work; enabling it resumes polling. Once real stages exist, eligible failed
 documents can use the retry API.
 
 ## Outbox contracts
 
 Events are `document.uploaded`, `document.processing.started` (one per claim),
-`document.processing.failed` (terminal failure) and `document.processing.ready`
+`document.processing.failed` (terminal failure), `document.processing.extracted`
+(Branch 4 staging) and `document.processing.ready`
 (complete fenced publication). Version-1 envelopes contain id, type, version,
 producer=document-service, correlationId=jobId, UTC occurredAt and payload fields
 documentId/jobId/generation/attempt/optional safe errorCode. They omit owner details,
@@ -148,6 +150,6 @@ dedicated fixtures on 2026-10-02. Application databases/containers were not chan
 Community LocalStack anonymous denial remains explicitly skipped. Gemini review remains
 an informational PR workflow; no local reviewer was configured.
 
-Deferred: actual extraction/chunking, embeddings/model selection/index, retrieval/RAG,
+Deferred: embeddings/model selection/index, retrieval/RAG,
 Branch 8 cleanup/reprocessing/audit, external event relay, OCR, delivery, analytics,
 Flutter screens and production deployment. No review report file is created.

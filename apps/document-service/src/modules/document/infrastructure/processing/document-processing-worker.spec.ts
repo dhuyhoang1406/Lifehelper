@@ -11,6 +11,7 @@ it("bounds active jobs including noncooperative stages and bounds shutdown", asy
   const jobs: jest.Mocked<DocumentProcessingRepository> = {
     claim: jest.fn().mockResolvedValue({ id: "job" } as ProcessingLease),
     publish: jest.fn(),
+    stageExtraction: jest.fn(),
     fail: jest.fn(),
     retry: jest.fn(),
   };

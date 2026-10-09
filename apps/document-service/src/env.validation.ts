@@ -57,6 +57,36 @@ const schema = Joi.object({
     .min(1)
     .max(4000000)
     .default(1000000),
+  DOCUMENT_EXTRACTION_MAX_PAGES: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(100),
+  DOCUMENT_EXTRACTION_MAX_EXPANSION_RATIO: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(100),
+  DOCUMENT_PARSER_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1)
+    .max(120000)
+    .default(10000),
+  DOCUMENT_PARSER_MEMORY_MB: Joi.number()
+    .integer()
+    .min(32)
+    .max(512)
+    .default(128),
+  DOCUMENT_CHUNK_TARGET_TOKENS: Joi.number()
+    .integer()
+    .min(4)
+    .max(8192)
+    .default(512),
+  DOCUMENT_CHUNK_OVERLAP_TOKENS: Joi.number()
+    .integer()
+    .min(0)
+    .max(8191)
+    .default(64),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().trim().min(1).required(),
   JWT_AUDIENCE: Joi.string().trim().min(1).required(),
@@ -135,6 +165,14 @@ export function validateEnvironment(config: Record<string, unknown>) {
   )
     throw new Error(
       "Environment validation failed: worker lease must exceed processing timeout by more than 10000ms",
+    );
+  if (value.DOCUMENT_CHUNK_OVERLAP_TOKENS >= value.DOCUMENT_CHUNK_TARGET_TOKENS)
+    throw new Error(
+      "Environment validation failed: overlap must be smaller than chunk target",
+    );
+  if (value.DOCUMENT_PARSER_TIMEOUT_MS >= value.DOCUMENT_PROCESSING_TIMEOUT_MS)
+    throw new Error(
+      "Environment validation failed: parser timeout must be smaller than processing timeout",
     );
   return value;
 }

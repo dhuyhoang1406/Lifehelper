@@ -1,3 +1,11 @@
+import { performance } from "node:perf_hooks";
+import { DocumentExtractionStages } from "./document-extraction.stages";
+// Unit-test job time is explicit, so CI contention cannot consume the 20 ms fixture budget.
+// Abort timers remain real for the noncooperative-stage timeout test.
+jest.mock("node:perf_hooks", () => ({
+  performance: { now: jest.fn(() => 0) },
+}));
+afterEach(() => jest.mocked(performance.now).mockReset().mockReturnValue(0));
 import { createHash } from "node:crypto";
 import { DocumentJobProcessor } from "./document-job-processor";
 import type {
@@ -28,6 +36,7 @@ const lease: ProcessingLease = {
 function fixture() {
   const jobs: jest.Mocked<DocumentProcessingRepository> = {
     claim: jest.fn(),
+    stageExtraction: jest.fn().mockResolvedValue(true),
     publish: jest.fn().mockResolvedValue(true),
     fail: jest.fn().mockResolvedValue(true),
     retry: jest.fn(),
@@ -67,6 +76,7 @@ it("reads the committed version and delegates prepared output to the fenced publ
     lease,
     bytes,
     expect.any(AbortSignal),
+    expect.any(Function),
   );
   expect(f.jobs.publish).toHaveBeenCalledWith(lease, {
     chunks: [],
@@ -141,4 +151,63 @@ it("times out noncooperative stages, retains the slot and discards their late ou
   release();
   await running;
   expect(f.jobs.publish).not.toHaveBeenCalled();
+});
+it("routes extraction-only results to staging without publishing READY", async () => {
+  const f = fixture();
+  const extraction = {
+    kind: "extracted" as const,
+    chunks: [],
+    processingVersion: "v1",
+    sourceChecksumSha256: lease.source.checksumSha256,
+    sourceVersionId: lease.source.versionId,
+  };
+  f.stages.prepare.mockResolvedValue(extraction);
+  await f.processor.run(lease, new AbortController().signal);
+  expect(f.jobs.stageExtraction).toHaveBeenCalledWith(lease, extraction);
+  expect(f.jobs.publish).not.toHaveBeenCalled();
+  expect(f.jobs.fail).not.toHaveBeenCalled();
+});
+
+it("uses the remaining job deadline during synchronous chunking after extraction", async () => {
+  const f = fixture();
+  let elapsed = 0;
+  jest.mocked(performance.now).mockImplementation(() => elapsed++);
+  const stages = new DocumentExtractionStages(
+    {
+      extract: async () => {
+        elapsed = 18;
+        return {
+          units: [{ text: "Xin chào Việt Nam!", source: 1 }],
+          locatorKind: "LINE",
+        };
+      },
+    },
+    { targetTokens: 32, overlapTokens: 0, maxChunks: 10 },
+  );
+  await new DocumentJobProcessor(f.jobs, f.storage, stages, 64, 20).run(
+    lease,
+    new AbortController().signal,
+  );
+  expect(f.jobs.fail).toHaveBeenCalledWith(
+    lease,
+    "DOCUMENT_PROCESSING_TIMEOUT",
+  );
+  expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
+  expect(f.jobs.publish).not.toHaveBeenCalled();
+});
+it("rejects synchronous late results even before the abort timer can execute", async () => {
+  const f = fixture();
+  let elapsed = 0;
+  jest.mocked(performance.now).mockImplementation(() => elapsed);
+  f.stages.prepare.mockImplementation(async () => {
+    elapsed = 21;
+    return { chunks: [], embeddings: [] };
+  });
+  await f.processor.run(lease, new AbortController().signal);
+  expect(f.jobs.fail).toHaveBeenCalledWith(
+    lease,
+    "DOCUMENT_PROCESSING_TIMEOUT",
+  );
+  expect(f.jobs.publish).not.toHaveBeenCalled();
+  expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
 });

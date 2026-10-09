@@ -121,7 +121,7 @@ export class PrismaDocumentUploadRepository implements DocumentUploadRepository 
         },
       });
       await tx.documentGeneration.updateMany({
-        where: { documentId: id, status: "PROCESSING" },
+        where: { documentId: id, status: { in: ["PROCESSING", "EXTRACTED"] } },
         data: { status: "FAILED" },
       });
       const document = await tx.document.findUniqueOrThrow({ where: { id } });

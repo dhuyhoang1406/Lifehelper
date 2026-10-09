@@ -5,11 +5,13 @@ import type {
   DocumentProcessingRepository,
   ProcessingLease,
   PreparedGeneration,
+  PreparedExtraction,
 } from "../modules/document/application/ports/document-processing.port";
 import {
   DocumentApplicationError,
   documentNotFound,
 } from "../modules/document/application/errors/document.errors";
+import { DocumentGeneration } from "../modules/document/domain/entities/document-generation.entity";
 import { DocumentChunk } from "../modules/document/domain/entities/document-chunk.entity";
 import { DocumentEmbedding } from "../modules/document/domain/entities/document-embedding.entity";
 import {
@@ -229,35 +231,27 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
       return null;
     return { d, j, at };
   }
-  private prepared(lease: ProcessingLease, result: PreparedGeneration) {
-    if (
-      !result ||
-      !Array.isArray(result.chunks) ||
-      !Array.isArray(result.embeddings) ||
-      result.chunks.length < 1 ||
-      result.chunks.length > this.limits.maxChunks ||
-      result.chunks.length !== result.embeddings.length
-    )
-      throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_RESULT_INVALID");
+  private preparedChunks(
+    lease: ProcessingLease,
+    chunks: readonly DocumentChunk[],
+  ) {
     try {
       if (
-        result.chunks.some((c) => !(c instanceof DocumentChunk)) ||
-        result.embeddings.some((e) => !(e instanceof DocumentEmbedding)) ||
-        result.chunks.reduce((sum, c) => sum + c.state.content.length, 0) >
-          this.limits.maxTextChars ||
-        result.embeddings.reduce(
-          (sum, e) => sum + e.state.embedding.length,
-          0,
-        ) > this.limits.maxVectorValues
+        !Array.isArray(chunks) ||
+        chunks.length < 1 ||
+        chunks.length > this.limits.maxChunks ||
+        chunks.some((c) => !(c instanceof DocumentChunk)) ||
+        chunks.reduce((sum, c) => sum + c.state.content.length, 0) >
+          this.limits.maxTextChars
       )
         throw new Error();
-      const chunks = result.chunks.map((c, i) => {
+      const prepared = chunks.map((c, i) => {
         if (
-          !(c instanceof DocumentChunk) ||
           c.state.documentId !== lease.documentId ||
           c.state.generation !== lease.generation ||
           c.state.chunkIndex !== i ||
           c.state.tokenCount === null ||
+          c.state.tokenCount < 1 ||
           c.state.locator === null
         )
           throw new Error();
@@ -266,12 +260,30 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
           locator: { ...c.state.locator },
         }).state;
       });
-      const embeddings = result.embeddings.map((e) => {
-        if (!(e instanceof DocumentEmbedding)) throw new Error();
-        return DocumentEmbedding.create(e.state).state;
-      });
+      if (new Set(prepared.map((c) => c.id)).size !== prepared.length)
+        throw new Error();
+      return prepared;
+    } catch {
+      throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_RESULT_INVALID");
+    }
+  }
+  private prepared(lease: ProcessingLease, result: PreparedGeneration) {
+    const chunks = this.preparedChunks(lease, result?.chunks);
+    try {
       if (
-        new Set(chunks.map((c) => c.id)).size !== chunks.length ||
+        !Array.isArray(result.embeddings) ||
+        result.embeddings.length !== chunks.length ||
+        result.embeddings.some((e) => !(e instanceof DocumentEmbedding)) ||
+        result.embeddings.reduce(
+          (sum, e) => sum + e.state.embedding.length,
+          0,
+        ) > this.limits.maxVectorValues
+      )
+        throw new Error();
+      const embeddings = result.embeddings.map(
+        (e) => DocumentEmbedding.create(e.state).state,
+      );
+      if (
         new Set(embeddings.map((e) => e.chunkId)).size !== chunks.length ||
         embeddings.some(
           (e) =>
@@ -285,6 +297,101 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
       return { chunks, embeddings };
     } catch {
       throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_RESULT_INVALID");
+    }
+  }
+  async stageExtraction(lease: ProcessingLease, result: PreparedExtraction) {
+    const chunks = this.preparedChunks(lease, result.chunks);
+    if (
+      result.kind !== "extracted" ||
+      typeof result.processingVersion !== "string" ||
+      !result.processingVersion.trim() ||
+      result.processingVersion.length > 100 ||
+      result.sourceChecksumSha256 !== lease.source.checksumSha256 ||
+      result.sourceVersionId !== lease.source.versionId
+    )
+      throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_RESULT_INVALID");
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const current = await this.currentLease(tx, lease);
+        if (!current) return false;
+        if (
+          current.d.checksumSha256 !== result.sourceChecksumSha256 ||
+          current.d.storageVersionId !== result.sourceVersionId
+        )
+          throw new DocumentProcessingFailure("DOCUMENT_SOURCE_MISMATCH");
+        const { at } = current;
+        const generation = DocumentGeneration.restore(
+          await tx.documentGeneration.findUniqueOrThrow({
+            where: {
+              documentId_generation: {
+                documentId: lease.documentId,
+                generation: lease.generation,
+              },
+            },
+          }),
+        );
+        generation.extract(chunks.length, result, at);
+        for (const c of chunks)
+          await tx.documentChunk.create({
+            data: {
+              id: c.id,
+              documentId: c.documentId,
+              generation: c.generation,
+              chunkIndex: c.chunkIndex,
+              content: c.content,
+              tokenCount: c.tokenCount,
+              locatorKind: c.locator!.kind,
+              locatorStart: c.locator!.start,
+              locatorEnd: c.locator!.end,
+              createdAt: at,
+            },
+          });
+        await tx.documentGeneration.update({
+          where: {
+            documentId_generation: {
+              documentId: lease.documentId,
+              generation: lease.generation,
+            },
+          },
+          data: {
+            status: generation.state.status,
+            chunkCount: generation.state.chunkCount,
+            processingVersion: generation.state.processingVersion,
+            sourceChecksumSha256: generation.state.sourceChecksumSha256,
+            sourceVersionId: generation.state.sourceVersionId,
+            extractedAt: generation.state.extractedAt,
+          },
+        });
+        await tx.documentProcessingJob.update({
+          where: { id: lease.id },
+          data: {
+            status: "SUCCEEDED",
+            leaseOwner: null,
+            leaseExpiresAt: null,
+            errorCode: null,
+            updatedAt: at,
+          },
+        });
+        await tx.document.update({
+          where: { id: lease.documentId },
+          data: { updatedAt: at, revision: { increment: 1 } },
+        });
+        await documentEvent(
+          tx,
+          "document.processing.extracted",
+          lease.documentId,
+          lease.id,
+          lease.generation,
+          lease.attemptCount,
+          at,
+        );
+        if (current.j.leaseExpiresAt! <= (await dbNow(tx)))
+          throw new LostProcessingLease();
+        return true;
+      });
+    } catch (error) {
+      if (error instanceof LostProcessingLease) return false;
+      throw error;
     }
   }
   async publish(lease: ProcessingLease, result: PreparedGeneration) {

@@ -1,3 +1,6 @@
+import { textPdf, imageOnlyPdf } from "../src/testing/pdf-fixtures";
+import { BoundedTextExtractor } from "../src/modules/document/infrastructure/extraction/bounded-text-extractor";
+import { DocumentExtractionStages } from "../src/modules/document/application/services/document-extraction.stages";
 import { randomUUID, createHash } from "node:crypto";
 import { ValidationPipe, type INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
@@ -291,12 +294,164 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
       64,
       5000,
     ).run(lease, new AbortController().signal);
-    expect(prepare).toHaveBeenCalledWith(lease, body, expect.any(AbortSignal));
+    expect(prepare).toHaveBeenCalledWith(
+      lease,
+      body,
+      expect.any(AbortSignal),
+      expect.any(Function),
+    );
     expect(
       (await db.document.findUniqueOrThrow({ where: { id: p.document.id } }))
         .processingError,
     ).toBe("DOCUMENT_PROCESSING_RESULT_INVALID");
   });
+  it("stages real uploaded text without making it searchable READY", async () => {
+    const p = await propose();
+    await upload(p);
+    await complete(p).expect(200);
+    const jobs = app.get<DocumentProcessingRepository>(
+      DOCUMENT_PROCESSING_REPOSITORY,
+    );
+    const lease = (await jobs.claim("real-extraction"))!;
+    await app
+      .get(DocumentJobProcessor)
+      .run(lease, new AbortController().signal);
+    const document = await db.document.findUniqueOrThrow({
+      where: { id: p.document.id },
+      include: { generations: true, chunks: true, jobs: true },
+    });
+    expect(document.status).toBe("PROCESSING");
+    expect(document.activeGeneration).toBeNull();
+    expect(document.generations[0]).toMatchObject({
+      status: "EXTRACTED",
+      chunkCount: 1,
+      sourceChecksumSha256: sha(body),
+    });
+    expect(document.chunks[0]).toMatchObject({
+      content: "hello!",
+      tokenCount: 6,
+      locatorKind: "LINE",
+      locatorStart: 1,
+      locatorEnd: 1,
+    });
+    expect(document.jobs[0].status).toBe("SUCCEEDED");
+    expect(
+      await db.documentEmbedding.count({
+        where: { chunk: { documentId: document.id } },
+      }),
+    ).toBe(0);
+    const events = await db.outboxEvent.findMany({
+      where: { aggregateId: document.id },
+    });
+    expect(events.map((e) => e.eventType)).toContain(
+      "document.processing.extracted",
+    );
+    expect(events.map((e) => e.eventType)).not.toContain(
+      "document.processing.ready",
+    );
+    await request(app.getHttpServer())
+      .post(`/documents/${document.id}/retry-processing`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(409);
+  });
+  it.each([
+    [
+      "course.pdf",
+      "application/pdf",
+      Buffer.from(textPdf(["Điều kiện dự thi", "Nộp bài trước hạn"])),
+      "EXTRACTED",
+      null,
+    ],
+    [
+      "notes.md",
+      "text/markdown",
+      Buffer.from("# Điều kiện\r\n\r\nNộp bài trước hạn"),
+      "EXTRACTED",
+      null,
+    ],
+    [
+      "scan.pdf",
+      "application/pdf",
+      Buffer.from(imageOnlyPdf()),
+      "FAILED",
+      "DOCUMENT_PDF_NO_TEXT",
+    ],
+  ] as const)(
+    "processes real S3 %s bytes with locators or explicit unsupported failure",
+    async (filename, mimeType, bytes, status, error) => {
+      const useCases = new DocumentUploadUseCases(
+        app.get(DOCUMENT_REPOSITORY),
+        app.get(DOCUMENT_UPLOAD_REPOSITORY),
+        app.get(DOCUMENT_STORAGE),
+        {
+          allowedExtensions: ["txt", "md", "pdf"],
+          maxFileBytes: 100000,
+          maxDocuments: 100,
+          maxStorageBytes: 1000000,
+          uploadExpirySeconds: 60,
+          downloadExpirySeconds: 60,
+          bucket,
+        },
+      );
+      const proposal = await useCases.uploadUrl(userId, {
+        filename,
+        mimeType,
+        sizeBytes: bytes.length,
+      });
+      expect((await upload(proposal, bytes)).status).toBe(204);
+      await useCases.complete(userId, proposal.document.id);
+      const jobs = app.get<DocumentProcessingRepository>(
+        DOCUMENT_PROCESSING_REPOSITORY,
+      );
+      const lease = (await jobs.claim("pdf-md-extraction"))!;
+      const extractor = new BoundedTextExtractor({
+        maxFileBytes: 100000,
+        maxPages: 10,
+        maxTextChars: 10000,
+        maxExpansionRatio: 100,
+        timeoutMs: 4000,
+        memoryMb: 128,
+      });
+      const stages = new DocumentExtractionStages(extractor, {
+        targetTokens: 32,
+        overlapTokens: 0,
+        maxChunks: 100,
+      });
+      await new DocumentJobProcessor(
+        jobs,
+        app.get(DOCUMENT_STORAGE),
+        stages,
+        100000,
+        6000,
+      ).run(lease, new AbortController().signal);
+      const document = await db.document.findUniqueOrThrow({
+        where: { id: lease.documentId },
+        include: {
+          generations: true,
+          chunks: { orderBy: { chunkIndex: "asc" } },
+        },
+      });
+      expect(document.activeGeneration).toBeNull();
+      expect(document.processingError).toBe(error);
+      expect(document.generations[0].status).toBe(status);
+      if (status === "EXTRACTED") {
+        expect(document.generations[0].sourceChecksumSha256).toBe(sha(bytes));
+        expect(document.chunks.map((c) => c.content).join("\n")).toContain(
+          "Nộp bài trước hạn",
+        );
+        expect(
+          document.chunks.every(
+            (c) =>
+              c.locatorKind ===
+              (mimeType === "application/pdf" ? "PAGE" : "LINE"),
+          ),
+        ).toBe(true);
+        expect(document.chunks[document.chunks.length - 1].locatorEnd).toBe(
+          mimeType === "application/pdf" ? 2 : 3,
+        );
+      } else expect(document.chunks).toHaveLength(0);
+    },
+  );
   it("exposes controlled unavailable stages and owner-only idempotent retry API", async () => {
     const p = await propose();
     await upload(p);
@@ -305,9 +460,18 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
       DOCUMENT_PROCESSING_REPOSITORY,
     );
     const lease = (await jobs.claim("unconfigured"))!;
-    await app
-      .get(DocumentJobProcessor)
-      .run(lease, new AbortController().signal);
+    await new DocumentJobProcessor(
+      jobs,
+      app.get(DOCUMENT_STORAGE),
+      {
+        available: false,
+        prepare: async () => {
+          throw new Error("Unavailable fixture");
+        },
+      },
+      64,
+      5000,
+    ).run(lease, new AbortController().signal);
     const metadata = await request(app.getHttpServer())
       .get(`/documents/${p.document.id}`)
       .set("Authorization", `Bearer ${token}`)

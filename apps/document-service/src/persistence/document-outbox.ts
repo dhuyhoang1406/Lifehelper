@@ -4,6 +4,7 @@ type LifecycleEvent =
   | "document.uploaded"
   | "document.processing.started"
   | "document.processing.failed"
+  | "document.processing.extracted"
   | "document.processing.ready";
 export async function documentEvent(
   tx: Prisma.TransactionClient,

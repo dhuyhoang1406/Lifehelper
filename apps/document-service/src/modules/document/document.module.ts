@@ -38,11 +38,31 @@ import { PrismaDocumentProcessingRepository } from "../../persistence/document-p
 import { DocumentProcessingRetryUseCase } from "./application/use-cases/document-processing-retry.use-case";
 import { DocumentJobProcessor } from "./application/services/document-job-processor";
 import { DocumentProcessingWorker } from "./infrastructure/processing/document-processing-worker";
-import { UnavailableProcessingStages } from "./infrastructure/processing/unavailable-processing-stages";
+import { BoundedTextExtractor } from "./infrastructure/extraction/bounded-text-extractor";
+import {
+  DOCUMENT_TEXT_EXTRACTOR,
+  type DocumentTextExtractor,
+} from "./application/ports/document-extraction.port";
+import { DocumentExtractionStages } from "./application/services/document-extraction.stages";
 @Module({
   imports: [PrismaModule, JwtModule.register({})],
   controllers: [DocumentController],
   providers: [
+    {
+      provide: DOCUMENT_TEXT_EXTRACTOR,
+      useFactory: (c: ConfigService) =>
+        new BoundedTextExtractor({
+          maxFileBytes: c.getOrThrow("DOCUMENT_MAX_FILE_BYTES"),
+          maxPages: c.getOrThrow("DOCUMENT_EXTRACTION_MAX_PAGES"),
+          maxTextChars: c.getOrThrow("DOCUMENT_PROCESSING_MAX_TEXT_CHARS"),
+          maxExpansionRatio: c.getOrThrow(
+            "DOCUMENT_EXTRACTION_MAX_EXPANSION_RATIO",
+          ),
+          timeoutMs: c.getOrThrow("DOCUMENT_PARSER_TIMEOUT_MS"),
+          memoryMb: c.getOrThrow("DOCUMENT_PARSER_MEMORY_MB"),
+        }),
+      inject: [ConfigService],
+    },
     JwtAuthGuard,
     {
       provide: DOCUMENT_PROCESSING_REPOSITORY,
@@ -62,7 +82,13 @@ import { UnavailableProcessingStages } from "./infrastructure/processing/unavail
     },
     {
       provide: DOCUMENT_PROCESSING_STAGES,
-      useClass: UnavailableProcessingStages,
+      useFactory: (extractor: DocumentTextExtractor, c: ConfigService) =>
+        new DocumentExtractionStages(extractor, {
+          targetTokens: c.getOrThrow("DOCUMENT_CHUNK_TARGET_TOKENS"),
+          overlapTokens: c.getOrThrow("DOCUMENT_CHUNK_OVERLAP_TOKENS"),
+          maxChunks: c.getOrThrow("DOCUMENT_PROCESSING_MAX_CHUNKS"),
+        }),
+      inject: [DOCUMENT_TEXT_EXTRACTOR, ConfigService],
     },
     {
       provide: DocumentProcessingRetryUseCase,
