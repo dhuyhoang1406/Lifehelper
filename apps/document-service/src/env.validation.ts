@@ -56,7 +56,7 @@ const schema = Joi.object({
     .integer()
     .min(1)
     .max(4000000)
-    .default(1000000),
+    .default(1048576),
   DOCUMENT_EXTRACTION_MAX_PAGES: Joi.number()
     .integer()
     .min(1)
@@ -87,6 +87,31 @@ const schema = Joi.object({
     .min(0)
     .max(8191)
     .default(64),
+  EMBEDDING_PROVIDER: Joi.string().valid("ollama", "fake").default("ollama"),
+  EMBEDDING_MODEL: Joi.string().trim().min(1).max(100).default("bge-m3:567m"),
+  EMBEDDING_MODEL_VERSION: Joi.string()
+    .trim()
+    .min(1)
+    .max(100)
+    .default(
+      "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    ),
+  EMBEDDING_BASE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("http://localhost:11434"),
+  EMBEDDING_DIMENSIONS: Joi.number().integer().min(1).max(16000).default(1024),
+  EMBEDDING_BATCH_SIZE: Joi.number().integer().min(1).max(32).default(8),
+  EMBEDDING_MAX_INPUT_TOKENS: Joi.number()
+    .integer()
+    .min(4)
+    .max(8192)
+    .default(8192),
+  EMBEDDING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120000)
+    .default(10000),
+  EMBEDDING_MAX_ATTEMPTS: Joi.number().integer().min(1).max(3).default(2),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ISSUER: Joi.string().trim().min(1).required(),
   JWT_AUDIENCE: Joi.string().trim().min(1).required(),
@@ -173,6 +198,43 @@ export function validateEnvironment(config: Record<string, unknown>) {
   if (value.DOCUMENT_PARSER_TIMEOUT_MS >= value.DOCUMENT_PROCESSING_TIMEOUT_MS)
     throw new Error(
       "Environment validation failed: parser timeout must be smaller than processing timeout",
+    );
+  if (
+    value.EMBEDDING_PROVIDER === "ollama" &&
+    !/^[a-f0-9]{64}$/.test(value.EMBEDDING_MODEL_VERSION)
+  )
+    throw new Error(
+      "Environment validation failed: Ollama model version must be the full manifest digest",
+    );
+  const embeddingUrl = new URL(value.EMBEDDING_BASE_URL);
+  if (
+    embeddingUrl.username ||
+    embeddingUrl.password ||
+    embeddingUrl.pathname !== "/" ||
+    embeddingUrl.search ||
+    embeddingUrl.hash
+  )
+    throw new Error(
+      "Environment validation failed: embedding base URL must be an origin without credentials",
+    );
+  if (value.EMBEDDING_PROVIDER === "fake" && value.NODE_ENV !== "test")
+    throw new Error(
+      "Environment validation failed: fake embeddings are test-only",
+    );
+  if (value.EMBEDDING_TIMEOUT_MS >= value.DOCUMENT_PROCESSING_TIMEOUT_MS)
+    throw new Error(
+      "Environment validation failed: embedding timeout must be smaller than processing timeout",
+    );
+  if (value.DOCUMENT_CHUNK_TARGET_TOKENS > value.EMBEDDING_MAX_INPUT_TOKENS)
+    throw new Error(
+      "Environment validation failed: chunk target exceeds embedding input budget",
+    );
+  if (
+    value.EMBEDDING_DIMENSIONS * value.DOCUMENT_PROCESSING_MAX_CHUNKS >
+    value.DOCUMENT_PROCESSING_MAX_VECTOR_VALUES
+  )
+    throw new Error(
+      "Environment validation failed: vector budget must fit all configured chunks",
     );
   return value;
 }
