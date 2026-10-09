@@ -1,3 +1,4 @@
+import { PrismaDocumentVectorIndex } from "../src/persistence/document-vector-index";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../src/prisma.service";
 import { PrismaDocumentUploadRepository } from "../src/persistence/document-upload.repository";
@@ -242,6 +243,256 @@ describe("Durable fenced processing on real PostgreSQL", () => {
         })
       ).status,
     ).toBe("FAILED");
+  });
+  async function stagedForIndexing() {
+    const first = await claimed();
+    const result = extracted(first);
+    result.chunks.push(
+      DocumentChunk.create({
+        id: randomUUID(),
+        documentId: first.documentId,
+        generation: first.generation,
+        chunkIndex: 1,
+        content: "second paragraph",
+        tokenCount: 16,
+        locator: { kind: "LINE", start: 2, end: 2 },
+      }),
+    );
+    expect(await jobs.stageExtraction(first, result, true)).toBe(true);
+    const lease = (await jobs.claim("embedding-worker"))!;
+    expect(lease.documentId).toBe(first.documentId);
+    expect(lease.token).toBeGreaterThan(first.token);
+    const extraction = (await jobs.loadExtraction(lease))!;
+    const output = {
+      chunks: extraction.chunks,
+      embeddings: extraction.chunks.map((c, i) =>
+        DocumentEmbedding.create({
+          id: randomUUID(),
+          chunkId: c.state.id,
+          embeddingModel: "test-fixture",
+          modelVersion: "test-v1",
+          embedding: i === 0 ? [1, 0] : [0, 1],
+        }),
+      ),
+      embeddingSettings: {
+        inputPolicy: "plain-text-v1",
+        batchSize: 2,
+        maxInputTokens: 128,
+        tokenEstimator: "utf8-byte-upper-bound-v1",
+      },
+    };
+    return { lease, extraction, output };
+  }
+  it("indexes staged chunks atomically and performs exact cosine queries only in the owned active embedding space", async () => {
+    const { lease, output } = await stagedForIndexing();
+    expect(await jobs.publish(lease, output)).toBe(true);
+    const d = await db.document.findUniqueOrThrow({
+      where: { id: lease.documentId },
+      include: { generations: true, chunks: true },
+    });
+    expect(d).toMatchObject({ status: "READY", activeGeneration: 1 });
+    expect(d.generations[0]).toMatchObject({
+      status: "COMPLETE",
+      embeddingModel: "test-fixture",
+      embeddingVersion: "test-v1",
+      embeddingDimensions: 2,
+      embeddingSettings: output.embeddingSettings,
+    });
+    expect(d.chunks.map((c) => c.id).sort()).toEqual(
+      output.chunks.map((c) => c.state.id).sort(),
+    );
+    expect(d.generations[0].completedAt?.toISOString()).toMatch(/Z$/);
+    const stored = await db.$queryRaw<
+      Array<{ dimensions: number; norm: number }>
+    >`SELECT vector_dims(e.embedding) AS dimensions, vector_norm(e.embedding) AS norm
+      FROM document_embeddings e JOIN document_chunks c ON c.id=e.chunk_id WHERE c.document_id=${d.id}::uuid`;
+    expect(stored).toEqual([
+      { dimensions: 2, norm: 1 },
+      { dimensions: 2, norm: 1 },
+    ]);
+    const index = new PrismaDocumentVectorIndex(db);
+    const query = {
+      userId,
+      space: { model: "test-fixture", version: "test-v1", dimensions: 2 },
+      vector: [1, 0],
+      topK: 2,
+    };
+    const found = await index.search(query);
+    expect(found.map((m) => m.distance)).toEqual([0, 1]);
+    expect(found[0].chunkId).toBe(output.chunks[0].state.id);
+    expect(await index.search({ ...query, userId: randomUUID() })).toEqual([]);
+    expect(
+      await index.search({
+        ...query,
+        space: { ...query.space, version: "changed" },
+      }),
+    ).toEqual([]);
+    expect(
+      await index.search({
+        ...query,
+        space: { ...query.space, dimensions: 3 },
+        vector: [1, 0, 0],
+      }),
+    ).toEqual([]);
+    await db.documentGeneration.update({
+      where: { documentId_generation: { documentId: d.id, generation: 1 } },
+      data: { embeddingSettings: { inputPolicy: "legacy" } },
+    });
+    expect(await index.search(query)).toEqual([]);
+    await db.documentGeneration.update({
+      where: { documentId_generation: { documentId: d.id, generation: 1 } },
+      data: { embeddingSettings: output.embeddingSettings },
+    });
+    await uploads.deleteAndScheduleCleanup(d.id, userId, new Date());
+    expect(await index.search(query)).toEqual([]);
+  });
+  it("rejects partial batches, retries embeddings from the same staged chunks and emits READY once", async () => {
+    const { lease, output } = await stagedForIndexing();
+    await expect(
+      jobs.publish(lease, {
+        ...output,
+        embeddings: output.embeddings.slice(0, 1),
+      }),
+    ).rejects.toMatchObject({ code: "DOCUMENT_PROCESSING_RESULT_INVALID" });
+    expect(
+      await db.documentEmbedding.count({
+        where: { chunk: { documentId: lease.documentId } },
+      }),
+    ).toBe(0);
+    expect(await jobs.fail(lease, "DOCUMENT_EMBEDDING_UNAVAILABLE")).toBe(true);
+    await due(lease.id);
+    const retried = (await jobs.claim("retry-indexer"))!;
+    const loaded = (await jobs.loadExtraction(retried))!;
+    expect(loaded.chunks.map((c) => c.state.id)).toEqual(
+      output.chunks.map((c) => c.state.id),
+    );
+    expect(await jobs.publish(lease, output)).toBe(false);
+    expect(await jobs.publish(retried, output)).toBe(true);
+    expect(await jobs.publish(retried, output)).toBe(false);
+    expect(
+      await db.outboxEvent.count({
+        where: {
+          aggregateId: lease.documentId,
+          eventType: "document.processing.ready",
+        },
+      }),
+    ).toBe(1);
+  });
+  it("recovers interrupted indexing with lease fencing and rejects deleted results", async () => {
+    const { lease, output } = await stagedForIndexing();
+    await db.documentProcessingJob.update({
+      where: { id: lease.id },
+      data: { leaseExpiresAt: new Date(0) },
+    });
+    expect(await jobs.claim("recovery-scheduler")).toBeNull();
+    await due(lease.id);
+    const recovered = (await jobs.claim("recovered-indexer"))!;
+    expect(
+      (await jobs.loadExtraction(recovered))!.chunks.map((c) => c.state.id),
+    ).toEqual(output.chunks.map((c) => c.state.id));
+    expect(await jobs.publish(lease, output)).toBe(false);
+    await uploads.deleteAndScheduleCleanup(
+      lease.documentId,
+      userId,
+      new Date(),
+    );
+    expect(await jobs.publish(recovered, output)).toBe(false);
+    expect(
+      await db.documentEmbedding.count({
+        where: { chunk: { documentId: lease.documentId } },
+      }),
+    ).toBe(0);
+  });
+  it("rolls back all embeddings and activation when completion outbox fails", async () => {
+    const { lease, output } = await stagedForIndexing();
+    await fault("document.processing.ready", lease.documentId, async () => {
+      await expect(jobs.publish(lease, output)).rejects.toThrow();
+    });
+    expect(
+      await db.documentEmbedding.count({
+        where: { chunk: { documentId: lease.documentId } },
+      }),
+    ).toBe(0);
+    expect(
+      (
+        await db.documentGeneration.findUniqueOrThrow({
+          where: {
+            documentId_generation: {
+              documentId: lease.documentId,
+              generation: lease.generation,
+            },
+          },
+        })
+      ).status,
+    ).toBe("EXTRACTED");
+    expect(await jobs.publish(lease, output)).toBe(true);
+    const event = await db.outboxEvent.findFirstOrThrow({
+      where: {
+        aggregateId: lease.documentId,
+        eventType: "document.processing.ready",
+      },
+    });
+    expect(JSON.stringify(event)).not.toContain("second paragraph");
+    expect(JSON.stringify(event)).not.toContain("test-fixture");
+  });
+  it("requires durable staged extraction before configured runtime indexing can activate READY", async () => {
+    const lease = await claimed();
+    const configured = new PrismaDocumentProcessingRepository(db, {
+      ...limits,
+      embeddingSpace: {
+        model: "test-fixture",
+        version: "test-v1",
+        dimensions: 2,
+      },
+    });
+    await expect(
+      configured.publish(lease, prepared(lease)),
+    ).rejects.toMatchObject({ code: "DOCUMENT_PROCESSING_RESULT_INVALID" });
+    expect(
+      await db.documentChunk.count({ where: { documentId: lease.documentId } }),
+    ).toBe(0);
+    expect(
+      (await db.document.findUniqueOrThrow({ where: { id: lease.documentId } }))
+        .status,
+    ).toBe("PROCESSING");
+  });
+  it("rejects mismatched model identity, tampered chunks and invalid pgvector values", async () => {
+    const { lease, output } = await stagedForIndexing();
+    const configured = new PrismaDocumentProcessingRepository(db, {
+      ...limits,
+      embeddingSpace: { model: "different", version: "test-v1", dimensions: 2 },
+    });
+    await expect(configured.publish(lease, output)).rejects.toMatchObject({
+      code: "DOCUMENT_EMBEDDING_MODEL_MISMATCH",
+    });
+    const changed = DocumentChunk.create({
+      ...output.chunks[0].state,
+      content: "altered",
+    });
+    await expect(
+      jobs.publish(lease, { ...output, chunks: [changed, output.chunks[1]] }),
+    ).rejects.toMatchObject({ code: "DOCUMENT_PROCESSING_RESULT_INVALID" });
+    const mixed = DocumentEmbedding.create({
+      ...output.embeddings[1].state,
+      modelVersion: "other",
+    });
+    await expect(
+      jobs.publish(lease, {
+        ...output,
+        embeddings: [output.embeddings[0], mixed],
+      }),
+    ).rejects.toMatchObject({ code: "DOCUMENT_PROCESSING_RESULT_INVALID" });
+    const id = randomUUID(),
+      chunk = output.chunks[0].state.id;
+    await expect(db.$executeRaw`INSERT INTO document_embeddings(id,chunk_id,embedding_model,model_version,dimensions,embedding,created_at)
+      VALUES(${id}::uuid,${chunk}::uuid,'test','v1',3,'[1,0]'::vector,clock_timestamp())`).rejects.toThrow();
+    await expect(db.$executeRaw`INSERT INTO document_embeddings(id,chunk_id,embedding_model,model_version,dimensions,embedding,created_at)
+      VALUES(${id}::uuid,${chunk}::uuid,'test','v1',2,'[0,0]'::vector,clock_timestamp())`).rejects.toThrow();
+    await expect(db.$queryRaw`SELECT '[NaN,1]'::vector`).rejects.toThrow();
+    expect(
+      (await db.document.findUniqueOrThrow({ where: { id: lease.documentId } }))
+        .status,
+    ).toBe("PROCESSING");
   });
   beforeAll(async () => {
     const rows = await db.$queryRaw<
