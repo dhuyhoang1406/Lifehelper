@@ -2,7 +2,7 @@ process.env.NODE_ENV = "test";
 process.env.DOCUMENT_WORKER_ENABLED = "false";
 process.env.SERVICE_NAME = "document-service";
 process.env.DOCUMENT_PORT = "3004";
-process.env.DATABASE_URL =
+process.env.DATABASE_URL ??=
   "postgresql://lifehelper:lifehelper@localhost:5432/lifehelper_document?schema=public";
 process.env.REDIS_URL = "redis://localhost:6379";
 process.env.AWS_ENDPOINT_URL = "http://localhost:4566";
@@ -17,3 +17,7 @@ process.env.JWT_ISSUER = "lifehelper-identity";
 process.env.JWT_AUDIENCE = "lifehelper-mobile";
 process.env.DOCUMENT_S3_BUCKET = "lifehelper-documents-test";
 process.env.DOCUMENT_S3_PUBLIC_ENDPOINT = "http://localhost:4566";
+
+process.env.EMBEDDING_PROVIDER = "fake";
+process.env.EMBEDDING_MODEL = "fixture-model";
+process.env.EMBEDDING_MODEL_VERSION = "fake-v1";
