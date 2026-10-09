@@ -23,3 +23,7 @@ process.env.DOCUMENT_MAX_STORAGE_BYTES = "128";
 process.env.DOCUMENT_MAX_FILE_BYTES = "64";
 process.env.DOCUMENT_UPLOAD_EXPIRY_SECONDS = "60";
 process.env.LOG_LEVEL = "fatal";
+
+process.env.EMBEDDING_PROVIDER = "fake";
+process.env.EMBEDDING_MODEL = "fixture-model";
+process.env.EMBEDDING_MODEL_VERSION = "fake-v1";

@@ -33,6 +33,12 @@ export class DocumentJobProcessor {
     const processing = (async () => {
       if (!this.stages.available)
         throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_UNAVAILABLE");
+      if (this.stages.index) {
+        const extraction = await this.jobs.loadExtraction(lease);
+        checkpoint();
+        if (extraction)
+          return this.stages.index(lease, extraction, signal, checkpoint);
+      }
       const source = await this.storage.readForVerification(
         lease.source,
         this.maxFileBytes,
@@ -66,8 +72,11 @@ export class DocumentJobProcessor {
     try {
       const result = await Promise.race([processing, aborted]);
       checkpoint();
-      if ("kind" in result) await this.jobs.stageExtraction(lease, result);
-      else await this.jobs.publish(lease, result);
+      if ("kind" in result) {
+        if (this.stages.index)
+          await this.jobs.stageExtraction(lease, result, true);
+        else await this.jobs.stageExtraction(lease, result);
+      } else await this.jobs.publish(lease, result);
     } catch (error) {
       await this.jobs.fail(
         lease,

@@ -165,6 +165,17 @@ services:
       timeout: 5s
       retries: 10
 
+  document-embeddings:
+    profiles: ["document-embeddings"]
+    image: ollama/ollama:0.12.3
+    volumes:
+      - document-embedding-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   document-service:
     <<: *service-common
     build: { context: ., dockerfile: apps/document-service/Dockerfile }
@@ -172,6 +183,16 @@ services:
       <<: *service-environment
       SERVICE_NAME: document-service
       DOCUMENT_PORT: 3004
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3:567m}
+      EMBEDDING_MODEL_VERSION: ${EMBEDDING_MODEL_VERSION:-7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://host.docker.internal:11434}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-8}
+      EMBEDDING_MAX_INPUT_TOKENS: ${EMBEDDING_MAX_INPUT_TOKENS:-8192}
+      EMBEDDING_TIMEOUT_MS: ${EMBEDDING_TIMEOUT_MS:-10000}
+      EMBEDDING_MAX_ATTEMPTS: ${EMBEDDING_MAX_ATTEMPTS:-2}
+      DOCUMENT_PROCESSING_MAX_VECTOR_VALUES: ${DOCUMENT_PROCESSING_MAX_VECTOR_VALUES:-1048576}
       DOCUMENT_S3_BUCKET: ${DOCUMENT_S3_BUCKET:-lifehelper-documents}
       DOCUMENT_S3_PUBLIC_ENDPOINT: ${DOCUMENT_S3_PUBLIC_ENDPOINT:-http://localhost:4566}
       DOCUMENT_ALLOWED_EXTENSIONS: ${DOCUMENT_ALLOWED_EXTENSIONS:-txt,md,pdf}
@@ -200,8 +221,9 @@ services:
       DOCUMENT_CHUNK_OVERLAP_TOKENS: ${DOCUMENT_CHUNK_OVERLAP_TOKENS:-64}
       DOCUMENT_PROCESSING_MAX_CHUNKS: ${DOCUMENT_PROCESSING_MAX_CHUNKS:-1000}
       DOCUMENT_PROCESSING_MAX_TEXT_CHARS: ${DOCUMENT_PROCESSING_MAX_TEXT_CHARS:-1000000}
-      DOCUMENT_PROCESSING_MAX_VECTOR_VALUES: ${DOCUMENT_PROCESSING_MAX_VECTOR_VALUES:-1000000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-lifehelper}:${POSTGRES_PASSWORD:-lifehelper}@postgres:5432/lifehelper_document?schema=public
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports: ["${DOCUMENT_PORT:-3004}:3004"]
     healthcheck:
       test:
@@ -261,3 +283,4 @@ volumes:
   postgres-data:
   redis-data:
   localstack-data:
+  document-embedding-models:

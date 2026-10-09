@@ -174,3 +174,20 @@ New constraints require complete identity and positive chunk count for staged ro
 Existing generations remain unchanged; no active generation or READY state is assigned.
 Stop old workers, back up Document data, generate the client and apply migrations before
 rebuilding the service. See [extraction runbook](../api/document-extraction.md).
+
+## Branch 5 embedding-space migration
+
+`20261009000100_document_embedding_index` keeps the baseline pgvector extension/vector
+column and adds model/digest/dimensions/settings on generations. Existing COMPLETE
+vectors are backfilled with their own homogeneous identity; they are never labeled as
+BGE-M3. A mixed/missing legacy space refuses upgrade. A cosine vector must be nonzero;
+pgvector itself rejects NaN/infinite vector values and existing checks enforce dimensions.
+READY validation now requires every chunk/vector to match generation embedding metadata.
+
+The migration resumes nondeleted Branch 4 EXTRACTED/SUCCEEDED jobs as PENDING, resetting
+attempt count for the indexing phase while retaining the fencing token. It preserves
+chunk IDs, source checksums, locators and extraction versions. Clean migration and an
+upgrade fixture with both staged jobs and historical READY vectors were verified on
+real pgvector PostgreSQL. Old workers must be stopped before deployment; see the
+[embedding runbook](../api/document-embeddings.md). Exact cosine search requires no
+approximate index. Retrieval HTTP, administration/reindex and cleanup remain deferred.

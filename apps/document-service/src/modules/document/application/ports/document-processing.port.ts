@@ -23,6 +23,12 @@ export interface ProcessingLease {
 export interface PreparedGeneration {
   chunks: readonly DocumentChunk[];
   embeddings: readonly DocumentEmbedding[];
+  embeddingSettings?: {
+    batchSize: number;
+    maxInputTokens: number;
+    inputPolicy: string;
+    tokenEstimator: string;
+  };
 }
 export interface PreparedExtraction {
   kind: "extracted";
@@ -33,6 +39,12 @@ export interface PreparedExtraction {
 }
 export interface DocumentProcessingStages {
   readonly available: boolean;
+  index?(
+    lease: ProcessingLease,
+    extraction: PreparedExtraction,
+    signal: AbortSignal,
+    checkpoint: () => void,
+  ): Promise<PreparedGeneration>;
   prepare(
     lease: ProcessingLease,
     bytes: Uint8Array,
@@ -41,11 +53,13 @@ export interface DocumentProcessingStages {
   ): Promise<PreparedGeneration | PreparedExtraction>;
 }
 export interface DocumentProcessingRepository {
+  loadExtraction(lease: ProcessingLease): Promise<PreparedExtraction | null>;
   claim(owner: string): Promise<ProcessingLease | null>;
   publish(lease: ProcessingLease, result: PreparedGeneration): Promise<boolean>;
   stageExtraction(
     lease: ProcessingLease,
     result: PreparedExtraction,
+    continueIndexing?: boolean,
   ): Promise<boolean>;
   fail(lease: ProcessingLease, code: ProcessingFailureCode): Promise<boolean>;
   retry(

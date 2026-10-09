@@ -1,3 +1,10 @@
+import {
+  EMBEDDING_PROVIDER,
+  type EmbeddingProvider,
+} from "./application/ports/embedding-provider.port";
+import { OllamaEmbeddingProvider } from "./infrastructure/embedding/ollama-embedding.provider";
+import { FakeEmbeddingProvider } from "../../testing/fake-embedding.provider";
+import { DocumentIndexingStages } from "./application/services/document-indexing.stages";
 import { PrismaModule } from "../../prisma.module";
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
@@ -68,6 +75,11 @@ import { DocumentExtractionStages } from "./application/services/document-extrac
       provide: DOCUMENT_PROCESSING_REPOSITORY,
       useFactory: (db: PrismaService, c: ConfigService) =>
         new PrismaDocumentProcessingRepository(db, {
+          embeddingSpace: {
+            model: c.getOrThrow("EMBEDDING_MODEL"),
+            version: c.getOrThrow("EMBEDDING_MODEL_VERSION"),
+            dimensions: c.getOrThrow("EMBEDDING_DIMENSIONS"),
+          },
           leaseMs: c.getOrThrow("DOCUMENT_WORKER_LEASE_MS"),
           maxAttempts: c.getOrThrow("DOCUMENT_PROCESSING_MAX_ATTEMPTS"),
           baseDelayMs: c.getOrThrow("DOCUMENT_PROCESSING_RETRY_BASE_MS"),
@@ -82,13 +94,48 @@ import { DocumentExtractionStages } from "./application/services/document-extrac
     },
     {
       provide: DOCUMENT_PROCESSING_STAGES,
-      useFactory: (extractor: DocumentTextExtractor, c: ConfigService) =>
-        new DocumentExtractionStages(extractor, {
-          targetTokens: c.getOrThrow("DOCUMENT_CHUNK_TARGET_TOKENS"),
-          overlapTokens: c.getOrThrow("DOCUMENT_CHUNK_OVERLAP_TOKENS"),
-          maxChunks: c.getOrThrow("DOCUMENT_PROCESSING_MAX_CHUNKS"),
-        }),
-      inject: [DOCUMENT_TEXT_EXTRACTOR, ConfigService],
+      useFactory: (
+        extractor: DocumentTextExtractor,
+        provider: EmbeddingProvider,
+        c: ConfigService,
+      ) =>
+        new DocumentIndexingStages(
+          new DocumentExtractionStages(extractor, {
+            targetTokens: c.getOrThrow("DOCUMENT_CHUNK_TARGET_TOKENS"),
+            overlapTokens: c.getOrThrow("DOCUMENT_CHUNK_OVERLAP_TOKENS"),
+            maxChunks: c.getOrThrow("DOCUMENT_PROCESSING_MAX_CHUNKS"),
+          }),
+          provider,
+          {
+            space: {
+              model: c.getOrThrow("EMBEDDING_MODEL"),
+              version: c.getOrThrow("EMBEDDING_MODEL_VERSION"),
+              dimensions: c.getOrThrow("EMBEDDING_DIMENSIONS"),
+            },
+            batchSize: c.getOrThrow("EMBEDDING_BATCH_SIZE"),
+            maxInputTokens: c.getOrThrow("EMBEDDING_MAX_INPUT_TOKENS"),
+          },
+        ),
+      inject: [DOCUMENT_TEXT_EXTRACTOR, EMBEDDING_PROVIDER, ConfigService],
+    },
+    {
+      provide: EMBEDDING_PROVIDER,
+      useFactory: (c: ConfigService) =>
+        c.getOrThrow("EMBEDDING_PROVIDER") === "fake"
+          ? new FakeEmbeddingProvider()
+          : new OllamaEmbeddingProvider({
+              baseUrl: c.getOrThrow("EMBEDDING_BASE_URL"),
+              space: {
+                model: c.getOrThrow("EMBEDDING_MODEL"),
+                version: c.getOrThrow("EMBEDDING_MODEL_VERSION"),
+                dimensions: c.getOrThrow("EMBEDDING_DIMENSIONS"),
+              },
+              batchSize: c.getOrThrow("EMBEDDING_BATCH_SIZE"),
+              maxInputTokens: c.getOrThrow("EMBEDDING_MAX_INPUT_TOKENS"),
+              timeoutMs: c.getOrThrow("EMBEDDING_TIMEOUT_MS"),
+              maxAttempts: c.getOrThrow("EMBEDDING_MAX_ATTEMPTS"),
+            }),
+      inject: [ConfigService],
     },
     {
       provide: DocumentProcessingRetryUseCase,

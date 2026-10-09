@@ -9,6 +9,7 @@ beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 it("bounds active jobs including noncooperative stages and bounds shutdown", async () => {
   const jobs: jest.Mocked<DocumentProcessingRepository> = {
+    loadExtraction: jest.fn(),
     claim: jest.fn().mockResolvedValue({ id: "job" } as ProcessingLease),
     publish: jest.fn(),
     stageExtraction: jest.fn(),

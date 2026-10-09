@@ -144,3 +144,10 @@ The processing timeout uses one monotonic deadline starting before the storage r
 Extraction and chunking share the remaining job budget; chunking checks the deadline
 inside long text runs, and late stage results are rejected before persistence.
 The parser also retains its separate, shorter parser timeout.
+
+## Branch 5 continuation
+
+With Branch 5 installed, the extraction transaction queues the same job for indexing
+instead of ending it as SUCCEEDED. EXTRACTED remains an intermediate durable state;
+complete embeddings activate READY. Historical Branch 4 successes are resumed by the
+embedding migration. See [embedding runbook](document-embeddings.md).

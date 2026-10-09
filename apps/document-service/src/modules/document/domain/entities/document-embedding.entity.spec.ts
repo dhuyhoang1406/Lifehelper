@@ -26,3 +26,21 @@ describe("DocumentEmbedding", () => {
     },
   );
 });
+
+it.each([
+  [0, 0],
+  [1e100, 1],
+  [Number.MIN_VALUE, 0],
+])(
+  "rejects vectors unsuitable for float32 cosine storage %p",
+  (...embedding) => {
+    expect(() =>
+      DocumentEmbedding.create({
+        id: "id",
+        chunkId: "chunk",
+        embeddingModel: "fixture",
+        embedding,
+      }),
+    ).toThrow();
+  },
+);

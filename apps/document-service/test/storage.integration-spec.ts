@@ -1,3 +1,5 @@
+import { DocumentIndexingStages } from "../src/modules/document/application/services/document-indexing.stages";
+import { FakeEmbeddingProvider } from "../src/testing/fake-embedding.provider";
 import { textPdf, imageOnlyPdf } from "../src/testing/pdf-fixtures";
 import { BoundedTextExtractor } from "../src/modules/document/infrastructure/extraction/bounded-text-extractor";
 import { DocumentExtractionStages } from "../src/modules/document/application/services/document-extraction.stages";
@@ -334,7 +336,7 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
       locatorStart: 1,
       locatorEnd: 1,
     });
-    expect(document.jobs[0].status).toBe("SUCCEEDED");
+    expect(document.jobs[0].status).toBe("PENDING");
     expect(
       await db.documentEmbedding.count({
         where: { chunk: { documentId: document.id } },
@@ -349,6 +351,27 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
     expect(events.map((e) => e.eventType)).not.toContain(
       "document.processing.ready",
     );
+    const indexingLease = (await jobs.claim("indexing-fixture"))!;
+    await app
+      .get(DocumentJobProcessor)
+      .run(indexingLease, new AbortController().signal);
+    const indexed = await db.document.findUniqueOrThrow({
+      where: { id: document.id },
+      include: { generations: true },
+    });
+    expect(indexed.status).toBe("READY");
+    expect(indexed.activeGeneration).toBe(1);
+    expect(indexed.generations[0]).toMatchObject({
+      embeddingModel: "fixture-model",
+      embeddingVersion: "fake-v1",
+      embeddingDimensions: 1024,
+      status: "COMPLETE",
+    });
+    expect(
+      await db.documentEmbedding.count({
+        where: { chunk: { documentId: document.id } },
+      }),
+    ).toBe(1);
     await request(app.getHttpServer())
       .post(`/documents/${document.id}/retry-processing`)
       .set("Authorization", `Bearer ${token}`)
@@ -412,11 +435,23 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
         timeoutMs: 4000,
         memoryMb: 128,
       });
-      const stages = new DocumentExtractionStages(extractor, {
-        targetTokens: 32,
-        overlapTokens: 0,
-        maxChunks: 100,
-      });
+      const stages = new DocumentIndexingStages(
+        new DocumentExtractionStages(extractor, {
+          targetTokens: 32,
+          overlapTokens: 0,
+          maxChunks: 100,
+        }),
+        new FakeEmbeddingProvider(),
+        {
+          space: {
+            model: "fixture-model",
+            version: "fake-v1",
+            dimensions: 1024,
+          },
+          batchSize: 8,
+          maxInputTokens: 128,
+        },
+      );
       await new DocumentJobProcessor(
         jobs,
         app.get(DOCUMENT_STORAGE),
@@ -449,6 +484,24 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
         expect(document.chunks[document.chunks.length - 1].locatorEnd).toBe(
           mimeType === "application/pdf" ? 2 : 3,
         );
+        const indexing = (await jobs.claim("pdf-md-indexing"))!;
+        await new DocumentJobProcessor(
+          jobs,
+          app.get(DOCUMENT_STORAGE),
+          stages,
+          100000,
+          6000,
+        ).run(indexing, new AbortController().signal);
+        const ready = await db.document.findUniqueOrThrow({
+          where: { id: document.id },
+        });
+        expect(ready.status).toBe("READY");
+        expect(ready.activeGeneration).toBe(1);
+        expect(
+          await db.documentEmbedding.count({
+            where: { chunk: { documentId: document.id } },
+          }),
+        ).toBe(document.chunks.length);
       } else expect(document.chunks).toHaveLength(0);
     },
   );

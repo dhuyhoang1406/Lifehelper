@@ -21,6 +21,16 @@ it("validates defaults for bounded private upload configuration", () => {
   });
 });
 it.each([
+  { EMBEDDING_PROVIDER: "paid" },
+  { EMBEDDING_PROVIDER: "fake", NODE_ENV: "production" },
+  { EMBEDDING_DIMENSIONS: 0 },
+  { EMBEDDING_BATCH_SIZE: 33 },
+  { EMBEDDING_BASE_URL: "http://user:secret@localhost:11434" },
+  { EMBEDDING_BASE_URL: "http://localhost:11434/other" },
+  { EMBEDDING_TIMEOUT_MS: 30000 },
+  { EMBEDDING_MAX_ATTEMPTS: 4 },
+  { EMBEDDING_MAX_INPUT_TOKENS: 256 },
+  { DOCUMENT_PROCESSING_MAX_VECTOR_VALUES: 100 },
   { DOCUMENT_MAX_FILE_BYTES: -1 },
   { DOCUMENT_UPLOAD_EXPIRY_SECONDS: 901 },
   { DOCUMENT_DOWNLOAD_EXPIRY_SECONDS: 301 },
