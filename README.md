@@ -116,7 +116,9 @@ files are extracted into staged chunks and embedded by local BGE-M3. READY requi
 complete active embedding generation. See [extraction and chunking](docs/api/document-extraction.md),
 [embedding setup, migration and tests](docs/api/document-embeddings.md), and
 [model selection ADR](docs/architecture/adr/001-document-embedding-space.md).
-Retrieval HTTP APIs and AI document tools follow in Branches 6–7; cleanup arrives in Branch 8.
+Authorized search and generation-safe chunk APIs are available under `/internal/documents`;
+see the [retrieval API and tests](docs/api/document-retrieval.md). AI document tools
+follow in Branch 7; cleanup arrives in Branch 8.
 
 ## Flutter
 

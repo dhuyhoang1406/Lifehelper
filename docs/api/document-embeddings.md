@@ -121,5 +121,8 @@ then removes its documents/objects/bucket. It does not touch application documen
 A small eight-query fixture is not a production quality guarantee. Community LocalStack's
 anonymous access-denial test remains skipped as recorded in the upload runbook.
 
-Deferred: retrieval/citation HTTP APIs, AI grounded answers, approximate indexes,
+Authorized retrieval is documented in [the retrieval runbook](document-retrieval.md).
+The opt-in smoke also verifies factual questions, empty unknown-query results and source locators.
+
+Deferred: AI grounded answers, approximate indexes,
 production deployment, OCR, reindex administration and full lifecycle cleanup.

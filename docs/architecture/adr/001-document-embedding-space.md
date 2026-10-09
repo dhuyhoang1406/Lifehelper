@@ -91,3 +91,14 @@ HTTP route. Operational reindex/cleanup remains Branch 8.
 CI uses the deterministic fake only in NODE_ENV=test; it measures integrity and lifecycle,
 not semantics. It never downloads models or calls external APIs. Runtime embedding
 unavailability causes bounded retry/controlled failure, never fake or paid fallback.
+
+## Branch 6 retrieval calibration
+
+The same pinned digest was evaluated on 2026-10-09 with 8 paraphrases, 3 exact
+factual questions and 4 unrelated queries in `vietnamese-retrieval.json`. All 11
+positive cases ranked the expected document first (cosine 0.633685–0.762101).
+The maximum negative score was 0.434765. A configurable baseline threshold of
+0.55 separates these cases; it is specific to this small corpus/model and does
+not establish answerability or general production accuracy. Recalibrate with
+representative labeled queries before changing models/corpora. See the
+[retrieval runbook](../../api/document-retrieval.md) for bounds and limitations.

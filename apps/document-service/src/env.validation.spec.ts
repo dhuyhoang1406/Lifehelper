@@ -22,6 +22,8 @@ it("validates defaults for bounded private upload configuration", () => {
 });
 it.each([
   { EMBEDDING_PROVIDER: "paid" },
+  { DOCUMENT_RETRIEVAL_TIMEOUT_MS: 99 },
+  { DOCUMENT_RETRIEVAL_MIN_SIMILARITY: 1.1 },
   { EMBEDDING_PROVIDER: "fake", NODE_ENV: "production" },
   { EMBEDDING_DIMENSIONS: 0 },
   { EMBEDDING_BATCH_SIZE: 33 },

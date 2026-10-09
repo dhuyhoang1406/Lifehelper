@@ -20,6 +20,9 @@ const {
   EMBEDDING_PROVIDER,
 } = require("../dist/modules/document/application/ports/embedding-provider.port");
 const {
+  DocumentRetrievalUseCases,
+} = require("../dist/modules/document/application/use-cases/document-retrieval.use-cases");
+const {
   PrismaDocumentVectorIndex,
 } = require("../dist/persistence/document-vector-index");
 const {
@@ -178,7 +181,43 @@ async function main() {
         top1Cosine: 1 - matches[0].distance,
       });
     }
+    const retrieval = app.get(DocumentRetrievalUseCases);
+    const retrievalCases = [];
+    for (const q of [...fixtures.queries, ...fixtures.factualQueries]) {
+      const response = await retrieval.search(user, { query: q.text, topK: 3 });
+      const hit = response.items[0];
+      if (map.get(hit?.documentId) !== q.expected)
+        throw new Error("Retrieval relevance regression");
+      const chunk = await retrieval.chunk(
+        user,
+        hit.documentId,
+        hit.chunkId,
+        hit.generation,
+      );
+      if (
+        !chunk.content.startsWith(hit.excerpt) ||
+        chunk.locator.start !== hit.locator.start ||
+        chunk.locator.end !== hit.locator.end
+      )
+        throw new Error("Source locator mismatch");
+      retrievalCases.push({ expected: q.expected, similarity: hit.similarity });
+    }
+    for (const query of fixtures.unknownQueries) {
+      if ((await retrieval.search(user, { query, topK: 3 })).items.length)
+        throw new Error("Unknown query must return no results");
+    }
+    if (
+      (
+        await retrieval.search(crypto.randomUUID(), {
+          query: fixtures.queries[0].text,
+          topK: 3,
+        })
+      ).items.length
+    )
+      throw new Error("User isolation failed");
     const report = {
+      retrievalCases,
+      unknownQueriesEmpty: fixtures.unknownQueries.length,
       space,
       documents: fixtures.documents.length,
       queries: cases.length,

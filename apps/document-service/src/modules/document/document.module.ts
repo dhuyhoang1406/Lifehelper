@@ -1,3 +1,7 @@
+import { DocumentRetrievalController } from "./presentation/document-retrieval.controller";
+import { DocumentRetrievalUseCases } from "./application/use-cases/document-retrieval.use-cases";
+import { PrismaDocumentVectorIndex } from "../../persistence/document-vector-index";
+import { PrismaDocumentRetrievalRepository } from "../../persistence/document-retrieval.repository";
 import {
   EMBEDDING_PROVIDER,
   type EmbeddingProvider,
@@ -53,8 +57,31 @@ import {
 import { DocumentExtractionStages } from "./application/services/document-extraction.stages";
 @Module({
   imports: [PrismaModule, JwtModule.register({})],
-  controllers: [DocumentController],
+  controllers: [DocumentController, DocumentRetrievalController],
   providers: [
+    {
+      provide: DocumentRetrievalUseCases,
+      useFactory: (
+        db: PrismaService,
+        provider: EmbeddingProvider,
+        c: ConfigService,
+      ) =>
+        new DocumentRetrievalUseCases(
+          new PrismaDocumentRetrievalRepository(db),
+          new PrismaDocumentVectorIndex(db),
+          provider,
+          {
+            space: {
+              model: c.getOrThrow("EMBEDDING_MODEL"),
+              version: c.getOrThrow("EMBEDDING_MODEL_VERSION"),
+              dimensions: c.getOrThrow("EMBEDDING_DIMENSIONS"),
+            },
+            timeoutMs: c.getOrThrow("DOCUMENT_RETRIEVAL_TIMEOUT_MS"),
+            minSimilarity: c.getOrThrow("DOCUMENT_RETRIEVAL_MIN_SIMILARITY"),
+          },
+        ),
+      inject: [PrismaService, EMBEDDING_PROVIDER, ConfigService],
+    },
     {
       provide: DOCUMENT_TEXT_EXTRACTOR,
       useFactory: (c: ConfigService) =>
