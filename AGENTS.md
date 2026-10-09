@@ -43,6 +43,9 @@ Flutter client, and small shared technical packages.
 - TypeScript changes should pass lint, type checking, relevant unit tests, Prisma
   validation/generation where applicable, build, and relevant integration tests.
 - Flutter changes should pass `flutter analyze` and `flutter test`.
+- Temporary test databases created during verification must be dropped in cleanup/finally
+  after both successful and failed runs. Never leave test databases behind or drop
+  application databases or pre-existing databases without explicit authorization.
 - CI runs automatically on pushes to pull request branches; the AI review is informational and does not gate merging.
 
 ## Implementation conventions
