@@ -1,0 +1,70 @@
+{
+  "documents": [
+    {
+      "id": "exam",
+      "text": "Sinh viên được dự thi cuối kỳ khi tham dự ít nhất 80% số buổi học và nộp đầy đủ bài tập."
+    },
+    {
+      "id": "leave",
+      "text": "Nhân viên có 12 ngày phép năm. Đơn xin nghỉ cần gửi quản lý trước ba ngày làm việc."
+    },
+    {
+      "id": "refund",
+      "text": "Khách hàng có thể trả hàng trong vòng 30 ngày nếu sản phẩm còn nguyên tem. Tiền hoàn về phương thức thanh toán ban đầu."
+    },
+    {
+      "id": "backup",
+      "text": "Dữ liệu hệ thống được sao lưu vào 02 giờ sáng mỗi ngày. Bản sao được giữ trong 14 ngày."
+    },
+    {
+      "id": "library",
+      "text": "Thư viện mở cửa từ 8 giờ đến 20 giờ các ngày trong tuần. Mỗi sinh viên được mượn tối đa năm cuốn sách."
+    },
+    {
+      "id": "travel",
+      "text": "Chi phí công tác được thanh toán khi có hóa đơn hợp lệ. Nhân viên nộp đề nghị thanh toán trong bảy ngày sau chuyến đi."
+    },
+    {
+      "id": "account",
+      "text": "Nếu quên mật khẩu, người dùng chọn khôi phục tài khoản. Liên kết đặt lại mật khẩu gửi đến email đã đăng ký."
+    },
+    {
+      "id": "delivery",
+      "text": "Đơn hàng nội thành giao trong hai ngày làm việc. Đơn ngoại tỉnh mất ba đến năm ngày, không tính cuối tuần."
+    }
+  ],
+  "queries": [
+    {
+      "text": "Muốn được thi học phần thì phải đáp ứng yêu cầu nào?",
+      "expected": "exam"
+    },
+    {
+      "text": "Tôi muốn nghỉ làm vài hôm thì báo trước bao lâu?",
+      "expected": "leave"
+    },
+    {
+      "text": "Mua hàng không phù hợp, có thể lấy lại tiền trong thời hạn nào?",
+      "expected": "refund"
+    },
+    {
+      "text": "Bản dự phòng cơ sở dữ liệu được tạo lúc nào và lưu bao lâu?",
+      "expected": "backup"
+    },
+    {
+      "text": "Tôi có thể đến đọc và mượn sách vào giờ nào?",
+      "expected": "library"
+    },
+    {
+      "text": "Đi làm xa về thì cần giấy tờ gì để công ty trả tiền?",
+      "expected": "travel"
+    },
+    {
+      "text": "Không nhớ thông tin đăng nhập thì làm sao đổi mật khẩu?",
+      "expected": "account"
+    },
+    {
+      "text": "Gửi hàng về một tỉnh khác thì mấy ngày mới nhận được?",
+      "expected": "delivery"
+    }
+  ]
+}
