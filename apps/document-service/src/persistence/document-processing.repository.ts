@@ -22,12 +22,14 @@ import {
   type ProcessingFailureCode,
   type ProcessingRetryPolicy,
 } from "../modules/document/domain/processing-policy";
+import { DocumentChunkMapper } from "./document.persistence";
 import { documentEvent } from "./document-outbox";
 export interface ProcessingPersistenceLimits extends ProcessingRetryPolicy {
   leaseMs: number;
   maxChunks: number;
   maxTextChars: number;
   maxVectorValues: number;
+  embeddingSpace?: { model: string; version: string; dimensions: number };
 }
 class LostProcessingLease extends Error {}
 async function dbNow(tx: Prisma.TransactionClient) {
@@ -104,7 +106,7 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
           where: {
             documentId: d.id,
             generation: j.generation,
-            status: "PROCESSING",
+            status: { in: ["PROCESSING", "EXTRACTED"] },
           },
           data: { status: "FAILED" },
         });
@@ -294,12 +296,96 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
         )
       )
         throw new Error();
-      return { chunks, embeddings };
-    } catch {
+      const expected = this.limits.embeddingSpace;
+      if (
+        expected &&
+        embeddings.some(
+          (e) =>
+            e.embeddingModel !== expected.model ||
+            e.modelVersion !== expected.version ||
+            e.dimensions !== expected.dimensions,
+        )
+      )
+        throw new DocumentProcessingFailure(
+          "DOCUMENT_EMBEDDING_MODEL_MISMATCH",
+        );
+      const supplied = result.embeddingSettings;
+      if (
+        supplied &&
+        (!Number.isSafeInteger(supplied.batchSize) ||
+          supplied.batchSize < 1 ||
+          supplied.batchSize > 32 ||
+          !Number.isSafeInteger(supplied.maxInputTokens) ||
+          supplied.maxInputTokens < 4 ||
+          supplied.maxInputTokens > 8192 ||
+          supplied.inputPolicy !== "plain-text-v1" ||
+          supplied.tokenEstimator !== "utf8-byte-upper-bound-v1")
+      )
+        throw new Error();
+      const embeddingSettings = supplied
+        ? {
+            batchSize: supplied.batchSize,
+            maxInputTokens: supplied.maxInputTokens,
+            inputPolicy: supplied.inputPolicy,
+            tokenEstimator: supplied.tokenEstimator,
+          }
+        : {
+            inputPolicy: "legacy",
+            batchSize: 1,
+            maxInputTokens: 0,
+            tokenEstimator: "legacy",
+          };
+      return { chunks, embeddings, embeddingSettings };
+    } catch (error) {
+      if (error instanceof DocumentProcessingFailure) throw error;
       throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_RESULT_INVALID");
     }
   }
-  async stageExtraction(lease: ProcessingLease, result: PreparedExtraction) {
+  async loadExtraction(
+    lease: ProcessingLease,
+  ): Promise<PreparedExtraction | null> {
+    return this.db.$transaction(async (tx) => {
+      const current = await this.currentLease(tx, lease);
+      if (!current)
+        throw new DocumentProcessingFailure("DOCUMENT_WORKER_LEASE_EXPIRED");
+      const generation = await tx.documentGeneration.findUniqueOrThrow({
+        where: {
+          documentId_generation: {
+            documentId: lease.documentId,
+            generation: lease.generation,
+          },
+        },
+      });
+      if (generation.status !== "EXTRACTED") return null;
+      if (
+        generation.sourceChecksumSha256 !== current.d.checksumSha256 ||
+        generation.sourceVersionId !== current.d.storageVersionId
+      )
+        throw new DocumentProcessingFailure("DOCUMENT_SOURCE_MISMATCH");
+      const records = await tx.documentChunk.findMany({
+        where: { documentId: lease.documentId, generation: lease.generation },
+        orderBy: { chunkIndex: "asc" },
+      });
+      const chunks = records.map(DocumentChunkMapper.toDomain);
+      this.preparedChunks(lease, chunks);
+      if (chunks.length !== generation.chunkCount)
+        throw new DocumentProcessingFailure(
+          "DOCUMENT_PROCESSING_RESULT_INVALID",
+        );
+      return {
+        kind: "extracted",
+        chunks,
+        processingVersion: generation.processingVersion!,
+        sourceChecksumSha256: generation.sourceChecksumSha256!,
+        sourceVersionId: generation.sourceVersionId!,
+      };
+    });
+  }
+  async stageExtraction(
+    lease: ProcessingLease,
+    result: PreparedExtraction,
+    continueIndexing = false,
+  ) {
     const chunks = this.preparedChunks(lease, result.chunks);
     if (
       result.kind !== "extracted" ||
@@ -365,7 +451,8 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
         await tx.documentProcessingJob.update({
           where: { id: lease.id },
           data: {
-            status: "SUCCEEDED",
+            status: continueIndexing ? "PENDING" : "SUCCEEDED",
+            ...(continueIndexing ? { attemptCount: 0, nextAttemptAt: at } : {}),
             leaseOwner: null,
             leaseExpiresAt: null,
             errorCode: null,
@@ -401,22 +488,62 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
         const current = await this.currentLease(tx, lease);
         if (!current) return false;
         const { at } = current;
-        // Only the current fenced worker can publish prepared results, in this same transaction.
-        for (const c of prepared.chunks) {
-          await tx.documentChunk.create({
-            data: {
-              id: c.id,
-              documentId: c.documentId,
-              generation: c.generation,
-              chunkIndex: c.chunkIndex,
-              content: c.content,
-              tokenCount: c.tokenCount,
-              locatorKind: c.locator!.kind,
-              locatorStart: c.locator!.start,
-              locatorEnd: c.locator!.end,
-              createdAt: at,
+        const generation = await tx.documentGeneration.findUniqueOrThrow({
+          where: {
+            documentId_generation: {
+              documentId: lease.documentId,
+              generation: lease.generation,
             },
+          },
+        });
+        if (this.limits.embeddingSpace && generation.status !== "EXTRACTED")
+          throw new DocumentProcessingFailure(
+            "DOCUMENT_PROCESSING_RESULT_INVALID",
+          );
+        if (generation.status === "EXTRACTED") {
+          const stored = await tx.documentChunk.findMany({
+            where: {
+              documentId: lease.documentId,
+              generation: lease.generation,
+            },
+            orderBy: { chunkIndex: "asc" },
           });
+          if (
+            stored.length !== prepared.chunks.length ||
+            generation.chunkCount !== stored.length ||
+            generation.sourceChecksumSha256 !== current.d.checksumSha256 ||
+            generation.sourceVersionId !== current.d.storageVersionId ||
+            stored.some(
+              (c, i) =>
+                c.id !== prepared.chunks[i].id ||
+                c.content !== prepared.chunks[i].content ||
+                c.chunkIndex !== prepared.chunks[i].chunkIndex ||
+                c.tokenCount !== prepared.chunks[i].tokenCount ||
+                c.locatorKind !== prepared.chunks[i].locator!.kind ||
+                c.locatorStart !== prepared.chunks[i].locator!.start ||
+                c.locatorEnd !== prepared.chunks[i].locator!.end,
+            )
+          )
+            throw new DocumentProcessingFailure(
+              "DOCUMENT_PROCESSING_RESULT_INVALID",
+            );
+        } else {
+          for (const c of prepared.chunks) {
+            await tx.documentChunk.create({
+              data: {
+                id: c.id,
+                documentId: c.documentId,
+                generation: c.generation,
+                chunkIndex: c.chunkIndex,
+                content: c.content,
+                tokenCount: c.tokenCount,
+                locatorKind: c.locator!.kind,
+                locatorStart: c.locator!.start,
+                locatorEnd: c.locator!.end,
+                createdAt: at,
+              },
+            });
+          }
         }
         for (const e of prepared.embeddings) {
           const vector = `[${e.embedding.join(",")}]`;
@@ -437,6 +564,10 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
             status: "COMPLETE",
             chunkCount: prepared.chunks.length,
             completedAt: at,
+            embeddingModel: prepared.embeddings[0].embeddingModel,
+            embeddingVersion: prepared.embeddings[0].modelVersion,
+            embeddingDimensions: prepared.embeddings[0].dimensions,
+            embeddingSettings: prepared.embeddingSettings,
           },
         });
         await tx.document.update({

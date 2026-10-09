@@ -178,9 +178,23 @@ export class PrismaDocumentRepository implements DocumentRepository {
         count.maximum !== count.count - 1
       )
         return false;
+      const spaces = await tx.documentEmbedding.findMany({
+        where: { chunk: { documentId: id, generation } },
+        select: { embeddingModel: true, modelVersion: true, dimensions: true },
+        distinct: ["embeddingModel", "modelVersion", "dimensions"],
+      });
+      if (spaces.length !== 1) return false;
       const changed = await tx.documentGeneration.updateMany({
         where: { documentId: id, generation, status: "PROCESSING" },
-        data: { status: "COMPLETE", chunkCount: count.count, completedAt: at },
+        data: {
+          status: "COMPLETE",
+          chunkCount: count.count,
+          completedAt: at,
+          embeddingModel: spaces[0].embeddingModel,
+          embeddingVersion: spaces[0].modelVersion,
+          embeddingDimensions: spaces[0].dimensions,
+          embeddingSettings: { inputPolicy: "legacy" },
+        },
       });
       if (!changed.count) return false;
       await tx.document.update({
