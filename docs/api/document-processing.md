@@ -1,10 +1,10 @@
-# Durable Document processing — Phase 5 Branches 3–4
+# Durable Document processing — Phase 5 Branches 3–5
 
 Document Service uses persistent PostgreSQL jobs and its own transactional outbox.
-No BullMQ, SQS deployment or paid provider is required. Branch 4 now uses real bounded
-extraction/chunking and stages EXTRACTED generations; embedding arrives in Branch 5.
-The document remains PROCESSING until embeddings can activate READY. See the
-[extraction runbook](document-extraction.md).
+No BullMQ, SQS deployment or paid provider is required. Branch 4 uses real bounded
+extraction/chunking and stages EXTRACTED generations. Branch 5 queues local embeddings
+from those stored chunks and activates READY only after complete indexing. See the
+[extraction runbook](document-extraction.md) and [embedding runbook](document-embeddings.md).
 
 ## Lifecycle and fencing
 
@@ -71,7 +71,7 @@ Use the root Compose `.env` or service `.env`, retaining Branch 2's JWT/storage 
 | `DOCUMENT_PROCESSING_RETRY_MAX_MS`      | 30000   | at least base; at most 300000                          |
 | `DOCUMENT_PROCESSING_MAX_CHUNKS`        | 1000    | 1–2000 prepared chunks                                 |
 | `DOCUMENT_PROCESSING_MAX_TEXT_CHARS`    | 1000000 | 1–5000000 prepared UTF-16 code units                   |
-| `DOCUMENT_PROCESSING_MAX_VECTOR_VALUES` | 1000000 | 1–4000000 total prepared vector values                 |
+| `DOCUMENT_PROCESSING_MAX_VECTOR_VALUES` | 1048576 | 1–4000000 total prepared vector values                 |
 
 Retry delays grow exponentially to their cap, with jitter between half and the full
 delay. Source reads retain file/deadline/concurrency limits. Shutdown stops polling,
@@ -153,3 +153,5 @@ an informational PR workflow; no local reviewer was configured.
 Deferred: embeddings/model selection/index, retrieval/RAG,
 Branch 8 cleanup/reprocessing/audit, external event relay, OCR, delivery, analytics,
 Flutter screens and production deployment. No review report file is created.
+
+Branch 5 splits one generation into durable extraction/indexing phases. Each phase has a bounded attempt budget; indexing retries reuse staged chunks. See [embedding processing and recovery](document-embeddings.md).

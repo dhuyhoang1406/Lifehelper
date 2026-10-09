@@ -111,9 +111,12 @@ to localhost, and local tests verify private bucket configuration and API owners
 Anonymous-denial verification requires an S3 environment that enforces access rules.
 Processing jobs and lifecycle outbox events now persist atomically; the
 [processing worker runbook](docs/api/document-processing.md) explains leases, crash
-recovery, bounded retry and the owner-authorized retry API. Extraction/embedding stages
-arrive in Branches 4–5; until then the worker reports a controlled unavailable-stage
-failure and never claims a placeholder generation READY. Cleanup arrives in Branch 8.
+recovery, bounded retry and the owner-authorized retry API. Supported TXT/Markdown/PDF
+files are extracted into staged chunks and embedded by local BGE-M3. READY requires a
+complete active embedding generation. See [extraction and chunking](docs/api/document-extraction.md),
+[embedding setup, migration and tests](docs/api/document-embeddings.md), and
+[model selection ADR](docs/architecture/adr/001-document-embedding-space.md).
+Retrieval HTTP APIs and AI document tools follow in Branches 6–7; cleanup arrives in Branch 8.
 
 ## Flutter
 
@@ -145,5 +148,3 @@ The repository administrator must configure the following outside this repositor
    check.
 
 Backend source organization and dependency rules: [service layout](docs/architecture/service-layout.md). Run `pnpm architecture:check` and `pnpm architecture:test` before changing service structure.
-
-Document Branch 4 implements real TXT/Markdown/PDF extraction and stages reproducible chunks without embeddings or READY activation. See [extraction and chunking](docs/api/document-extraction.md) for limits, migration, expected states and testing.
