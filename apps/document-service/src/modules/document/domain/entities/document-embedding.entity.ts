@@ -26,7 +26,10 @@ export class DocumentEmbedding {
     if (
       !input.embeddingModel.trim() ||
       input.embedding.length === 0 ||
-      input.embedding.some((v) => !Number.isFinite(v))
+      input.embedding.some(
+        (v) => !Number.isFinite(v) || !Number.isFinite(Math.fround(v)),
+      ) ||
+      !input.embedding.some((v) => Math.fround(v) !== 0)
     )
       throw new DocumentDomainError(
         "Embedding model and finite vector are required",
