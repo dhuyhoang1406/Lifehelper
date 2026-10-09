@@ -1,17 +1,11 @@
 import { performance } from "node:perf_hooks";
 import { DocumentExtractionStages } from "./document-extraction.stages";
-jest.mock("node:perf_hooks", () => {
-  const actual = jest.requireActual("node:perf_hooks");
-  return { performance: { now: jest.fn(() => actual.performance.now()) } };
-});
-afterEach(() =>
-  jest
-    .mocked(performance.now)
-    .mockReset()
-    .mockImplementation(() =>
-      jest.requireActual("node:perf_hooks").performance.now(),
-    ),
-);
+// Unit-test job time is explicit, so CI contention cannot consume the 20 ms fixture budget.
+// Abort timers remain real for the noncooperative-stage timeout test.
+jest.mock("node:perf_hooks", () => ({
+  performance: { now: jest.fn(() => 0) },
+}));
+afterEach(() => jest.mocked(performance.now).mockReset().mockReturnValue(0));
 import { createHash } from "node:crypto";
 import { DocumentJobProcessor } from "./document-job-processor";
 import type {
@@ -171,6 +165,7 @@ it("routes extraction-only results to staging without publishing READY", async (
   await f.processor.run(lease, new AbortController().signal);
   expect(f.jobs.stageExtraction).toHaveBeenCalledWith(lease, extraction);
   expect(f.jobs.publish).not.toHaveBeenCalled();
+  expect(f.jobs.fail).not.toHaveBeenCalled();
 });
 
 it("uses the remaining job deadline during synchronous chunking after extraction", async () => {
