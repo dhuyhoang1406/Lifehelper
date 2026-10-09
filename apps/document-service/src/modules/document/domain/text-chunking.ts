@@ -61,7 +61,9 @@ export function chunkText(
       const value = match[0];
       let fragment = "",
         tokens = 0;
+      let visited = 0;
       for (const char of value) {
+        if (visited++ % 256 === 0) checkpoint();
         const weight = estimateTokens(char);
         if (tokens + weight > limits.targetTokens) {
           pieces.push({

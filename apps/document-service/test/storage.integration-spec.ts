@@ -294,7 +294,12 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
       64,
       5000,
     ).run(lease, new AbortController().signal);
-    expect(prepare).toHaveBeenCalledWith(lease, body, expect.any(AbortSignal));
+    expect(prepare).toHaveBeenCalledWith(
+      lease,
+      body,
+      expect.any(AbortSignal),
+      expect.any(Function),
+    );
     expect(
       (await db.document.findUniqueOrThrow({ where: { id: p.document.id } }))
         .processingError,
@@ -407,11 +412,11 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
         timeoutMs: 4000,
         memoryMb: 128,
       });
-      const stages = new DocumentExtractionStages(
-        extractor,
-        { targetTokens: 32, overlapTokens: 0, maxChunks: 100 },
-        5000,
-      );
+      const stages = new DocumentExtractionStages(extractor, {
+        targetTokens: 32,
+        overlapTokens: 0,
+        maxChunks: 100,
+      });
       await new DocumentJobProcessor(
         jobs,
         app.get(DOCUMENT_STORAGE),

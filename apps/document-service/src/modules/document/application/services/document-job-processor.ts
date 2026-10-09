@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import type {
   DocumentProcessingRepository,
   DocumentProcessingStages,
@@ -20,8 +21,13 @@ export class DocumentJobProcessor {
     lease: ProcessingLease,
     shutdownSignal: AbortSignal,
   ): Promise<void> {
+    const deadline = performance.now() + this.timeoutMs;
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, shutdownSignal]);
+    const checkpoint = () => {
+      if (signal.aborted || performance.now() >= deadline)
+        throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_TIMEOUT");
+    };
     let timer: ReturnType<typeof setTimeout> | undefined;
     let abortListener: (() => void) | undefined;
     const processing = (async () => {
@@ -40,9 +46,15 @@ export class DocumentJobProcessor {
         source.mimeType !== lease.source.mimeType
       )
         throw new DocumentProcessingFailure("DOCUMENT_SOURCE_MISMATCH");
-      if (signal.aborted)
-        throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_TIMEOUT");
-      return this.stages.prepare(lease, source.bytes, signal);
+      checkpoint();
+      const result = await this.stages.prepare(
+        lease,
+        source.bytes,
+        signal,
+        checkpoint,
+      );
+      checkpoint();
+      return result;
     })();
     const aborted = new Promise<never>((_, reject) => {
       abortListener = () =>
@@ -53,6 +65,7 @@ export class DocumentJobProcessor {
     });
     try {
       const result = await Promise.race([processing, aborted]);
+      checkpoint();
       if ("kind" in result) await this.jobs.stageExtraction(lease, result);
       else await this.jobs.publish(lease, result);
     } catch (error) {

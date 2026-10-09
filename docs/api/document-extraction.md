@@ -139,3 +139,8 @@ cleanup/reprocessing, Voice/Vision, notification delivery and analytics. No paid
 new review report file or fabricated extraction is introduced.
 
 Parser reference: [PDF.js API](https://github.com/mozilla/pdf.js/blob/master/src/display/api.js).
+
+The processing timeout uses one monotonic deadline starting before the storage read.
+Extraction and chunking share the remaining job budget; chunking checks the deadline
+inside long text runs, and late stage results are rejected before persistence.
+The parser also retains its separate, shorter parser timeout.

@@ -1,3 +1,17 @@
+import { performance } from "node:perf_hooks";
+import { DocumentExtractionStages } from "./document-extraction.stages";
+jest.mock("node:perf_hooks", () => {
+  const actual = jest.requireActual("node:perf_hooks");
+  return { performance: { now: jest.fn(() => actual.performance.now()) } };
+});
+afterEach(() =>
+  jest
+    .mocked(performance.now)
+    .mockReset()
+    .mockImplementation(() =>
+      jest.requireActual("node:perf_hooks").performance.now(),
+    ),
+);
 import { createHash } from "node:crypto";
 import { DocumentJobProcessor } from "./document-job-processor";
 import type {
@@ -68,6 +82,7 @@ it("reads the committed version and delegates prepared output to the fenced publ
     lease,
     bytes,
     expect.any(AbortSignal),
+    expect.any(Function),
   );
   expect(f.jobs.publish).toHaveBeenCalledWith(lease, {
     chunks: [],
@@ -156,4 +171,48 @@ it("routes extraction-only results to staging without publishing READY", async (
   await f.processor.run(lease, new AbortController().signal);
   expect(f.jobs.stageExtraction).toHaveBeenCalledWith(lease, extraction);
   expect(f.jobs.publish).not.toHaveBeenCalled();
+});
+
+it("uses the remaining job deadline during synchronous chunking after extraction", async () => {
+  const f = fixture();
+  let elapsed = 0;
+  jest.mocked(performance.now).mockImplementation(() => elapsed++);
+  const stages = new DocumentExtractionStages(
+    {
+      extract: async () => {
+        elapsed = 18;
+        return {
+          units: [{ text: "Xin chào Việt Nam!", source: 1 }],
+          locatorKind: "LINE",
+        };
+      },
+    },
+    { targetTokens: 32, overlapTokens: 0, maxChunks: 10 },
+  );
+  await new DocumentJobProcessor(f.jobs, f.storage, stages, 64, 20).run(
+    lease,
+    new AbortController().signal,
+  );
+  expect(f.jobs.fail).toHaveBeenCalledWith(
+    lease,
+    "DOCUMENT_PROCESSING_TIMEOUT",
+  );
+  expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
+  expect(f.jobs.publish).not.toHaveBeenCalled();
+});
+it("rejects synchronous late results even before the abort timer can execute", async () => {
+  const f = fixture();
+  let elapsed = 0;
+  jest.mocked(performance.now).mockImplementation(() => elapsed);
+  f.stages.prepare.mockImplementation(async () => {
+    elapsed = 21;
+    return { chunks: [], embeddings: [] };
+  });
+  await f.processor.run(lease, new AbortController().signal);
+  expect(f.jobs.fail).toHaveBeenCalledWith(
+    lease,
+    "DOCUMENT_PROCESSING_TIMEOUT",
+  );
+  expect(f.jobs.publish).not.toHaveBeenCalled();
+  expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
 });

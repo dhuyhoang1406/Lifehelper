@@ -83,15 +83,11 @@ import { DocumentExtractionStages } from "./application/services/document-extrac
     {
       provide: DOCUMENT_PROCESSING_STAGES,
       useFactory: (extractor: DocumentTextExtractor, c: ConfigService) =>
-        new DocumentExtractionStages(
-          extractor,
-          {
-            targetTokens: c.getOrThrow("DOCUMENT_CHUNK_TARGET_TOKENS"),
-            overlapTokens: c.getOrThrow("DOCUMENT_CHUNK_OVERLAP_TOKENS"),
-            maxChunks: c.getOrThrow("DOCUMENT_PROCESSING_MAX_CHUNKS"),
-          },
-          c.getOrThrow("DOCUMENT_PROCESSING_TIMEOUT_MS"),
-        ),
+        new DocumentExtractionStages(extractor, {
+          targetTokens: c.getOrThrow("DOCUMENT_CHUNK_TARGET_TOKENS"),
+          overlapTokens: c.getOrThrow("DOCUMENT_CHUNK_OVERLAP_TOKENS"),
+          maxChunks: c.getOrThrow("DOCUMENT_PROCESSING_MAX_CHUNKS"),
+        }),
       inject: [DOCUMENT_TEXT_EXTRACTOR, ConfigService],
     },
     {

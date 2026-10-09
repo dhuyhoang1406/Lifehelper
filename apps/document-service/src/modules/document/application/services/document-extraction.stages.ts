@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { performance } from "node:perf_hooks";
 import type {
   DocumentProcessingStages,
   PreparedExtraction,
@@ -12,34 +11,31 @@ import {
   type ChunkingLimits,
 } from "../../domain/text-chunking";
 import { DocumentChunk } from "../../domain/entities/document-chunk.entity";
-import { DocumentProcessingFailure } from "../../domain/processing-policy";
 export const EXTRACTION_VERSION = `extraction-v1/${TOKEN_ESTIMATOR_VERSION}`;
 export class DocumentExtractionStages implements DocumentProcessingStages {
   readonly available = true;
   constructor(
     private readonly extractor: DocumentTextExtractor,
     private readonly limits: ChunkingLimits,
-    private readonly timeoutMs: number,
   ) {}
   async prepare(
     lease: ProcessingLease,
     bytes: Uint8Array,
     signal: AbortSignal,
+    checkpoint: () => void,
   ): Promise<PreparedExtraction> {
+    checkpoint();
     const extracted = await this.extractor.extract(
       bytes,
       lease.source.mimeType,
       signal,
     );
-    const started = performance.now();
+    checkpoint();
     const chunks = chunkText(
       extracted.units,
       extracted.locatorKind,
       this.limits,
-      () => {
-        if (signal.aborted || performance.now() - started >= this.timeoutMs)
-          throw new DocumentProcessingFailure("DOCUMENT_PROCESSING_TIMEOUT");
-      },
+      checkpoint,
     ).map((chunk, index) =>
       DocumentChunk.create({
         id: randomUUID(),
@@ -49,6 +45,7 @@ export class DocumentExtractionStages implements DocumentProcessingStages {
         ...chunk,
       }),
     );
+    checkpoint();
     return {
       kind: "extracted",
       chunks,

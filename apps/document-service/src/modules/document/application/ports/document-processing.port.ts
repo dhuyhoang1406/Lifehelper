@@ -37,6 +37,7 @@ export interface DocumentProcessingStages {
     lease: ProcessingLease,
     bytes: Uint8Array,
     signal: AbortSignal,
+    checkpoint: () => void,
   ): Promise<PreparedGeneration | PreparedExtraction>;
 }
 export interface DocumentProcessingRepository {
