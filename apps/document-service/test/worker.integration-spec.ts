@@ -1,3 +1,12 @@
+import { Test } from "@nestjs/testing";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { JwtModule, JwtService } from "@nestjs/jwt";
+import request from "supertest";
+import { DocumentRetrievalController } from "../src/modules/document/presentation/document-retrieval.controller";
+import { DocumentRetrievalUseCases } from "../src/modules/document/application/use-cases/document-retrieval.use-cases";
+import { PrismaDocumentRetrievalRepository } from "../src/persistence/document-retrieval.repository";
+import { JwtAuthGuard } from "../src/auth/jwt-auth.guard";
 import { PrismaDocumentVectorIndex } from "../src/persistence/document-vector-index";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../src/prisma.service";
@@ -345,6 +354,195 @@ describe("Durable fenced processing on real PostgreSQL", () => {
     });
     await uploads.deleteAndScheduleCleanup(d.id, userId, new Date());
     expect(await index.search(query)).toEqual([]);
+  });
+  it("serves authenticated retrieval HTTP with SQL ownership, stable sources, bounds and safe 404s", async () => {
+    const { lease, output } = await stagedForIndexing();
+    expect(await jobs.publish(lease, output)).toBe(true);
+    const space = { model: "test-fixture", version: "test-v1", dimensions: 2 };
+    const provider = {
+      embed: jest
+        .fn()
+        .mockResolvedValue({ space, items: [{ id: "query", vector: [1, 0] }] }),
+    };
+    const index = new PrismaDocumentVectorIndex(db);
+    const retrieval = new DocumentRetrievalUseCases(
+      new PrismaDocumentRetrievalRepository(db),
+      index,
+      provider,
+      { space, timeoutMs: 1000, minSimilarity: 0.55 },
+    );
+    const secret = "retrieval-integration-test-secret-32chars";
+    const config = {
+      JWT_ACCESS_SECRET: secret,
+      JWT_ISSUER: "test-identity",
+      JWT_AUDIENCE: "test-client",
+    };
+    const ref = await Test.createTestingModule({
+      imports: [JwtModule.register({})],
+      controllers: [DocumentRetrievalController],
+      providers: [
+        JwtAuthGuard,
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: (key: keyof typeof config) => config[key] },
+        },
+        { provide: DocumentRetrievalUseCases, useValue: retrieval },
+      ],
+    }).compile();
+    const app = ref.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+    const jwt = ref.get(JwtService);
+    const token = (sub: string) =>
+      jwt.sign(
+        { sub, sessionId: "session", tokenType: "access" },
+        {
+          secret,
+          issuer: config.JWT_ISSUER,
+          audience: config.JWT_AUDIENCE,
+          expiresIn: "5m",
+        },
+      );
+    const owner = token(userId),
+      stranger = token(randomUUID());
+    const search = (auth: string, body: object) =>
+      request(app.getHttpServer())
+        .post("/internal/documents/search")
+        .set("Authorization", "Bearer " + auth)
+        .send(body);
+    const path = `/internal/documents/${lease.documentId}/chunks`;
+    try {
+      await request(app.getHttpServer())
+        .post("/internal/documents/search")
+        .send({ query: "hello" })
+        .expect(401);
+      await request(app.getHttpServer())
+        .get(path)
+        .set("x-user-id", userId)
+        .expect(401);
+      await search(owner, { query: "   " }).expect(400);
+      await search(owner, { query: "hello", topK: 21 }).expect(400);
+      await search(owner, { query: "hello", vector: [1, 0] }).expect(400);
+      await search(owner, { query: "hello", documentIds: null }).expect(400);
+      const found = await search(owner, {
+        query: "hello",
+        documentIds: [lease.documentId],
+      }).expect(200);
+      expect(found.body.items).toHaveLength(1);
+      expect(found.body.items[0]).toMatchObject({
+        documentId: lease.documentId,
+        generation: 1,
+        filename: "notes.txt",
+        excerpt: "hello!",
+        similarity: 1,
+        locator: { kind: "LINE", start: 1, end: 1 },
+      });
+      expect(JSON.stringify(found.body)).not.toMatch(
+        /s3Key|storageVersion|signedUrl/,
+      );
+      expect(
+        (await search(stranger, { query: "hello" }).expect(200)).body,
+      ).toEqual({ items: [] });
+      const foreign = await search(stranger, {
+        query: "hello",
+        documentIds: [lease.documentId],
+      }).expect(404);
+      const missing = await search(owner, {
+        query: "hello",
+        documentIds: [randomUUID()],
+      }).expect(404);
+      expect(foreign.body).toEqual(missing.body);
+      const get = (url: string, auth = owner) =>
+        request(app.getHttpServer())
+          .get(url)
+          .set("Authorization", "Bearer " + auth);
+      const page = await get(path + "?limit=1").expect(200);
+      expect(page.body.next).toEqual({ generation: 1, after: 0 });
+      const next = await get(path + "?limit=1&generation=1&after=0").expect(
+        200,
+      );
+      expect(next.body.items[0].content).toBe("second paragraph");
+      expect(next.body.next).toBeNull();
+      await get(path + "?after=0").expect(400);
+      await get(path + "?generation=2").expect(404);
+      await get(path, stranger).expect(404);
+      const chunk = output.chunks[0].state.id;
+      await get(path + "/" + chunk).expect(200);
+      await get(path + "/" + chunk, stranger).expect(404);
+      await get(path + "/" + randomUUID()).expect(404);
+      const query = { userId, space, vector: [1, 0], topK: 2 };
+      expect(await index.search({ ...query, documentIds: [] })).toEqual([]);
+      expect(
+        await index.search({ ...query, documentIds: [randomUUID()] }),
+      ).toEqual([]);
+      await db.document.update({
+        where: { id: lease.documentId },
+        data: { status: "PROCESSING", processingGeneration: 2 },
+      });
+      expect(await index.search(query)).toEqual([]);
+      await get(path).expect(404);
+      // Simulate a completed reindex while retaining the old generation and its vectors.
+      await db.documentGeneration.create({
+        data: {
+          documentId: lease.documentId,
+          generation: 2,
+          status: "COMPLETE",
+          chunkCount: 1,
+          createdAt: new Date(),
+          completedAt: new Date(),
+          embeddingModel: space.model,
+          embeddingVersion: space.version,
+          embeddingDimensions: 2,
+          embeddingSettings: output.embeddingSettings,
+        },
+      });
+      const replacement = randomUUID();
+      await db.documentChunk.create({
+        data: {
+          id: replacement,
+          documentId: lease.documentId,
+          generation: 2,
+          chunkIndex: 0,
+          content: "replacement",
+          tokenCount: 3,
+          locatorKind: "LINE",
+          locatorStart: 1,
+          locatorEnd: 1,
+          createdAt: new Date(),
+        },
+      });
+      await db.$executeRaw`INSERT INTO document_embeddings(id,chunk_id,embedding_model,model_version,dimensions,embedding,created_at)
+        VALUES (${randomUUID()}::uuid,${replacement}::uuid,${space.model},${space.version},2,'[1,0]'::vector,clock_timestamp())`;
+      await db.document.update({
+        where: { id: lease.documentId },
+        data: { status: "READY", activeGeneration: 2 },
+      });
+      const active = await search(owner, { query: "hello" }).expect(200);
+      expect(active.body.items).toHaveLength(1);
+      expect(active.body.items[0]).toMatchObject({
+        generation: 2,
+        chunkId: replacement,
+      });
+      await get(path + "?generation=1&after=0").expect(404);
+      await get(path + "/" + chunk).expect(404);
+      await uploads.deleteAndScheduleCleanup(
+        lease.documentId,
+        userId,
+        new Date(),
+      );
+      expect(
+        (await search(owner, { query: "hello" }).expect(200)).body,
+      ).toEqual({ items: [] });
+      await get(path).expect(404);
+    } finally {
+      await app.close();
+    }
   });
   it("rejects partial batches, retries embeddings from the same staged chunks and emits READY once", async () => {
     const { lease, output } = await stagedForIndexing();

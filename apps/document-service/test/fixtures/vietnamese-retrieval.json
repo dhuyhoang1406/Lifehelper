@@ -66,5 +66,25 @@
       "text": "Gửi hàng về một tỉnh khác thì mấy ngày mới nhận được?",
       "expected": "delivery"
     }
+  ],
+  "factualQueries": [
+    {
+      "text": "Nhân viên có bao nhiêu ngày phép năm?",
+      "expected": "leave"
+    },
+    {
+      "text": "Bản sao lưu được giữ trong bao nhiêu ngày?",
+      "expected": "backup"
+    },
+    {
+      "text": "Sinh viên được mượn tối đa bao nhiêu cuốn sách?",
+      "expected": "library"
+    }
+  ],
+  "unknownQueries": [
+    "Công thức nấu phở bò là gì?",
+    "Ai là người đầu tiên đặt chân lên Mặt Trăng?",
+    "Tốc độ ánh sáng trong chân không là bao nhiêu?",
+    "Ngày mai Hà Nội có mưa không?"
   ]
 }
