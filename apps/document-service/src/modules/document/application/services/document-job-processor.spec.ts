@@ -35,6 +35,7 @@ const lease: ProcessingLease = {
 };
 function fixture() {
   const jobs: jest.Mocked<DocumentProcessingRepository> = {
+    loadExtraction: jest.fn().mockResolvedValue(null),
     claim: jest.fn(),
     stageExtraction: jest.fn().mockResolvedValue(true),
     publish: jest.fn().mockResolvedValue(true),
@@ -210,4 +211,27 @@ it("rejects synchronous late results even before the abort timer can execute", a
   );
   expect(f.jobs.publish).not.toHaveBeenCalled();
   expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
+});
+
+it("resumes indexing from staged chunks without rereading or extracting source bytes", async () => {
+  const f = fixture();
+  const extraction = {
+    kind: "extracted" as const,
+    chunks: [],
+    processingVersion: "v1",
+    sourceChecksumSha256: lease.source.checksumSha256,
+    sourceVersionId: lease.source.versionId,
+  };
+  f.jobs.loadExtraction.mockResolvedValue(extraction);
+  f.stages.index = jest.fn().mockResolvedValue({ chunks: [], embeddings: [] });
+  await f.processor.run(lease, new AbortController().signal);
+  expect(f.stages.index).toHaveBeenCalledWith(
+    lease,
+    extraction,
+    expect.any(AbortSignal),
+    expect.any(Function),
+  );
+  expect(f.storage.readForVerification).not.toHaveBeenCalled();
+  expect(f.stages.prepare).not.toHaveBeenCalled();
+  expect(f.jobs.publish).toHaveBeenCalledTimes(1);
 });
