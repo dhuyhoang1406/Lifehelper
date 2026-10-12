@@ -44,6 +44,7 @@ export class AIConversationController {
       body.conversationId,
       context,
       body.timezone,
+      body.documentScope,
     );
   }
 

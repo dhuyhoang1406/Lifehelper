@@ -299,7 +299,7 @@ describe("AIConversationUseCases", () => {
       );
 
       const result = await routed.chat(userA, "Hi");
-      expect(result.metadata.provider).toBe(name);
+      expect(result.metadata!.provider).toBe(name);
       expect(fake.requests[0]?.messages).toEqual([
         { role: MessageRole.USER, content: "Hi" },
       ]);
