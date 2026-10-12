@@ -44,6 +44,9 @@ export class OllamaProvider implements AIProvider {
     const payload = await this.request("api/chat", {
       model: this.config.model,
       stream: false,
+      ...(request.disableReasoning === undefined
+        ? {}
+        : { think: !request.disableReasoning }),
       messages: this.mapMessages(request),
       ...(request.tools?.length
         ? {

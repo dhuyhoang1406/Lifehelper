@@ -225,6 +225,8 @@ describe("OllamaProvider HTTP contract", () => {
     });
     const request = {
       messages: [],
+      disableReasoning: true,
+      maxOutputTokens: 64,
       responseFormat: {
         type: "json_schema" as const,
         schema: { type: "object" },
@@ -234,7 +236,11 @@ describe("OllamaProvider HTTP contract", () => {
     await expect(provider.generate(request)).resolves.toMatchObject({
       content: '{"answer":42}',
     });
-    expect(received[0].body).toMatchObject({ format: { type: "object" } });
+    expect(received[0].body).toMatchObject({
+      format: { type: "object" },
+      think: false,
+      options: { num_predict: 64 },
+    });
     handler = () => ({ body: response });
     await expect(provider.generate(request)).rejects.toMatchObject({
       kind: "invalid_response",
