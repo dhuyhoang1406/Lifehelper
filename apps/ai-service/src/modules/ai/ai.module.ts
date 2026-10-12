@@ -1,3 +1,9 @@
+import {
+  DOCUMENT_READ_CLIENT,
+  type DocumentReadClient,
+} from "./application/ports/document-read.port";
+import { DocumentHttpClient } from "./infrastructure/document/document-http.client";
+import { AIDocumentRag } from "./application/services/ai-document-rag";
 import { PrismaModule } from "../../prisma.module";
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
@@ -64,6 +70,32 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
   controllers: [AIController, AIConversationController, AIActionController],
   exports: [AI_PROVIDER_ROUTER],
   providers: [
+    {
+      provide: DOCUMENT_READ_CLIENT,
+      useFactory: (c: ConfigService) =>
+        new DocumentHttpClient(
+          c.getOrThrow("DOCUMENT_SERVICE_URL"),
+          c.getOrThrow("DOCUMENT_TIMEOUT_MS"),
+        ),
+      inject: [ConfigService],
+    },
+    {
+      provide: AIDocumentRag,
+      useFactory: (client: DocumentReadClient, c: ConfigService) =>
+        new AIDocumentRag(client, {
+          evidenceChars: c.getOrThrow("AI_RAG_EVIDENCE_CHARS"),
+          maxSources: c.getOrThrow("AI_RAG_MAX_SOURCES"),
+          maxPages: c.getOrThrow("AI_RAG_MAX_PAGES"),
+          summaryBatches: c.getOrThrow("AI_RAG_SUMMARY_BATCHES"),
+          maxCalls: c.getOrThrow("AI_RAG_MAX_CALLS"),
+          toolRounds: c.getOrThrow("AI_RAG_TOOL_ROUNDS"),
+          repairAttempts: c.getOrThrow("AI_RAG_REPAIR_ATTEMPTS"),
+          outputTokens: c.getOrThrow("AI_RAG_OUTPUT_TOKENS"),
+          batchOutputTokens: c.getOrThrow("AI_RAG_BATCH_OUTPUT_TOKENS"),
+          disableReasoning: c.getOrThrow("AI_RAG_DISABLE_REASONING"),
+        }),
+      inject: [DOCUMENT_READ_CLIENT, ConfigService],
+    },
     AIActionRecoveryWorker,
     JwtAuthGuard,
     {
@@ -166,6 +198,7 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
         tools: AIToolRegistry,
         actions: AIActionUseCases,
         outbox: AIOutboxRepository,
+        rag: AIDocumentRag,
       ) =>
         new AIConversationUseCases(
           conversations,
@@ -177,6 +210,7 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
           undefined,
           actions,
           outbox,
+          rag,
         ),
       inject: [
         CONVERSATION_REPOSITORY,
@@ -186,6 +220,7 @@ import { AIActionRecoveryWorker } from "./infrastructure/actions/ai-action-recov
         AIToolRegistry,
         AIActionUseCases,
         AI_OUTBOX_REPOSITORY,
+        AIDocumentRag,
       ],
     },
   ],
