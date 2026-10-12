@@ -1,3 +1,9 @@
+import {
+  DOCUMENT_TOOL_DEFINITIONS,
+  validateDocumentCall,
+  type DocumentToolCall,
+  type DocumentToolExecutor,
+} from "./ai-document-tools";
 import type {
   AIToolCall,
   AIToolDefinition,
@@ -151,10 +157,16 @@ export class AIToolRegistry {
   ) {}
 
   get definitions(): readonly AIToolDefinition[] {
-    return [...definitions, ...WRITE_TOOL_DEFINITIONS];
+    return [
+      ...definitions,
+      ...WRITE_TOOL_DEFINITIONS,
+      ...DOCUMENT_TOOL_DEFINITIONS,
+    ];
   }
 
-  validate(call: AIToolCall): ValidatedCall | ValidatedWriteCall {
+  validate(
+    call: AIToolCall,
+  ): ValidatedCall | ValidatedWriteCall | DocumentToolCall {
     if (
       !call ||
       typeof call.id !== "string" ||
@@ -200,6 +212,8 @@ export class AIToolRegistry {
         break;
       }
       default: {
+        const document = validateDocumentCall(call);
+        if (document) return document;
         const write = validateWriteCall(call);
         if (write) return write;
         throw invalidAIToolCall("Unknown tool name");
@@ -209,11 +223,22 @@ export class AIToolRegistry {
   }
 
   async execute(
-    call: ValidatedCall | ValidatedWriteCall,
+    call: ValidatedCall | ValidatedWriteCall | DocumentToolCall,
     context: ToolUserContext,
+    documents?: DocumentToolExecutor,
   ): Promise<AIJsonObject> {
     if ("risk" in call)
       throw invalidAIToolCall("Write tools require confirmation");
+    if (
+      call.name === "search_documents" ||
+      call.name === "summarize_document"
+    ) {
+      if (!documents)
+        throw invalidAIToolCall(
+          "Document tools require an explicit document scope",
+        );
+      return documents.execute(call);
+    }
     const args = call.arguments;
     if (call.name === "get_tasks") {
       const page = await this.productivity.listTasks(context, {
