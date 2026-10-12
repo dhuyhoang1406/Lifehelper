@@ -122,3 +122,16 @@ describe("AI environment validation", () => {
     ).toThrow("Environment validation failed");
   });
 });
+
+it.each([
+  { DOCUMENT_SERVICE_URL: "http://user:secret@localhost:3004" },
+  { DOCUMENT_SERVICE_URL: "http://localhost:3004/path" },
+  { AI_RAG_SUMMARY_BATCHES: 8, AI_RAG_MAX_CALLS: 8 },
+  { AI_RAG_REPAIR_ATTEMPTS: 2 },
+  { AI_RAG_EVIDENCE_CHARS: 999 },
+  { DOCUMENT_TIMEOUT_MS: 0 },
+])("rejects invalid document workflow settings %j", (overrides) => {
+  expect(() =>
+    validateEnvironment({ ...baseEnvironment, ...overrides }),
+  ).toThrow();
+});
