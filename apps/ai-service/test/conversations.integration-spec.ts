@@ -1,3 +1,7 @@
+import {
+  DOCUMENT_READ_CLIENT,
+  type DocumentReadClient,
+} from "../src/modules/ai/application/ports/document-read.port";
 import { ValidationPipe, type INestApplication } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
@@ -32,6 +36,22 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
   let tokenA: string;
   let tokenB: string;
   const provider = new FakeAIProvider("ollama");
+  const documentId = "00000000-0000-4000-8000-00000000dd01",
+    chunkId = "00000000-0000-4000-8000-00000000dd02";
+  const source = {
+    documentId,
+    chunkId,
+    generation: 1,
+    chunkIndex: 0,
+    filename: "policy.pdf",
+    locator: { kind: "PAGE" as const, start: 3, end: 3 },
+    content: "Sinh viên phải tham dự 80% số buổi học.",
+  };
+  const documents: jest.Mocked<DocumentReadClient> = {
+    search: jest.fn(),
+    chunks: jest.fn(),
+    chunk: jest.fn(),
+  };
   const productivity: jest.Mocked<ProductivityReadClient> = {
     listTasks: jest.fn(),
     listCalendar: jest.fn(),
@@ -41,6 +61,8 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(AI_PROVIDER_INSTANCE)
       .useValue(provider)
+      .overrideProvider(DOCUMENT_READ_CLIENT)
+      .useValue(documents)
       .overrideProvider(PRODUCTIVITY_READ_CLIENT)
       .useValue(productivity)
       .compile();
@@ -96,6 +118,138 @@ describe("AI conversations with PostgreSQL (HTTP integration)", () => {
 
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+  it("grounds the actual chat route and persists application-owned citations with sanitized audit events", async () => {
+    documents.search.mockResolvedValue([
+      { ...source, excerpt: source.content, similarity: 0.8 },
+    ]);
+    documents.chunk.mockResolvedValue(source);
+    provider.enqueueResponse({
+      ...reply,
+      content: JSON.stringify({
+        content: "Cần tham dự 80% số buổi học [1].",
+        references: [1],
+        insufficientEvidence: false,
+      }),
+    });
+    const result = await request(app.getHttpServer())
+      .post("/ai/chat")
+      .set(auth(tokenA))
+      .send({
+        prompt: "Điều kiện dự thi?",
+        documentScope: { documentIds: [documentId] },
+      })
+      .expect(200);
+    expect(result.body.content).toContain("80%");
+    expect(result.body.citations).toEqual([
+      {
+        reference: 1,
+        documentId,
+        chunkId,
+        generation: 1,
+        filename: "policy.pdf",
+        pageStart: 3,
+        pageEnd: 3,
+      },
+    ]);
+    expect(result.body.pendingActions).toEqual([]);
+    expect(documents.search.mock.calls[0][0]).toMatchObject({
+      userId: userA,
+      accessToken: tokenA,
+    });
+    const stored = await db.message.findUniqueOrThrow({
+      where: { id: result.body.assistantMessageId },
+    });
+    expect(stored.citations).toEqual(result.body.citations);
+    expect(stored.documentCoverage).toEqual({ partial: false, chunksRead: 1 });
+    const history = await request(app.getHttpServer())
+      .get(`/ai/conversations/${result.body.conversationId}`)
+      .set(auth(tokenA))
+      .expect(200);
+    expect(history.body.messages.items.at(-1).citations).toEqual(
+      result.body.citations,
+    );
+    await request(app.getHttpServer())
+      .get(`/ai/conversations/${result.body.conversationId}`)
+      .set(auth(tokenB))
+      .expect(404);
+    const events = await db.outboxEvent.findMany({
+      where: {
+        aggregateId: result.body.conversationId,
+        eventType: "ai.tool.executed",
+      },
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0].payload).toMatchObject({
+      payload: { toolName: "search_documents", sourceCount: 1 },
+    });
+    expect(JSON.stringify(events)).not.toMatch(
+      /80%|accessToken|Bearer|Điều kiện/,
+    );
+    expect(
+      await db.aIActionLog.count({
+        where: { conversationId: result.body.conversationId },
+      }),
+    ).toBe(0);
+  });
+  it("returns insufficient information without inference and validates document scope", async () => {
+    documents.search.mockResolvedValue([]);
+    const result = await request(app.getHttpServer())
+      .post("/ai/chat")
+      .set(auth(tokenA))
+      .send({ prompt: "Không có đáp án?", documentScope: { mode: "search" } })
+      .expect(200);
+    expect(result.body.content).toMatch(/Không đủ thông tin/);
+    expect(result.body.citations).toEqual([]);
+    expect(provider.requests).toHaveLength(0);
+    for (const documentScope of [
+      null,
+      [],
+      { mode: "wrong" },
+      { documentIds: ["bad"] },
+      { mode: "summarize", documentIds: [] },
+      { userId: userB },
+    ])
+      await request(app.getHttpServer())
+        .post("/ai/chat")
+        .set(auth(tokenA))
+        .send({ prompt: "test", documentScope })
+        .expect(400);
+  });
+  it("does not persist a successful grounded answer when its source is deleted during generation", async () => {
+    documents.search.mockResolvedValue([
+      { ...source, excerpt: source.content, similarity: 0.8 },
+    ]);
+    documents.chunk.mockRejectedValue(
+      new AIApplicationError(
+        AIErrorCode.AI_DOCUMENT_NOT_FOUND,
+        "Document request failed",
+        404,
+      ),
+    );
+    provider.enqueueResponse({
+      ...reply,
+      content: JSON.stringify({
+        content: "Điều kiện là 80% [1].",
+        references: [1],
+        insufficientEvidence: false,
+      }),
+    });
+    await request(app.getHttpServer())
+      .post("/ai/chat")
+      .set(auth(tokenA))
+      .send({
+        prompt: "Điều kiện?",
+        documentScope: { documentIds: [documentId] },
+      })
+      .expect(404);
+    const finals = await db.message.findMany({
+      where: { conversation: { userId: userA }, role: "ASSISTANT" },
+    });
+    expect(finals.filter((m) => m.citations !== null)).toHaveLength(0);
+    expect(
+      await db.outboxEvent.count({ where: { eventType: "ai.failed" } }),
+    ).toBeGreaterThan(0);
+  });
   it("executes only authorized read tools and persists a reconstructable tool exchange", async () => {
     productivity.listTasks.mockResolvedValue({
       items: [
