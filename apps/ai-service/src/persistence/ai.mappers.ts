@@ -1,3 +1,4 @@
+import type { DocumentCitation } from "../modules/ai/domain/document-citation";
 import type {
   AIActionLog as AIActionLogRecord,
   Conversation as ConversationRecord,
@@ -22,11 +23,24 @@ export const MessageMapper = {
   toDomain: (record: MessageRecord) =>
     Message.restore({
       ...record,
+      citations: record.citations as unknown as DocumentCitation[] | null,
+      documentCoverage: record.documentCoverage as unknown as {
+        partial: boolean;
+        chunksRead: number;
+      } | null,
       toolPayload: record.toolPayload as JsonValue | null,
       role: record.role as MessageRole,
     }),
   toPersistence: (entity: Message) => ({
     ...entity.state,
+    citations:
+      entity.state.citations == null
+        ? Prisma.DbNull
+        : (entity.state.citations as unknown as Prisma.InputJsonValue),
+    documentCoverage:
+      entity.state.documentCoverage == null
+        ? Prisma.DbNull
+        : (entity.state.documentCoverage as Prisma.InputJsonValue),
     toolPayload:
       entity.state.toolPayload == null
         ? Prisma.DbNull

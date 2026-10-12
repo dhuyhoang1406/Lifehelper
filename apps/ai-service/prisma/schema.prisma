@@ -38,18 +38,20 @@ model Conversation {
 }
 
 model Message {
-  id             String        @id @db.Uuid
-  conversationId String        @map("conversation_id") @db.Uuid
-  role           MessageRole
-  content        String
-  toolPayload    Json?         @map("tool_payload")
-  provider       String?       @db.VarChar(100)
-  model          String?       @db.VarChar(100)
-  inputTokens    Int?          @map("input_tokens")
-  outputTokens   Int?          @map("output_tokens")
-  createdAt      DateTime      @map("created_at") @db.Timestamptz(6)
-  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  actions        AIActionLog[]
+  id               String        @id @db.Uuid
+  conversationId   String        @map("conversation_id") @db.Uuid
+  role             MessageRole
+  content          String
+  citations        Json?         @map("citations")
+  documentCoverage Json?         @map("document_coverage")
+  toolPayload      Json?         @map("tool_payload")
+  provider         String?       @db.VarChar(100)
+  model            String?       @db.VarChar(100)
+  inputTokens      Int?          @map("input_tokens")
+  outputTokens     Int?          @map("output_tokens")
+  createdAt        DateTime      @map("created_at") @db.Timestamptz(6)
+  conversation     Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  actions          AIActionLog[]
 
   @@index([conversationId, createdAt, id])
   @@map("messages")
