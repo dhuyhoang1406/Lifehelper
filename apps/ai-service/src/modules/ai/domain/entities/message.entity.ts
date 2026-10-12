@@ -1,3 +1,4 @@
+import type { DocumentCitation } from "../document-citation";
 import type { UUID } from "@lifehelper/shared-types";
 import type { JsonValue } from "@lifehelper/shared-types";
 import { MessageRole } from "../enums/ai.enums";
@@ -7,6 +8,8 @@ export interface MessageProps {
   conversationId: UUID;
   role: MessageRole;
   content: string;
+  citations?: readonly DocumentCitation[] | null;
+  documentCoverage?: { partial: boolean; chunksRead: number } | null;
   toolPayload?: JsonValue | null;
   provider: string | null;
   model: string | null;
@@ -27,6 +30,8 @@ export class Message {
           | "outputTokens"
           | "createdAt"
           | "toolPayload"
+          | "citations"
+          | "documentCoverage"
         >
       >,
   ): Message {
@@ -45,11 +50,62 @@ export class Message {
     for (const count of [input.inputTokens, input.outputTokens])
       if (count != null && (!Number.isInteger(count) || count < 0))
         throw new AIDomainError("Token count must be a non-negative integer");
+    if (input.citations != null) {
+      const uuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (
+        input.role !== MessageRole.ASSISTANT ||
+        input.citations.length > 80 ||
+        new Set(input.citations.map((c) => c.reference)).size !==
+          input.citations.length ||
+        input.citations.some(
+          (c) =>
+            !Number.isSafeInteger(c.reference) ||
+            c.reference < 1 ||
+            !uuid.test(c.documentId) ||
+            !uuid.test(c.chunkId) ||
+            !Number.isSafeInteger(c.generation) ||
+            c.generation < 1 ||
+            !c.filename ||
+            c.filename.length > 255 ||
+            !(
+              (c.pageStart !== undefined &&
+                c.pageEnd !== undefined &&
+                c.lineStart === undefined &&
+                c.lineEnd === undefined &&
+                Number.isSafeInteger(c.pageStart) &&
+                c.pageStart > 0 &&
+                Number.isSafeInteger(c.pageEnd) &&
+                c.pageEnd >= c.pageStart) ||
+              (c.lineStart !== undefined &&
+                c.lineEnd !== undefined &&
+                c.pageStart === undefined &&
+                c.pageEnd === undefined &&
+                Number.isSafeInteger(c.lineStart) &&
+                c.lineStart > 0 &&
+                Number.isSafeInteger(c.lineEnd) &&
+                c.lineEnd >= c.lineStart)
+            ),
+        )
+      )
+        throw new AIDomainError("Invalid document citations");
+    }
+    if (
+      input.documentCoverage != null &&
+      (input.role !== MessageRole.ASSISTANT ||
+        typeof input.documentCoverage.partial !== "boolean" ||
+        !Number.isSafeInteger(input.documentCoverage.chunksRead) ||
+        input.documentCoverage.chunksRead < 0 ||
+        input.documentCoverage.chunksRead > 80)
+    )
+      throw new AIDomainError("Invalid document coverage");
     const provider = Message.normalizeMetadata(input.provider, "Provider");
     const model = Message.normalizeMetadata(input.model, "Model");
     return new Message({
       ...input,
       provider,
+      citations: input.citations ?? null,
+      documentCoverage: input.documentCoverage ?? null,
       toolPayload: input.toolPayload ?? null,
       model,
       inputTokens: input.inputTokens ?? null,
