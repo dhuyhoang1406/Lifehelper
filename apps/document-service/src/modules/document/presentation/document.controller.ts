@@ -1,5 +1,7 @@
+import { DocumentReprocessUseCase } from "../application/use-cases/document-reprocess.use-case";
 import {
   Body,
+  Headers,
   Controller,
   Delete,
   Get,
@@ -10,7 +12,13 @@ import {
   UseFilters,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiBody } from "@nestjs/swagger";
+import {
+  ApiHeader,
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+} from "@nestjs/swagger";
 import { JwtAuthGuard } from "../../../auth/jwt-auth.guard";
 import { CurrentDocumentUser } from "../../../auth/current-document-user.decorator";
 import { DocumentUploadUseCases } from "../application/use-cases/document-upload.use-cases";
@@ -30,7 +38,24 @@ export class DocumentController {
   constructor(
     private readonly uploads: DocumentUploadUseCases,
     private readonly retries: DocumentProcessingRetryUseCase,
+    private readonly reprocess: DocumentReprocessUseCase,
   ) {}
+  @Post(":id/reprocess")
+  @HttpCode(202)
+  @ApiHeader({
+    name: "x-idempotency-key",
+    schema: { type: "string", format: "uuid" },
+    required: true,
+    description:
+      "UUID identifying this reprocess request; reuse it when retrying the same request",
+  })
+  reindex(
+    @CurrentDocumentUser() user: string,
+    @Param() dto: DocumentIdDto,
+    @Headers("x-idempotency-key") key?: string,
+  ) {
+    return this.reprocess.execute(dto.id, user, key);
+  }
   @Post(":id/retry-processing")
   @HttpCode(202)
   @ApiOperation({
