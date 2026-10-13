@@ -36,7 +36,7 @@ export class DocumentIdDto {
   @ApiProperty({ format: "uuid" }) @IsUUID() id!: string;
 }
 export class DocumentListDto {
-  @ApiPropertyOptional({ default: 20, maximum: 100 })
+  @ApiPropertyOptional({ type: Number, default: 20, minimum: 1, maximum: 100 })
   @Type(() => Number)
   @IsInt()
   @Min(1)
