@@ -1,3 +1,5 @@
+import { processingAudit } from "./document-processing-audit";
+import { dbNow, lockDocument } from "./document-lock";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "../../generated/client";
 import { PrismaService } from "../prisma.service";
@@ -32,27 +34,6 @@ export interface ProcessingPersistenceLimits extends ProcessingRetryPolicy {
   embeddingSpace?: { model: string; version: string; dimensions: number };
 }
 class LostProcessingLease extends Error {}
-async function dbNow(tx: Prisma.TransactionClient) {
-  const rows = await tx.$queryRaw<
-    Array<{ at: Date }>
-  >`SELECT clock_timestamp() AS at`;
-  return rows[0].at;
-}
-async function lockDocument(
-  tx: Prisma.TransactionClient,
-  id: string,
-  userId?: string,
-) {
-  const rows =
-    userId === undefined
-      ? await tx.$queryRaw<
-          Array<{ id: string }>
-        >`SELECT id FROM documents WHERE id=${id}::uuid FOR UPDATE`
-      : await tx.$queryRaw<
-          Array<{ id: string }>
-        >`SELECT id FROM documents WHERE id=${id}::uuid AND user_id=${userId}::uuid FOR UPDATE`;
-  return rows.length ? tx.document.findUniqueOrThrow({ where: { id } }) : null;
-}
 export class PrismaDocumentProcessingRepository implements DocumentProcessingRepository {
   constructor(
     private readonly db: PrismaService,
@@ -90,9 +71,17 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
         !d.deletedAt &&
         ((d.status === "PROCESSING" &&
           j.generation === d.processingGeneration) ||
-          (["UPLOADED", "FAILED"].includes(d.status) &&
+          (["UPLOADED", "FAILED", "READY"].includes(d.status) &&
             j.generation === d.processingGeneration + 1));
       if (!eligible) {
+        await tx.documentProcessingAudit.updateMany({
+          where: { jobId: j.id, status: "RUNNING" },
+          data: {
+            status: "CANCELLED",
+            finishedAt: at,
+            errorCode: "DOCUMENT_WORKER_LEASE_EXPIRED",
+          },
+        });
         await tx.documentProcessingJob.update({
           where: { id: j.id },
           data: {
@@ -149,6 +138,14 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
         return null;
       }
       if (j.status === "RUNNING") {
+        await tx.documentProcessingAudit.updateMany({
+          where: { jobId: j.id, leaseToken: j.leaseToken, status: "RUNNING" },
+          data: {
+            status: "EXPIRED",
+            finishedAt: at,
+            errorCode: "DOCUMENT_WORKER_LEASE_EXPIRED",
+          },
+        });
         await tx.documentProcessingJob.update({
           where: { id: j.id },
           data: {
@@ -176,6 +173,22 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
           leaseExpiresAt: expiresAt,
           errorCode: null,
           updatedAt: at,
+        },
+      });
+      const staged = await tx.documentGeneration.findUniqueOrThrow({
+        where: {
+          documentId_generation: { documentId: d.id, generation: j.generation },
+        },
+      });
+      await tx.documentProcessingAudit.create({
+        data: {
+          documentId: d.id,
+          jobId: j.id,
+          generation: j.generation,
+          leaseToken: job.leaseToken,
+          phase: staged.status === "EXTRACTED" ? "EMBEDDING" : "EXTRACTION",
+          status: "RUNNING",
+          startedAt: at,
         },
       });
       await documentEvent(
@@ -385,6 +398,7 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
     lease: ProcessingLease,
     result: PreparedExtraction,
     continueIndexing = false,
+    durationMs?: number,
   ) {
     const chunks = this.preparedChunks(lease, result.chunks);
     if (
@@ -463,6 +477,18 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
           where: { id: lease.documentId },
           data: { updatedAt: at, revision: { increment: 1 } },
         });
+        const metrics = await processingAudit(
+          tx,
+          lease,
+          "SUCCEEDED",
+          at,
+          durationMs,
+          {
+            chunkCount: chunks.length,
+            textChars: chunks.reduce((n, c) => n + c.content.length, 0),
+            estimatedInputTokens: chunks.reduce((n, c) => n + c.tokenCount!, 0),
+          },
+        );
         await documentEvent(
           tx,
           "document.processing.extracted",
@@ -471,6 +497,8 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
           lease.generation,
           lease.attemptCount,
           at,
+          undefined,
+          metrics,
         );
         if (current.j.leaseExpiresAt! <= (await dbNow(tx)))
           throw new LostProcessingLease();
@@ -481,7 +509,11 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
       throw error;
     }
   }
-  async publish(lease: ProcessingLease, result: PreparedGeneration) {
+  async publish(
+    lease: ProcessingLease,
+    result: PreparedGeneration,
+    durationMs?: number,
+  ) {
     const prepared = this.prepared(lease, result);
     try {
       return await this.db.$transaction(async (tx) => {
@@ -590,14 +622,41 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
             updatedAt: at,
           },
         });
+        const metrics = await processingAudit(
+          tx,
+          lease,
+          "SUCCEEDED",
+          at,
+          durationMs,
+          {
+            chunkCount: prepared.chunks.length,
+            textChars: prepared.chunks.reduce(
+              (n, c) => n + c.content.length,
+              0,
+            ),
+            estimatedInputTokens: prepared.chunks.reduce(
+              (n, c) => n + c.tokenCount!,
+              0,
+            ),
+            embeddingValues: prepared.embeddings.reduce(
+              (n, e) => n + e.dimensions,
+              0,
+            ),
+            embeddingModel: prepared.embeddings[0].embeddingModel,
+            embeddingVersion: prepared.embeddings[0].modelVersion,
+            embeddingDimensions: prepared.embeddings[0].dimensions,
+          },
+        );
         await documentEvent(
           tx,
-          "document.processing.ready",
+          "document.processing.completed",
           lease.documentId,
           lease.id,
           lease.generation,
           lease.attemptCount,
           at,
+          undefined,
+          metrics,
         );
         if (current.j.leaseExpiresAt! <= (await dbNow(tx)))
           throw new LostProcessingLease();
@@ -617,6 +676,10 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
     code: ProcessingFailureCode,
     at: Date,
   ) {
+    await tx.documentProcessingAudit.updateMany({
+      where: { jobId, status: "RUNNING" },
+      data: { status: "FAILED", finishedAt: at, errorCode: code },
+    });
     await tx.documentProcessingJob.update({
       where: { id: jobId },
       data: {
@@ -651,13 +714,28 @@ export class PrismaDocumentProcessingRepository implements DocumentProcessingRep
       code,
     );
   }
-  async fail(lease: ProcessingLease, code: ProcessingFailureCode) {
+  async fail(
+    lease: ProcessingLease,
+    code: ProcessingFailureCode,
+    durationMs?: number,
+  ) {
     if (!Object.hasOwn(processingFailures, code))
       code = "DOCUMENT_PROCESSING_UNEXPECTED";
     return this.db.$transaction(async (tx) => {
       const current = await this.currentLease(tx, lease);
       if (!current) return false;
       const { at, j } = current;
+      await processingAudit(
+        tx,
+        lease,
+        processingFailures[code] && j.attemptCount < this.limits.maxAttempts
+          ? "RETRY"
+          : "FAILED",
+        at,
+        durationMs,
+        undefined,
+        code,
+      );
       if (
         processingFailures[code] &&
         j.attemptCount < this.limits.maxAttempts

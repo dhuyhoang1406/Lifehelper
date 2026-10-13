@@ -21,7 +21,10 @@ export class DocumentJobProcessor {
     lease: ProcessingLease,
     shutdownSignal: AbortSignal,
   ): Promise<void> {
-    const deadline = performance.now() + this.timeoutMs;
+    const startedAt = performance.now();
+    const duration = () =>
+      Math.max(0, Math.floor(performance.now() - startedAt));
+    const deadline = startedAt + this.timeoutMs;
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, shutdownSignal]);
     const checkpoint = () => {
@@ -74,15 +77,16 @@ export class DocumentJobProcessor {
       checkpoint();
       if ("kind" in result) {
         if (this.stages.index)
-          await this.jobs.stageExtraction(lease, result, true);
-        else await this.jobs.stageExtraction(lease, result);
-      } else await this.jobs.publish(lease, result);
+          await this.jobs.stageExtraction(lease, result, true, duration());
+        else await this.jobs.stageExtraction(lease, result, false, duration());
+      } else await this.jobs.publish(lease, result, duration());
     } catch (error) {
       await this.jobs.fail(
         lease,
         signal.aborted
           ? "DOCUMENT_PROCESSING_TIMEOUT"
           : processingFailure(error),
+        duration(),
       );
     } finally {
       if (timer) clearTimeout(timer);

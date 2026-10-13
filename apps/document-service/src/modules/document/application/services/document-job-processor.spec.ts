@@ -79,10 +79,11 @@ it("reads the committed version and delegates prepared output to the fenced publ
     expect.any(AbortSignal),
     expect.any(Function),
   );
-  expect(f.jobs.publish).toHaveBeenCalledWith(lease, {
-    chunks: [],
-    embeddings: [],
-  });
+  expect(f.jobs.publish).toHaveBeenCalledWith(
+    lease,
+    { chunks: [], embeddings: [] },
+    expect.any(Number),
+  );
   expect(f.jobs.fail).not.toHaveBeenCalled();
 });
 it("unavailable stages fail explicitly without reading sources or reporting READY", async () => {
@@ -98,6 +99,7 @@ it("unavailable stages fail explicitly without reading sources or reporting READ
   expect(f.jobs.fail).toHaveBeenCalledWith(
     lease,
     "DOCUMENT_PROCESSING_UNAVAILABLE",
+    expect.any(Number),
   );
   expect(f.storage.readForVerification).not.toHaveBeenCalled();
   expect(f.jobs.publish).not.toHaveBeenCalled();
@@ -112,7 +114,11 @@ it.each(["versionId", "checksumSha256", "sizeBytes", "mimeType"])(
       [field]: field === "sizeBytes" ? 7 : "changed",
     });
     await f.processor.run(lease, new AbortController().signal);
-    expect(f.jobs.fail).toHaveBeenCalledWith(lease, "DOCUMENT_SOURCE_MISMATCH");
+    expect(f.jobs.fail).toHaveBeenCalledWith(
+      lease,
+      "DOCUMENT_SOURCE_MISMATCH",
+      expect.any(Number),
+    );
     expect(f.stages.prepare).not.toHaveBeenCalled();
   },
 );
@@ -125,6 +131,7 @@ it("normalizes unexpected adapter errors without storing their raw message", asy
   expect(f.jobs.fail).toHaveBeenCalledWith(
     lease,
     "DOCUMENT_PROCESSING_UNEXPECTED",
+    expect.any(Number),
   );
 });
 it("times out noncooperative stages, retains the slot and discards their late output", async () => {
@@ -146,6 +153,7 @@ it("times out noncooperative stages, retains the slot and discards their late ou
   expect(f.jobs.fail).toHaveBeenCalledWith(
     lease,
     "DOCUMENT_PROCESSING_TIMEOUT",
+    expect.any(Number),
   );
   expect(done).toBe(false);
   expect(f.jobs.publish).not.toHaveBeenCalled();
@@ -164,7 +172,12 @@ it("routes extraction-only results to staging without publishing READY", async (
   };
   f.stages.prepare.mockResolvedValue(extraction);
   await f.processor.run(lease, new AbortController().signal);
-  expect(f.jobs.stageExtraction).toHaveBeenCalledWith(lease, extraction);
+  expect(f.jobs.stageExtraction).toHaveBeenCalledWith(
+    lease,
+    extraction,
+    false,
+    expect.any(Number),
+  );
   expect(f.jobs.publish).not.toHaveBeenCalled();
   expect(f.jobs.fail).not.toHaveBeenCalled();
 });
@@ -192,6 +205,7 @@ it("uses the remaining job deadline during synchronous chunking after extraction
   expect(f.jobs.fail).toHaveBeenCalledWith(
     lease,
     "DOCUMENT_PROCESSING_TIMEOUT",
+    expect.any(Number),
   );
   expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
   expect(f.jobs.publish).not.toHaveBeenCalled();
@@ -208,6 +222,7 @@ it("rejects synchronous late results even before the abort timer can execute", a
   expect(f.jobs.fail).toHaveBeenCalledWith(
     lease,
     "DOCUMENT_PROCESSING_TIMEOUT",
+    expect.any(Number),
   );
   expect(f.jobs.publish).not.toHaveBeenCalled();
   expect(f.jobs.stageExtraction).not.toHaveBeenCalled();
