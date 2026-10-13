@@ -22,6 +22,11 @@ it("validates defaults for bounded private upload configuration", () => {
 });
 it.each([
   { EMBEDDING_PROVIDER: "paid" },
+  { DOCUMENT_CLEANUP_LEASE_MS: 25000 },
+  { DOCUMENT_CLEANUP_GRACE_MS: 1000 },
+  { DOCUMENT_CLEANUP_MAX_ATTEMPTS: 21 },
+  { DOCUMENT_MAINTENANCE_BATCH_SIZE: 17 },
+  { DOCUMENT_AUDIT_RETENTION_DAYS: 0 },
   { DOCUMENT_RETRIEVAL_TIMEOUT_MS: 99 },
   { DOCUMENT_RETRIEVAL_MIN_SIMILARITY: 1.1 },
   { EMBEDDING_PROVIDER: "fake", NODE_ENV: "production" },

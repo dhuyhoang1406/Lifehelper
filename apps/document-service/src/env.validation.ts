@@ -4,6 +4,91 @@ const schema = Joi.object({
     .valid("development", "test", "production")
     .default("development"),
   SERVICE_NAME: Joi.string().default("document-service"),
+  DOCUMENT_RETENTION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(100),
+  DOCUMENT_TOMBSTONE_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3650)
+    .default(30),
+  DOCUMENT_CLEANUP_VERSION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(500),
+  DOCUMENT_MAINTENANCE_ENABLED: Joi.when("NODE_ENV", {
+    is: "test",
+    then: Joi.boolean().default(false),
+    otherwise: Joi.boolean().default(true),
+  }),
+  DOCUMENT_MAINTENANCE_POLL_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(3600000)
+    .default(30000),
+  DOCUMENT_MAINTENANCE_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(16)
+    .default(4),
+  DOCUMENT_CLEANUP_LEASE_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(900000)
+    .default(60000),
+  DOCUMENT_CLEANUP_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120000)
+    .default(15000),
+  DOCUMENT_CLEANUP_MAX_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(20)
+    .default(8),
+  DOCUMENT_CLEANUP_RETRY_BASE_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(60000)
+    .default(1000),
+  DOCUMENT_CLEANUP_RETRY_MAX_MS: Joi.number()
+    .integer()
+    .min(Joi.ref("DOCUMENT_CLEANUP_RETRY_BASE_MS"))
+    .max(86400000)
+    .default(300000),
+  DOCUMENT_CLEANUP_RESWEEP_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(86400000)
+    .default(3600000),
+  DOCUMENT_CLEANUP_GRACE_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(86400000)
+    .default(900000),
+  DOCUMENT_INVENTORY_PAGE_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(100),
+  DOCUMENT_AUDIT_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3650)
+    .default(30),
+  DOCUMENT_GENERATION_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3650)
+    .default(30),
+  DOCUMENT_OUTBOX_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3650)
+    .default(90),
   DOCUMENT_PORT: Joi.number().port().default(3004),
   DOCUMENT_WORKER_ENABLED: Joi.boolean().default(true),
   DOCUMENT_WORKER_CONCURRENCY: Joi.number().integer().min(1).max(8).default(2),
@@ -241,6 +326,20 @@ export function validateEnvironment(config: Record<string, unknown>) {
   )
     throw new Error(
       "Environment validation failed: vector budget must fit all configured chunks",
+    );
+  if (
+    value.DOCUMENT_CLEANUP_LEASE_MS <=
+    value.DOCUMENT_CLEANUP_TIMEOUT_MS + 10000
+  )
+    throw new Error(
+      "Environment validation failed: cleanup lease must exceed timeout by more than 10000ms",
+    );
+  if (
+    value.DOCUMENT_CLEANUP_GRACE_MS <
+    value.DOCUMENT_UPLOAD_EXPIRY_SECONDS * 1000
+  )
+    throw new Error(
+      "Environment validation failed: orphan grace must cover the maximum upload authorization duration",
     );
   return value;
 }
