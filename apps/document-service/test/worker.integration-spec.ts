@@ -1,3 +1,4 @@
+import { PrismaDocumentLifecycleRepository } from "../src/persistence/document-lifecycle.repository";
 import { Test } from "@nestjs/testing";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -34,7 +35,7 @@ const limits = {
 };
 const jobs = new PrismaDocumentProcessingRepository(db, limits, () => 0);
 const uploads = new PrismaDocumentUploadRepository(db);
-async function reserve() {
+async function reserve(expiry?: Date) {
   const id = randomUUID();
   ids.push(id);
   const d = Document.create({
@@ -46,13 +47,14 @@ async function reserve() {
     sizeBytes: 6n,
     s3Bucket: "test-private",
     s3Key: `fixtures/${id}`,
-    uploadExpiresAt: new Date(Date.now() + 600000),
+    uploadExpiresAt: expiry ?? new Date(Date.now() + 600000),
+    ...(expiry ? { createdAt: new Date(expiry.getTime() - 10000) } : {}),
   });
   await uploads.reserve(d, 100, 100000n);
   return id;
 }
-async function uploaded() {
-  const id = await reserve();
+async function uploaded(expiry?: Date) {
+  const id = await reserve(expiry);
   expect(
     await uploads.commitUpload(
       id,
@@ -60,13 +62,13 @@ async function uploaded() {
       0,
       "committed-version",
       "a".repeat(64),
-      new Date(),
+      expiry ? new Date(expiry.getTime() - 1) : new Date(),
     ),
   ).toBe(true);
   return id;
 }
-async function claimed() {
-  const id = await uploaded();
+async function claimed(expiry?: Date) {
+  const id = await uploaded(expiry);
   const lease = await jobs.claim("worker-a");
   expect(lease?.documentId).toBe(id);
   return lease!;
@@ -162,7 +164,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
       events.filter((e) => e.eventType === "document.processing.extracted"),
     ).toHaveLength(1);
     expect(
-      events.some((e) => e.eventType === "document.processing.ready"),
+      events.some((e) => e.eventType === "document.processing.completed"),
     ).toBe(false);
     const payload = JSON.stringify(events);
     expect(payload).not.toContain(result.sourceChecksumSha256);
@@ -253,8 +255,8 @@ describe("Durable fenced processing on real PostgreSQL", () => {
       ).status,
     ).toBe("FAILED");
   });
-  async function stagedForIndexing() {
-    const first = await claimed();
+  async function stagedForIndexing(expiry?: Date) {
+    const first = await claimed(expiry);
     const result = extracted(first);
     result.chunks.push(
       DocumentChunk.create({
@@ -485,8 +487,8 @@ describe("Durable fenced processing on real PostgreSQL", () => {
         where: { id: lease.documentId },
         data: { status: "PROCESSING", processingGeneration: 2 },
       });
-      expect(await index.search(query)).toEqual([]);
-      await get(path).expect(404);
+      expect(await index.search(query)).toHaveLength(2);
+      await get(path).expect(200);
       // Simulate a completed reindex while retaining the old generation and its vectors.
       await db.documentGeneration.create({
         data: {
@@ -544,6 +546,313 @@ describe("Durable fenced processing on real PostgreSQL", () => {
       await app.close();
     }
   });
+  const lifecycle = () =>
+    new PrismaDocumentLifecycleRepository(db, {
+      leaseMs: 60000,
+      maxAttempts: 2,
+      retryBaseMs: 100,
+      retryMaxMs: 1000,
+      resweepMs: 3600000,
+      graceMs: 1000,
+      auditDays: 30,
+      generationDays: 30,
+      outboxDays: 90,
+    });
+  async function cleanupDue(id: string) {
+    await db.documentCleanupTask.update({
+      where: { documentId: id },
+      data: { nextAttemptAt: new Date(0) },
+    });
+  }
+  it("idempotently reindexes while retaining the old source generation, then atomically activates the new index", async () => {
+    const { lease, output } = await stagedForIndexing();
+    expect(await jobs.publish(lease, output, 12)).toBe(true);
+    const repo = lifecycle(),
+      key = randomUUID();
+    await expect(
+      repo.reprocess(lease.documentId, randomUUID(), key),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    const requests = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        repo.reprocess(lease.documentId, userId, key),
+      ),
+    );
+    expect(new Set(requests.map((r) => r.jobId)).size).toBe(1);
+    expect(requests[0].generation).toBe(2);
+    await expect(
+      repo.reprocess(lease.documentId, userId, randomUUID()),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    const next = (await jobs.claim("reindex"))!;
+    expect(next.generation).toBe(2);
+    const index = new PrismaDocumentVectorIndex(db),
+      query = {
+        userId,
+        space: { model: "test-fixture", version: "test-v1", dimensions: 2 },
+        vector: [1, 0],
+        topK: 10,
+      };
+    expect((await index.search(query)).map((r) => r.generation)).toEqual([
+      1, 1,
+    ]);
+    const extraction = extracted(next);
+    expect(await jobs.stageExtraction(next, extraction, true, 8)).toBe(true);
+    const indexing = (await jobs.claim("reindex-embeddings"))!;
+    const prepared = {
+      chunks: extraction.chunks,
+      embeddings: extraction.chunks.map((c) =>
+        DocumentEmbedding.create({
+          id: randomUUID(),
+          chunkId: c.state.id,
+          embeddingModel: "test-fixture",
+          modelVersion: "test-v1",
+          embedding: [0, 1],
+        }),
+      ),
+      embeddingSettings: output.embeddingSettings,
+    };
+    expect(await jobs.publish(indexing, prepared, 9)).toBe(true);
+    expect(await jobs.publish(indexing, prepared, 9)).toBe(false);
+    expect((await index.search(query)).map((r) => r.generation)).toEqual([2]);
+    expect(
+      await new PrismaDocumentRetrievalRepository(db).chunks(
+        userId,
+        lease.documentId,
+        1,
+        -1,
+        10,
+      ),
+    ).toEqual([]);
+    expect(await repo.reprocess(lease.documentId, userId, key)).toMatchObject({
+      jobId: requests[0].jobId,
+      generation: 2,
+      status: "SUCCEEDED",
+    });
+    const audit = await db.documentProcessingAudit.findMany({
+      where: { documentId: lease.documentId },
+    });
+    expect(
+      audit.filter((a) => a.status === "SUCCEEDED").length,
+    ).toBeGreaterThanOrEqual(3);
+    expect(audit.some((a) => a.durationMs === 9)).toBe(true);
+    const events = await db.outboxEvent.findMany({
+      where: { aggregateId: lease.documentId },
+    });
+    expect(
+      events.some((e) => e.eventType === "document.processing.completed"),
+    ).toBe(true);
+    expect(JSON.stringify(events)).not.toMatch(
+      /hello!|committed-version|test-private|fixtures\//,
+    );
+  });
+  it("preserves old active results when a deliberate reindex exhausts retries", async () => {
+    const { lease, output } = await stagedForIndexing();
+    await jobs.publish(lease, output);
+    const repo = lifecycle();
+    await repo.reprocess(lease.documentId, userId, randomUUID());
+    const next = (await jobs.claim("failed-reindex"))!;
+    await db.documentProcessingJob.update({
+      where: { id: next.id },
+      data: { attemptCount: 3 },
+    });
+    await jobs.fail(next, "DOCUMENT_EMBEDDING_QUOTA", 7);
+    const d = await db.document.findUniqueOrThrow({
+      where: { id: lease.documentId },
+    });
+    expect(d).toMatchObject({
+      status: "FAILED",
+      activeGeneration: 1,
+      processingGeneration: 2,
+    });
+    expect(
+      await new PrismaDocumentRetrievalRepository(db).chunks(
+        userId,
+        d.id,
+        1,
+        -1,
+        10,
+      ),
+    ).toHaveLength(2);
+  });
+  it("fences cleanup and processing on duplicate deletion, recovers expired cleanup leases and clears derivatives", async () => {
+    const { lease, output } = await stagedForIndexing(new Date(0));
+    await jobs.publish(lease, output);
+    await cleanupDue(lease.documentId);
+    const repo = lifecycle(),
+      maintenance = (await repo.claim("maintenance"))!;
+    expect(maintenance.keepVersionId).toBe("committed-version");
+    const deleted = await Promise.all([
+      uploads.deleteAndScheduleCleanup(lease.documentId, userId, new Date()),
+      uploads.deleteAndScheduleCleanup(lease.documentId, userId, new Date()),
+    ]);
+    expect(deleted).toEqual([true, true]);
+    expect(await repo.settle(maintenance, "complete")).toBe(false);
+    const first = (await repo.claim("cleanup-a"))!;
+    expect(first.keepVersionId).toBeNull();
+    await db.documentCleanupTask.update({
+      where: { id: first.id },
+      data: { leaseExpiresAt: new Date(0) },
+    });
+    const recovered = (await repo.claim("cleanup-b"))!;
+    expect(recovered.token).toBeGreaterThan(first.token);
+    expect(await repo.settle(first, "complete")).toBe(false);
+    expect(await repo.settle(recovered, "complete")).toBe(true);
+    expect(
+      await db.documentChunk.count({ where: { documentId: lease.documentId } }),
+    ).toBe(0);
+    expect(
+      await db.documentProcessingAudit.count({
+        where: { documentId: lease.documentId },
+      }),
+    ).toBeGreaterThan(0);
+    expect(
+      await db.outboxEvent.count({
+        where: { aggregateId: lease.documentId, eventType: "document.deleted" },
+      }),
+    ).toBe(1);
+    expect(
+      await db.outboxEvent.count({
+        where: {
+          aggregateId: lease.documentId,
+          eventType: "document.cleanup.completed",
+        },
+      }),
+    ).toBe(1);
+  });
+  it("backs off cleanup failures, pauses exhausted work and permits an owned repeated DELETE to rearm it", async () => {
+    const id = await reserve(new Date(0));
+    await cleanupDue(id);
+    await uploads.deleteAndScheduleCleanup(id, userId, new Date());
+    const repo = lifecycle();
+    const first = (await repo.claim("a"))!;
+    const failedAt = Date.now();
+    await repo.settle(first, "failed");
+    expect(
+      (
+        await db.documentCleanupTask.findUniqueOrThrow({
+          where: { id: first.id },
+        })
+      ).nextAttemptAt.getTime(),
+    ).toBeGreaterThanOrEqual(failedAt);
+    await db.documentCleanupTask.update({
+      where: { id: first.id },
+      data: { nextAttemptAt: new Date(0) },
+    });
+    const second = (await repo.claim("b"))!;
+    await repo.settle(second, "failed");
+    expect(await repo.claim("c")).toBeNull();
+    expect(
+      (
+        await db.documentCleanupTask.findUniqueOrThrow({
+          where: { id: first.id },
+        })
+      ).errorCode,
+    ).toBe("DOCUMENT_CLEANUP_RETRY_EXHAUSTED");
+    await uploads.deleteAndScheduleCleanup(id, userId, new Date());
+    expect(await repo.claim("rearmed")).not.toBeNull();
+  });
+  it("reconciles expired incomplete uploads and old orphan keys, ignoring recent and unrelated objects", async () => {
+    const id = await reserve(new Date(0));
+    await cleanupDue(id);
+    const repo = lifecycle();
+    const expired = (await repo.claim("expiry"))!;
+    expect(expired.documentId).toBe(id);
+    expect(
+      (await db.document.findUniqueOrThrow({ where: { id } })).status,
+    ).toBe("DELETED");
+    await repo.settle(expired, "complete");
+    const orphan = `users/${userId}/documents/${randomUUID()}/${randomUUID()}.txt`;
+    await repo.reconcile(
+      "test-private",
+      [
+        { key: orphan, modifiedAt: new Date(0) },
+        { key: "other-service/file", modifiedAt: new Date(0) },
+        {
+          key: `users/${userId}/documents/${randomUUID()}/${randomUUID()}.txt`,
+          modifiedAt: new Date(),
+        },
+      ],
+      "next-marker",
+    );
+    const task = (await repo.claim("orphan"))!;
+    expect(task.documentId).toBeNull();
+    expect(task.object.key).toBe(orphan);
+    await repo.settle(task, "complete");
+    expect(await repo.cursor()).toBe("next-marker");
+    await db.documentCleanupTask.delete({ where: { id: task.id } });
+  });
+  it("retains only bounded inactive content and audits, never pending outbox events or active sources", async () => {
+    const { lease, output } = await stagedForIndexing();
+    await jobs.publish(lease, output, 10);
+    const repo = lifecycle();
+    await db.documentProcessingAudit.updateMany({
+      where: { documentId: lease.documentId },
+      data: { startedAt: new Date(0) },
+    });
+    await db.documentGeneration.update({
+      where: {
+        documentId_generation: { documentId: lease.documentId, generation: 1 },
+      },
+      data: { createdAt: new Date(0) },
+    });
+    await repo.retain();
+    expect(
+      await db.documentProcessingAudit.count({
+        where: { documentId: lease.documentId },
+      }),
+    ).toBe(0);
+    expect(
+      await db.documentChunk.count({ where: { documentId: lease.documentId } }),
+    ).toBe(2);
+    const id = await reserve(new Date(0));
+    await uploads.deleteAndScheduleCleanup(id, userId, new Date(0));
+    const cleanup = (await repo.claim("retention"))!;
+    expect(cleanup.documentId).toBe(id);
+    await repo.settle(cleanup, "complete");
+    await db.outboxEvent.updateMany({
+      where: { aggregateId: id, eventType: "document.deleted" },
+      data: { processedAt: new Date(0) },
+    });
+    await repo.retain();
+    expect(await db.document.findUnique({ where: { id } })).toBeNull();
+    expect(
+      await db.outboxEvent.count({
+        where: { aggregateId: id, eventType: "document.deleted" },
+      }),
+    ).toBe(0);
+    expect(
+      await db.outboxEvent.count({
+        where: { aggregateId: id, eventType: "document.cleanup.completed" },
+      }),
+    ).toBe(1);
+  });
+  it("pauses visibly when the final cleanup attempt crashes instead of stranding an invisible lease", async () => {
+    const id = await reserve(new Date(0));
+    await cleanupDue(id);
+    await uploads.deleteAndScheduleCleanup(id, userId, new Date());
+    const repo = lifecycle();
+    const first = (await repo.claim("crashed"))!;
+    await db.documentCleanupTask.update({
+      where: { id: first.id },
+      data: { attemptCount: 2, leaseExpiresAt: new Date(0) },
+    });
+    expect(await repo.claim("recovery")).toBeNull();
+    expect(
+      await db.documentCleanupTask.findUniqueOrThrow({
+        where: { id: first.id },
+      }),
+    ).toMatchObject({
+      errorCode: "DOCUMENT_CLEANUP_RETRY_EXHAUSTED",
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    });
+  });
+  it("does not rewind a durable inventory cursor when a slower replica finishes an old page", async () => {
+    const repo = lifecycle();
+    await repo.reconcile("test-private", [], "page-1", null);
+    await repo.reconcile("test-private", [], "page-2", "page-1");
+    await repo.reconcile("test-private", [], "stale-page", null);
+    expect(await repo.cursor()).toBe("page-2");
+  });
   it("rejects partial batches, retries embeddings from the same staged chunks and emits READY once", async () => {
     const { lease, output } = await stagedForIndexing();
     await expect(
@@ -571,7 +880,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
       await db.outboxEvent.count({
         where: {
           aggregateId: lease.documentId,
-          eventType: "document.processing.ready",
+          eventType: "document.processing.completed",
         },
       }),
     ).toBe(1);
@@ -603,7 +912,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
   });
   it("rolls back all embeddings and activation when completion outbox fails", async () => {
     const { lease, output } = await stagedForIndexing();
-    await fault("document.processing.ready", lease.documentId, async () => {
+    await fault("document.processing.completed", lease.documentId, async () => {
       await expect(jobs.publish(lease, output)).rejects.toThrow();
     });
     expect(
@@ -627,11 +936,12 @@ describe("Durable fenced processing on real PostgreSQL", () => {
     const event = await db.outboxEvent.findFirstOrThrow({
       where: {
         aggregateId: lease.documentId,
-        eventType: "document.processing.ready",
+        eventType: "document.processing.completed",
       },
     });
     expect(JSON.stringify(event)).not.toContain("second paragraph");
-    expect(JSON.stringify(event)).not.toContain("test-fixture");
+    expect(JSON.stringify(event)).toContain("embeddingModel");
+    expect(JSON.stringify(event)).not.toContain('embedding":');
   });
   it("requires durable staged extraction before configured runtime indexing can activate READY", async () => {
     const lease = await claimed();
@@ -700,6 +1010,11 @@ describe("Durable fenced processing on real PostgreSQL", () => {
       throw new Error("Dedicated test database required");
   });
   afterEach(async () => {
+    await db.documentProcessingAudit.deleteMany({
+      where: { documentId: { in: ids } },
+    });
+    await db.documentMaintenanceCursor.deleteMany();
+    await db.documentCleanupTask.deleteMany({ where: { documentId: null } });
     await db.outboxEvent.deleteMany({ where: { aggregateId: { in: ids } } });
     await db.document.deleteMany({ where: { userId } });
     ids.length = 0;
@@ -970,7 +1285,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
     async (stage) => {
       const lease = await claimed();
       await db.$executeRawUnsafe(`CREATE FUNCTION test_delay_document_event() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.aggregate_id='${lease.documentId}'::uuid AND NEW.event_type='document.processing.${stage}'
+      BEGIN IF NEW.aggregate_id='${lease.documentId}'::uuid AND NEW.event_type='document.processing.${stage === "ready" ? "completed" : stage}'
       THEN PERFORM pg_sleep(0.2); END IF; RETURN NEW; END $$`);
       await db.$executeRawUnsafe(
         "CREATE TRIGGER test_delay_document_event BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION test_delay_document_event()",
@@ -1034,7 +1349,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
     "document.uploaded",
     "document.processing.started",
     "document.processing.failed",
-    "document.processing.ready",
+    "document.processing.completed",
   ])(
     "rolls back lifecycle changes when %s outbox write fails",
     async (event) => {
@@ -1042,7 +1357,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
         event === "document.uploaded" ? await reserve() : await uploaded();
       const lease =
         event === "document.processing.failed" ||
-        event === "document.processing.ready"
+        event === "document.processing.completed"
           ? (await jobs.claim("a"))!
           : null;
       const before = await db.document.findUniqueOrThrow({ where: { id } });
@@ -1064,7 +1379,7 @@ describe("Durable fenced processing on real PostgreSQL", () => {
           await expect(
             jobs.fail(lease!, "DOCUMENT_UNSUPPORTED_INPUT"),
           ).rejects.toThrow();
-        if (event === "document.processing.ready")
+        if (event === "document.processing.completed")
           await expect(
             jobs.publish(lease!, prepared(lease!)),
           ).rejects.toThrow();
