@@ -14,6 +14,7 @@ import {
   PutBucketVersioningCommand,
   PutPublicAccessBlockCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
   ListObjectVersionsCommand,
   DeleteObjectsCommand,
   DeleteBucketCommand,
@@ -191,6 +192,208 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
     request(app.getHttpServer())
       .post(`/documents/${p.document.id}/upload-complete`)
       .set("Authorization", `Bearer ${bearer}`);
+  it("cleans reusable-upload versions while preserving committed bytes, then removes every version after deletion", async () => {
+    const p = await propose();
+    await upload(p);
+    await complete(p).expect(200);
+    const d = await db.document.findUniqueOrThrow({
+        where: { id: p.document.id },
+      }),
+      storage = app.get<S3DocumentStorage>(DOCUMENT_STORAGE);
+    const download = await request(app.getHttpServer())
+      .get(`/documents/${d.id}/download-url`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    await upload(p, Buffer.from("other!"));
+    const before = await s3.send(
+      new ListObjectVersionsCommand({ Bucket: bucket, Prefix: d.s3Key }),
+    );
+    expect(before.Versions!.length).toBe(2);
+    expect(
+      await storage.cleanVersions(
+        { bucket, key: d.s3Key },
+        d.storageVersionId,
+        new AbortController().signal,
+      ),
+    ).toBe(true);
+    const after = await s3.send(
+      new ListObjectVersionsCommand({ Bucket: bucket, Prefix: d.s3Key }),
+    );
+    expect(after.Versions!.map((v) => v.VersionId)).toEqual([
+      d.storageVersionId,
+    ]);
+    expect(
+      (
+        await storage.readForVerification(
+          { bucket, key: d.s3Key },
+          64,
+          d.storageVersionId!,
+        )
+      ).checksumSha256,
+    ).toBe(sha(body));
+    await request(app.getHttpServer())
+      .delete(`/documents/${d.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(204);
+    await request(app.getHttpServer())
+      .delete(`/documents/${d.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(204);
+    // Existing signed authorization is not immediate revocation; new API reads are denied.
+    expect((await fetch(download.body.url)).status).toBe(200);
+    await request(app.getHttpServer())
+      .get(`/documents/${d.id}/download-url`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(404);
+    expect(
+      await storage.cleanVersions(
+        { bucket, key: d.s3Key },
+        null,
+        new AbortController().signal,
+      ),
+    ).toBe(true);
+    expect(
+      await storage.cleanVersions(
+        { bucket, key: d.s3Key },
+        null,
+        new AbortController().signal,
+      ),
+    ).toBe(true);
+    expect(
+      (
+        await s3.send(
+          new ListObjectVersionsCommand({ Bucket: bucket, Prefix: d.s3Key }),
+        )
+      ).Versions ?? [],
+    ).toHaveLength(0);
+  });
+  it("advances past a retained latest version with one-entry cleanup pages", async () => {
+    const p = await propose();
+    await upload(p);
+    await upload(p);
+    await complete(p).expect(200);
+    const d = await db.document.findUniqueOrThrow({
+      where: { id: p.document.id },
+    });
+    const limited = new S3DocumentStorage({
+      endpoint,
+      publicEndpoint: endpoint,
+      region: process.env.AWS_REGION!,
+      accessKeyId: "test",
+      secretAccessKey: "test",
+      timeoutMs: 5000,
+      maxAttempts: 1,
+      cleanupPageSize: 1,
+    });
+    try {
+      expect(
+        await limited.cleanVersions(
+          { bucket, key: d.s3Key },
+          d.storageVersionId,
+          new AbortController().signal,
+        ),
+      ).toBe(true);
+      expect(
+        (
+          await s3.send(
+            new ListObjectVersionsCommand({ Bucket: bucket, Prefix: d.s3Key }),
+          )
+        ).Versions!.map((v) => v.VersionId),
+      ).toEqual([d.storageVersionId]);
+    } finally {
+      limited.onModuleDestroy();
+    }
+  });
+  it("paginates version inventory for orphan reconciliation without exposing object data through HTTP", async () => {
+    const key = `users/${userId}/documents/${randomUUID()}/${randomUUID()}.txt`,
+      storage = app.get<S3DocumentStorage>(DOCUMENT_STORAGE);
+    await s3.send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }),
+    );
+    await s3.send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }),
+    );
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    const first = await storage.inventory(
+      bucket,
+      null,
+      1,
+      new AbortController().signal,
+    );
+    expect(first.items.map((i) => i.key)).toContain(key);
+    expect(first.next).not.toBeNull();
+    const next = await storage.inventory(
+      bucket,
+      first.next,
+      1,
+      new AbortController().signal,
+    );
+    expect(next.items.map((i) => i.key)).toContain(key);
+    await storage.cleanVersions(
+      { bucket, key },
+      null,
+      new AbortController().signal,
+    );
+    const remaining = await s3.send(
+      new ListObjectVersionsCommand({ Bucket: bucket, Prefix: key }),
+    );
+    expect(remaining.Versions ?? []).toHaveLength(0);
+    expect(remaining.DeleteMarkers ?? []).toHaveLength(0);
+  });
+  it("exposes owner-authorized idempotent reprocess and keeps the old generation readable during indexing", async () => {
+    const p = await propose();
+    await upload(p);
+    await complete(p).expect(200);
+    const jobs = app.get<DocumentProcessingRepository>(
+        DOCUMENT_PROCESSING_REPOSITORY,
+      ),
+      processor = app.get(DocumentJobProcessor);
+    for (let step = 0; step < 2; step++) {
+      const lease = (await jobs.claim("initial-index"))!;
+      await processor.run(lease, new AbortController().signal);
+    }
+    expect(
+      (await db.document.findUniqueOrThrow({ where: { id: p.document.id } }))
+        .status,
+    ).toBe("READY");
+    const path = `/documents/${p.document.id}/reprocess`,
+      key = randomUUID();
+    await request(app.getHttpServer()).post(path).expect(401);
+    await request(app.getHttpServer())
+      .post(path)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(path)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .set("x-idempotency-key", key)
+      .expect(404);
+    const a = await request(app.getHttpServer())
+      .post(path)
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-idempotency-key", key)
+      .expect(202);
+    const b = await request(app.getHttpServer())
+      .post(path)
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-idempotency-key", key)
+      .expect(202);
+    expect(a.body.jobId).toBe(b.body.jobId);
+    const reindex = (await jobs.claim("reindex"))!;
+    expect(reindex.generation).toBe(2);
+    const chunks = await request(app.getHttpServer())
+      .get(`/internal/documents/${p.document.id}/chunks`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(chunks.body.items[0].generation).toBe(1);
+    await processor.run(reindex, new AbortController().signal);
+    const indexing = (await jobs.claim("reindex-vector"))!;
+    await processor.run(indexing, new AbortController().signal);
+    expect(
+      (await db.document.findUniqueOrThrow({ where: { id: p.document.id } }))
+        .activeGeneration,
+    ).toBe(2);
+  });
   it("uploads, verifies, lists and downloads real private bytes with safe disposition", async () => {
     const p = await propose({
       filename: "ghi chú.txt",
@@ -349,7 +552,7 @@ describe("Private upload API with real PostgreSQL and LocalStack S3", () => {
       "document.processing.extracted",
     );
     expect(events.map((e) => e.eventType)).not.toContain(
-      "document.processing.ready",
+      "document.processing.completed",
     );
     const indexingLease = (await jobs.claim("indexing-fixture"))!;
     await app
