@@ -2,7 +2,7 @@
 
 Supported uploads now progress through extraction and real local embeddings to READY.
 READY means every staged chunk has a valid vector in one recorded embedding space;
-activation, job success and `document.processing.ready` commit atomically. Existing
+activation, job success and `document.processing.completed` commit atomically. Existing
 upload/metadata/download/retry routes and event envelope v1 are preserved. Search HTTP
 and AI document tools remain Branches 6–7.
 
@@ -126,3 +126,6 @@ The opt-in smoke also verifies factual questions, empty unknown-query results an
 
 Deferred: AI grounded answers, approximate indexes,
 production deployment, OCR, reindex administration and full lifecycle cleanup.
+
+Branch 8 lifecycle, cleanup, audit retention and legacy event compatibility are documented
+in [the lifecycle runbook](document-lifecycle.md).

@@ -22,7 +22,7 @@ Processing reads the committed S3 version, then checks its size, MIME and SHA-25
 Stages prepare domain results outside DB transactions and must honor their AbortSignal;
 they must not persist intermediate rows themselves. Only the fenced publisher validates
 and atomically persists complete prepared chunks/vectors, activates READY and records
-`document.processing.ready`. It checks owner/token/job/generation, deletion and DB lease
+`document.processing.completed`. It checks owner/token/job/generation, deletion and DB lease
 before writes and again before returning from the transaction. Expiry during publication
 rolls back the results. Legacy unfenced writers cannot publish verified-source results.
 
@@ -108,7 +108,7 @@ documents can use the retry API.
 
 Events are `document.uploaded`, `document.processing.started` (one per claim),
 `document.processing.failed` (terminal failure), `document.processing.extracted`
-(Branch 4 staging) and `document.processing.ready`
+(Branch 4 staging) and `document.processing.completed`
 (complete fenced publication). Version-1 envelopes contain id, type, version,
 producer=document-service, correlationId=jobId, UTC occurredAt and payload fields
 documentId/jobId/generation/attempt/optional safe errorCode. They omit owner details,
@@ -155,3 +155,6 @@ Branch 8 cleanup/reprocessing/audit, external event relay, OCR, delivery, analyt
 Flutter screens and production deployment. No review report file is created.
 
 Branch 5 splits one generation into durable extraction/indexing phases. Each phase has a bounded attempt budget; indexing retries reuse staged chunks. See [embedding processing and recovery](document-embeddings.md).
+
+Branch 8 lifecycle, cleanup, audit retention and legacy event compatibility are documented
+in [the lifecycle runbook](document-lifecycle.md).

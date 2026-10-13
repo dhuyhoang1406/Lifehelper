@@ -12,7 +12,8 @@ Deployment network routing should expose these routes only to intended consumers
 
 All routes require authentication. DTO validation rejects arbitrary vectors,
 unrecognized properties, malformed IDs and out-of-range limits. SQL restricts owner,
-nondeleted READY documents and COMPLETE active generations before cosine ranking.
+nondeleted documents and COMPLETE active generations before cosine ranking. During deliberate
+reindex, the old active source remains readable under the [lifecycle policy](document-lifecycle.md).
 Search also checks exact model, manifest digest, dimensions and plain-text input
 policy. Incompatible stored generations are excluded and require reindexing.
 No object key, bucket, storage version, raw vector or signed URL is returned.
@@ -146,4 +147,4 @@ temporary database in `finally`, on success and failure; never target applicatio
 
 No migration or event contract change is required. No new timestamp fields are
 introduced; existing UTC persistence remains unchanged. Deferred: richer relevance/answerability evaluation, approximate indexes,
-cloud embeddings, complete cleanup and expiry reconciliation.
+cloud embeddings, Phase 5 release hardening.

@@ -119,7 +119,8 @@ complete active embedding generation. See [extraction and chunking](docs/api/doc
 Authorized search and generation-safe chunk APIs are available under `/internal/documents`;
 see the [retrieval API and tests](docs/api/document-retrieval.md). The existing `/ai/chat` now accepts an optional document scope for grounded answers
 and ordered summaries with persisted citations; see [AI document tools and RAG](docs/api/ai-document-rag.md).
-Cleanup arrives in Branch 8.
+Document lifecycle now includes idempotent reprocess, leased cleanup, orphan reconciliation
+and retention; see [lifecycle and audit](docs/api/document-lifecycle.md).
 
 ## Flutter
 
