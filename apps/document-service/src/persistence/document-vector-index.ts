@@ -32,7 +32,7 @@ export class PrismaDocumentVectorIndex implements DocumentVectorIndex {
         FROM documents d JOIN document_generations g ON g.document_id=d.id AND g.generation=d.active_generation
         JOIN document_chunks c ON c.document_id=d.id AND c.generation=g.generation
         JOIN document_embeddings e ON e.chunk_id=c.id
-        WHERE d.user_id=${query.userId}::uuid AND d.deleted_at IS NULL AND d.status='READY' AND g.status='COMPLETE'
+        WHERE d.user_id=${query.userId}::uuid AND d.deleted_at IS NULL AND d.status IN ('READY','PROCESSING','FAILED') AND (d.status='READY' OR (g.source_checksum_sha256=d.checksum_sha256 AND g.source_version_id=d.storage_version_id)) AND g.status='COMPLETE'
           ${restriction}
           AND g.embedding_model=${query.space.model} AND g.embedding_version=${query.space.version}
           AND g.embedding_dimensions=${query.space.dimensions}
