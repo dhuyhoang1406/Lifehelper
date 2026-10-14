@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-15T09:50:15.193688+00:00",
+  "mode": "regression",
+  "workingTreeChangesSha256": "421109a9e55fbbabdcd53f1ebb1a979ceb00b559f7ed23566336ab0a377fed71",
+  "baseCommit": "ccbdfe38142fea52238b9191f90ec30d0b54c3b2",
+  "platform": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "logicalCpus": 16,
+  "passed": true,
+  "limitations": [
+    "Tiny synthetic corpus; not production accuracy.",
+    "p95 uses nearest rank and small samples; no universal SLA.",
+    "Anchor checks are not factual entailment; review synthetic outputs manually."
+  ],
+  "cleanup": "all owned resources removed",
+  "finishedAt": "2026-10-15T09:50:53.691600+00:00"
+}
