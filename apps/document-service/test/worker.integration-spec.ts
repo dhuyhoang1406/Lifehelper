@@ -564,6 +564,16 @@ describe("Durable fenced processing on real PostgreSQL", () => {
       data: { nextAttemptAt: new Date(0) },
     });
   }
+  it("stops automatic retries on embedding credentials failure but permits explicit reprocess after configuration repair", async () => {
+    const lease = await claimed();
+    expect(await jobs.fail(lease, "DOCUMENT_EMBEDDING_UNAUTHORIZED")).toBe(
+      true,
+    );
+    expect(await jobs.claim("no-credential-hammering")).toBeNull();
+    await expect(
+      lifecycle().reprocess(lease.documentId, userId, randomUUID()),
+    ).resolves.toMatchObject({ generation: 2, status: "PENDING" });
+  });
   it("idempotently reindexes while retaining the old source generation, then atomically activates the new index", async () => {
     const { lease, output } = await stagedForIndexing();
     expect(await jobs.publish(lease, output, 12)).toBe(true);

@@ -43,7 +43,10 @@ export class PrismaDocumentLifecycleRepository implements DocumentLifecycleRepos
           d.status === "READY" ||
           (d.status === "FAILED" &&
             (retryEligible(d.processingError) ||
-              d.processingError === "DOCUMENT_EMBEDDING_MODEL_MISMATCH"))
+              [
+                "DOCUMENT_EMBEDDING_MODEL_MISMATCH",
+                "DOCUMENT_EMBEDDING_UNAUTHORIZED",
+              ].includes(d.processingError ?? "")))
         )
       )
         throw new DocumentApplicationError(
