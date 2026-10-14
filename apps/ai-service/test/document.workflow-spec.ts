@@ -1,3 +1,4 @@
+import { AIProviderFailure } from "../src/modules/ai/application/errors/ai.errors";
 import { fork, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
@@ -190,6 +191,37 @@ describe("AI → Document HTTP RAG with separate databases and real private file
       provider.requests.slice(before).every((r) => r.tools === undefined),
     ).toBe(true);
   });
+  it.each([
+    ["quota_exceeded", 429],
+    ["unavailable", 503],
+  ] as const)(
+    "does not persist grounded assistant success on provider %s",
+    async (kind, status) => {
+      // Empty assistant tool-call audit messages are not generated answer success.
+      const before = await db.message.count({
+        where: {
+          role: "ASSISTANT",
+          content: { not: "" },
+          conversation: { userId },
+        },
+      });
+      const calls = provider.requests.length;
+      provider.enqueueError(
+        new AIProviderFailure(kind, "synthetic failure", false),
+      );
+      await chat(token).expect(status);
+      expect(provider.requests).toHaveLength(calls + 1);
+      expect(
+        await db.message.count({
+          where: {
+            role: "ASSISTANT",
+            content: { not: "" },
+            conversation: { userId },
+          },
+        }),
+      ).toBe(before);
+    },
+  );
   it("rejects a source deleted between retrieval and answer", async () => {
     const original = provider.generate.bind(provider);
     const spy = jest
