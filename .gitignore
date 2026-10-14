@@ -29,3 +29,5 @@ apps/mobile/android/local.properties
 apps/mobile/ios/Flutter/ephemeral/
 apps/mobile/ios/Pods/
 apps/mobile/macos/Flutter/ephemeral/
+# Local verification tooling
+__pycache__/

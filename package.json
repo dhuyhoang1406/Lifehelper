@@ -20,7 +20,9 @@
     "compose:up": "docker compose up -d --build",
     "compose:down": "docker compose down",
     "architecture:check": "node scripts/check-service-architecture.mjs",
-    "architecture:test": "node scripts/check-service-architecture.test.mjs"
+    "architecture:test": "node scripts/check-service-architecture.test.mjs",
+    "verify:document-rag": "python3 scripts/verify-document-rag.py",
+    "test:document-rag-tooling": "python3 -m unittest discover -s scripts -p 'test_document_rag_verification.py'"
   },
   "devDependencies": {
     "prettier": "^3.6.2",
