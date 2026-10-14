@@ -93,8 +93,8 @@ See the [operational runbook](docs/api/ai-runbook.md) for test commands, isolate
 PostgreSQL workflows, provider smoke tests and recovery guidance; see also
 [conversations](docs/api/ai-conversations.md), [read tools](docs/api/ai-read-tools.md),
 [confirmed actions](docs/api/ai-actions.md) and [audit events](docs/api/ai-events-audit.md).
-Voice, Vision, Document/RAG, notification delivery and analytics consumption remain
-deferred. Outbox events are persisted locally; external publishing is deferred.
+Voice, Vision, notification delivery and analytics consumption remain deferred.
+Document/RAG is implemented by the Document Service and grounded chat described below. Outbox events are persisted locally; external publishing is deferred.
 
 ## Document Service
 
@@ -112,15 +112,20 @@ Anonymous-denial verification requires an S3 environment that enforces access ru
 Processing jobs and lifecycle outbox events now persist atomically; the
 [processing worker runbook](docs/api/document-processing.md) explains leases, crash
 recovery, bounded retry and the owner-authorized retry API. Supported TXT/Markdown/PDF
-files are extracted into staged chunks and embedded by local BGE-M3. READY requires a
+files are extracted into staged chunks and embedded by configured BGE-M3 on Ollama or
+Cloudflare Workers AI. Document and query embeddings always use the same selected space. READY requires a
 complete active embedding generation. See [extraction and chunking](docs/api/document-extraction.md),
 [embedding setup, migration and tests](docs/api/document-embeddings.md), and
 [model selection ADR](docs/architecture/adr/001-document-embedding-space.md).
+For Cloudflare embeddings and reindex requirements, see [ADR 002](docs/architecture/adr/002-cloudflare-document-embeddings.md).
 Authorized search and generation-safe chunk APIs are available under `/internal/documents`;
 see the [retrieval API and tests](docs/api/document-retrieval.md). The existing `/ai/chat` now accepts an optional document scope for grounded answers
 and ordered summaries with persisted citations; see [AI document tools and RAG](docs/api/ai-document-rag.md).
 Document lifecycle now includes idempotent reprocess, leased cleanup, orphan reconciliation
 and retention; see [lifecycle and audit](docs/api/document-lifecycle.md).
+For reproducible Phase 5 checks, real-model evaluation, environment/secret reference and
+backup/rollback procedures, see [RAG operations](docs/api/document-rag-operations.md) and
+[verification evidence](docs/verification/phase-5-document-rag.md).
 
 ## Flutter
 
