@@ -29,7 +29,7 @@ export class PrismaDocumentRetrievalRepository implements DocumentRetrievalRepos
       FROM documents d JOIN document_generations g ON g.document_id=d.id AND g.generation=d.active_generation
       JOIN document_chunks c ON c.document_id=d.id AND c.generation=g.generation
       WHERE d.id=${documentId}::uuid AND d.user_id=${userId}::uuid AND d.deleted_at IS NULL
-        AND d.status='READY' AND g.status='COMPLETE' AND c.chunk_index>${after}
+        AND d.status IN ('READY','PROCESSING','FAILED') AND (d.status='READY' OR (g.source_checksum_sha256=d.checksum_sha256 AND g.source_version_id=d.storage_version_id)) AND g.status='COMPLETE' AND c.chunk_index>${after}
         ${generation === undefined ? Prisma.empty : Prisma.sql`AND g.generation=${generation}`}
         ${chunkId === undefined ? Prisma.empty : Prisma.sql`AND c.id=${chunkId}::uuid`}
       ORDER BY c.chunk_index LIMIT ${limit}`;

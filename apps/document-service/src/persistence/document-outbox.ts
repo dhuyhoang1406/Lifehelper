@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "../../generated/client";
 type LifecycleEvent =
+  | "document.deleted"
+  | "document.cleanup.completed"
+  | "document.reprocess.requested"
+  | "document.processing.completed"
   | "document.uploaded"
   | "document.processing.started"
   | "document.processing.failed"
-  | "document.processing.extracted"
-  | "document.processing.ready";
+  | "document.processing.extracted";
 export async function documentEvent(
   tx: Prisma.TransactionClient,
   type: LifecycleEvent,
@@ -15,6 +18,7 @@ export async function documentEvent(
   attempt: number,
   at: Date,
   errorCode?: string,
+  metrics: Record<string, string | number> = {},
 ) {
   const id = randomUUID();
   await tx.outboxEvent.create({
@@ -37,6 +41,23 @@ export async function documentEvent(
           generation,
           attempt,
           ...(errorCode ? { errorCode } : {}),
+          ...Object.fromEntries(
+            Object.entries(metrics).filter(
+              ([key, value]) =>
+                [
+                  "durationMs",
+                  "chunkCount",
+                  "textChars",
+                  "estimatedInputTokens",
+                  "embeddingValues",
+                  "embeddingModel",
+                  "embeddingVersion",
+                  "embeddingDimensions",
+                ].includes(key) &&
+                (typeof value === "string" ||
+                  (typeof value === "number" && Number.isFinite(value))),
+            ),
+          ),
         },
       },
     },

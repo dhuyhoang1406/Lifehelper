@@ -1,3 +1,4 @@
+import { lockDocument } from "./document-lock";
 import { PrismaService } from "../prisma.service";
 import type { Document } from "../modules/document/domain/entities/document.entity";
 import type { DocumentUploadRepository } from "../modules/document/application/ports/document-upload.repository";
@@ -100,6 +101,18 @@ export class PrismaDocumentUploadRepository implements DocumentUploadRepository 
   }
   async deleteAndScheduleCleanup(id: string, userId: string, at: Date) {
     return this.db.$transaction(async (tx) => {
+      const existing = await lockDocument(tx, id, userId);
+      if (!existing) return false;
+      if (existing.deletedAt) {
+        await tx.documentCleanupTask.updateMany({
+          where: {
+            documentId: id,
+            errorCode: "DOCUMENT_CLEANUP_RETRY_EXHAUSTED",
+          },
+          data: { attemptCount: 0, errorCode: null, nextAttemptAt: at },
+        });
+        return true;
+      }
       const rows = await tx.document.updateMany({
         where: { id, userId, deletedAt: null },
         data: {
@@ -111,10 +124,15 @@ export class PrismaDocumentUploadRepository implements DocumentUploadRepository 
         },
       });
       if (!rows.count) return false;
+      await tx.documentProcessingAudit.updateMany({
+        where: { documentId: id, status: "RUNNING" },
+        data: { status: "CANCELLED", finishedAt: at },
+      });
       await tx.documentProcessingJob.updateMany({
         where: { documentId: id, status: { in: ["PENDING", "RUNNING"] } },
         data: {
           status: "CANCELLED",
+          leaseToken: { increment: 1 },
           leaseOwner: null,
           leaseExpiresAt: null,
           updatedAt: at,
@@ -131,11 +149,28 @@ export class PrismaDocumentUploadRepository implements DocumentUploadRepository 
         document.uploadExpiresAt && document.uploadExpiresAt > at
           ? document.uploadExpiresAt
           : at;
-      await tx.documentCleanupTask.upsert({
+      const cleanup = await tx.documentCleanupTask.upsert({
         where: { documentId: id },
         create: { documentId: id, nextAttemptAt: cleanupAt, createdAt: at },
-        update: { nextAttemptAt: cleanupAt, completedAt: null },
+        update: {
+          nextAttemptAt: cleanupAt,
+          completedAt: null,
+          attemptCount: 0,
+          errorCode: null,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          leaseToken: { increment: 1 },
+        },
       });
+      await documentEvent(
+        tx,
+        "document.deleted",
+        id,
+        cleanup.id,
+        document.processingGeneration,
+        0,
+        at,
+      );
       return true;
     });
   }

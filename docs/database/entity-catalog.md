@@ -35,11 +35,17 @@ This catalog mirrors the Phase 0 V1 system design. It describes domain ownership
 
 ## Document Service
 
-| Entity              | Purpose and important fields                                                           | Relations                                       | Invariants / behavior                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `Document`          | User-owned S3 metadata, MIME type, size/checksum, processing status/error, soft delete | Owns chunks; logical `userId`                   | Size ≥ 0; storage metadata required; upload/processing/ready transitions protected          |
-| `DocumentChunk`     | Indexed extracted text with optional token count and metadata                          | Belongs to document; owns at most one embedding | Index and token count are non-negative; `(documentId, chunkIndex)` is unique in persistence |
-| `DocumentEmbedding` | Model-specific vector for one chunk                                                    | Belongs one-to-one to chunk                     | Model required; vector must be non-empty and finite                                         |
+| Model                       | Purpose                                                                          | Relations / invariants                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Document`                  | Owned immutable source metadata, processing/active generations and soft deletion | Own database only; prior complete generation stays available during same-source reindex |
+| `DocumentGeneration`        | Extraction provenance, embedding space and activation state                      | `(documentId,generation)`; only complete embedded generations activate                  |
+| `DocumentChunk`             | Extracted text and line/page locator                                             | Unique `(documentId,generation,chunkIndex)`; belongs to generation                      |
+| `DocumentEmbedding`         | Finite model/version/dimension-specific vector                                   | One per chunk; cascade on chunk deletion                                                |
+| `DocumentProcessingJob`     | Durable attempts, lease/fencing and reprocess receipt                            | Unique generation and optional `(documentId,reprocessKey)`                              |
+| `DocumentCleanupTask`       | Leased all-version cleanup, retries and orphan targets                           | Optional document FK; unique orphan bucket/key; fencing token protects completion       |
+| `DocumentProcessingAudit`   | Sanitized independent attempt metrics and UTC timings                            | Unique `(jobId,leaseToken)`; no content or cross-service FK; bounded retention          |
+| `DocumentMaintenanceCursor` | Durable paginated private-source inventory cursor                                | Compare-and-set progression across replicas                                             |
+| `OutboxEvent`               | Transactional lifecycle events                                                   | Processed-event retention only; unprocessed events remain durable                       |
 
 ## Notification Service
 
@@ -61,3 +67,6 @@ This catalog mirrors the Phase 0 V1 system design. It describes domain ownership
 - Only `UUID` and `JsonValue` are shared technical primitives.
 - Domain code has no NestJS, Prisma, AWS, Redis, OpenAI, HTTP, or persistence dependencies.
 - Dates represent UTC timestamps internally. Calendar events and reminders retain the caller-provided IANA timezone.
+
+Branch 8 lifecycle, cleanup, audit retention and legacy event compatibility are documented
+in [the lifecycle runbook](../api/document-lifecycle.md).

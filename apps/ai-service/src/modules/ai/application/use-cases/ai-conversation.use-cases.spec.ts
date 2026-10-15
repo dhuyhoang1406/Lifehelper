@@ -168,6 +168,75 @@ describe("AIConversationUseCases", () => {
     });
   });
 
+  it("retains historical grounded messages for the owner but never replays their content as current evidence", async () => {
+    const scopedHistory = new AIConversationUseCases(
+      conversations,
+      messages,
+      { generate },
+      10,
+    );
+    const first = await scopedHistory.chat(userA, "Start");
+    const at = await conversations.nextMessageAt(first.conversationId, userA);
+    messages.rows.push(
+      Message.create({
+        id: "old-grounded",
+        conversationId: first.conversationId,
+        role: MessageRole.ASSISTANT,
+        content: "PRIVATE_DOCUMENT_EXCERPT",
+        documentCoverage: { partial: false, chunksRead: 1 },
+        createdAt: at!,
+      }),
+    );
+    messages.rows.push(
+      Message.create({
+        id: "old-doc-tool",
+        conversationId: first.conversationId,
+        role: MessageRole.ASSISTANT,
+        content: "",
+        toolPayload: {
+          kind: "tool_calls",
+          calls: [
+            {
+              id: "doc-call",
+              name: "search_documents",
+              arguments: { query: "PRIVATE_DOCUMENT_TOOL_EXCERPT" },
+            },
+          ],
+        },
+        createdAt: (await conversations.nextMessageAt(
+          first.conversationId,
+          userA,
+        ))!,
+      }),
+    );
+    messages.rows.push(
+      Message.create({
+        id: "old-doc-result",
+        conversationId: first.conversationId,
+        role: MessageRole.TOOL,
+        content: '{"sourceCount":1}',
+        toolPayload: {
+          kind: "tool_result",
+          id: "doc-call",
+          name: "search_documents",
+        },
+        createdAt: (await conversations.nextMessageAt(
+          first.conversationId,
+          userA,
+        ))!,
+      }),
+    );
+    await scopedHistory.chat(userA, "Follow up", first.conversationId);
+    expect(JSON.stringify(generate.mock.calls.at(-1)![0])).not.toContain(
+      "PRIVATE_DOCUMENT_EXCERPT",
+    );
+    expect(JSON.stringify(generate.mock.calls.at(-1)![0])).not.toContain(
+      "PRIVATE_DOCUMENT_TOOL_EXCERPT",
+    );
+    expect(
+      messages.rows.some((m) => m.state.content === "PRIVATE_DOCUMENT_EXCERPT"),
+    ).toBe(true);
+  });
   it("preserves the user message and no assistant message when provider fails", async () => {
     generate.mockRejectedValueOnce(
       new AIApplicationError(

@@ -1,3 +1,4 @@
+import { DocumentReprocessUseCase } from "../application/use-cases/document-reprocess.use-case";
 import { Test } from "@nestjs/testing";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { DocumentController } from "./document.controller";
@@ -9,6 +10,7 @@ it("uses the registered access-token scheme for every Document operation", async
   const module = await Test.createTestingModule({
     controllers: [DocumentController],
     providers: [
+      { provide: DocumentReprocessUseCase, useValue: {} },
       { provide: DocumentUploadUseCases, useValue: {} },
       { provide: DocumentProcessingRetryUseCase, useValue: {} },
     ],
@@ -27,7 +29,30 @@ it("uses the registered access-token scheme for every Document operation", async
         (operation) => operation !== undefined,
       ),
     );
-    expect(operations).toHaveLength(7);
+    expect(operations).toHaveLength(8);
+    expect(document.paths["/documents"]?.get?.parameters).toEqual([
+      expect.objectContaining({
+        name: "limit",
+        in: "query",
+        schema: expect.objectContaining({
+          type: "number",
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+        }),
+      }),
+    ]);
+    expect(
+      document.paths["/documents/{id}/reprocess"]?.post?.parameters,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          in: "header",
+          name: "x-idempotency-key",
+          required: true,
+        }),
+      ]),
+    );
     expect(
       document.paths["/documents/upload-url"]?.post?.requestBody,
     ).toMatchObject({

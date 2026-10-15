@@ -131,6 +131,7 @@ model DocumentProcessingJob {
   nextAttemptAt        DateTime            @map("next_attempt_at") @db.Timestamptz(6)
   leaseOwner           String?             @map("lease_owner") @db.VarChar(128)
   leaseExpiresAt       DateTime?           @map("lease_expires_at") @db.Timestamptz(6)
+  reprocessKey         String?             @map("reprocess_key") @db.Uuid
   errorCode            String?             @map("error_code") @db.VarChar(100)
   createdAt            DateTime            @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @map("updated_at") @db.Timestamptz(6)
@@ -138,6 +139,7 @@ model DocumentProcessingJob {
   processingGeneration DocumentGeneration  @relation(fields: [documentId, generation], references: [documentId, generation], onDelete: Cascade)
 
   @@unique([documentId, generation])
+  @@unique([documentId, reprocessKey])
   @@index([status, nextAttemptAt, id])
   @@index([status, leaseExpiresAt])
   @@map("document_processing_jobs")
@@ -159,13 +161,50 @@ model OutboxEvent {
 }
 
 model DocumentCleanupTask {
-  documentId    String    @id @map("document_id") @db.Uuid
-  nextAttemptAt DateTime  @map("next_attempt_at") @db.Timestamptz(6)
-  attemptCount  Int       @default(0) @map("attempt_count")
-  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
-  createdAt     DateTime  @map("created_at") @db.Timestamptz(6)
-  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId     String?   @unique @map("document_id") @db.Uuid
+  bucket         String?
+  key            String?
+  leaseOwner     String?   @map("lease_owner") @db.VarChar(128)
+  leaseToken     Int       @default(0) @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  errorCode      String?   @map("error_code") @db.VarChar(100)
+  nextAttemptAt  DateTime  @map("next_attempt_at") @db.Timestamptz(6)
+  attemptCount   Int       @default(0) @map("attempt_count")
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+  document       Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@unique([bucket, key])
   @@index([completedAt, nextAttemptAt])
+  @@index([nextAttemptAt, id])
   @@map("document_cleanup_tasks")
+}
+
+model DocumentMaintenanceCursor {
+  name      String   @id
+  cursor    String?
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@map("document_maintenance_cursors")
+}
+
+model DocumentProcessingAudit {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId String    @map("document_id") @db.Uuid
+  jobId      String    @map("job_id") @db.Uuid
+  generation Int
+  leaseToken Int       @map("lease_token")
+  phase      String    @db.VarChar(16)
+  status     String    @db.VarChar(16)
+  startedAt  DateTime  @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  durationMs Int?      @map("duration_ms")
+  metrics    Json?
+  errorCode  String?   @map("error_code") @db.VarChar(100)
+
+  @@unique([jobId, leaseToken])
+  @@index([startedAt])
+  @@index([documentId, startedAt])
+  @@map("document_processing_audits")
 }

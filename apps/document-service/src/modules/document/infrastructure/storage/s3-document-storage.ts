@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import {
   S3Client,
+  ListObjectVersionsCommand,
+  type ListObjectVersionsCommandOutput,
+  DeleteObjectsCommand,
   GetBucketVersioningCommand,
   GetPublicAccessBlockCommand,
   GetBucketAclCommand,
@@ -23,6 +26,7 @@ export interface S3DocumentConfig {
   timeoutMs: number;
   maxAttempts: number;
   maxConcurrentReads?: number;
+  cleanupPageSize?: number;
 }
 function missing(error: unknown) {
   return (
@@ -85,6 +89,106 @@ export class S3DocumentStorage implements DocumentStorage {
     } finally {
       clearTimeout(timer);
     }
+  }
+  async cleanVersions(
+    object: StoredObject,
+    keepVersionId: string | null,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    return this.bounded(async (abortSignal) => {
+      let page = await this.internal.send(
+        new ListObjectVersionsCommand({
+          Bucket: object.bucket,
+          Prefix: object.key,
+          MaxKeys: this.config.cleanupPageSize ?? 500,
+        }),
+        { abortSignal },
+      );
+      let entries = [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])];
+      // A retained newest version must not pin a one-entry page forever.
+      if (
+        page.IsTruncated &&
+        entries.length &&
+        entries.every(
+          (v) => v.Key === object.key && v.VersionId === keepVersionId,
+        )
+      ) {
+        if (!page.NextKeyMarker || !page.NextVersionIdMarker)
+          throw new Error("Invalid version cursor");
+        page = await this.internal.send(
+          new ListObjectVersionsCommand({
+            Bucket: object.bucket,
+            Prefix: object.key,
+            MaxKeys: this.config.cleanupPageSize ?? 500,
+            KeyMarker: page.NextKeyMarker,
+            VersionIdMarker: page.NextVersionIdMarker,
+          }),
+          { abortSignal },
+        );
+        entries = [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])];
+      }
+      const removed = entries
+        .filter((v) => v.Key === object.key && v.VersionId !== keepVersionId)
+        .map((v) => ({ Key: v.Key, VersionId: v.VersionId }));
+      if (removed.length) {
+        const result = await this.internal.send(
+          new DeleteObjectsCommand({
+            Bucket: object.bucket,
+            Delete: { Objects: removed },
+          }),
+          { abortSignal },
+        );
+        if (result.Errors?.length)
+          throw new Error("Source version deletion failed");
+      }
+      return !page.IsTruncated || entries.some((v) => v.Key !== object.key);
+    }, signal);
+  }
+  async inventory(
+    bucket: string,
+    cursor: string | null,
+    limit: number,
+    signal: AbortSignal,
+  ) {
+    return this.bounded(async (abortSignal) => {
+      const marker = cursor
+        ? (JSON.parse(cursor) as { key: string; version: string })
+        : undefined;
+      let page: ListObjectVersionsCommandOutput;
+      try {
+        page = await this.internal.send(
+          new ListObjectVersionsCommand({
+            Bucket: bucket,
+            Prefix: "users/",
+            MaxKeys: limit,
+            KeyMarker: marker?.key,
+            VersionIdMarker: marker?.version,
+          }),
+          { abortSignal },
+        );
+      } catch (error) {
+        if (
+          cursor &&
+          error instanceof Error &&
+          ["InvalidArgument", "InvalidRequest", "NoSuchVersion"].includes(
+            error.name,
+          )
+        )
+          return { items: [], next: null };
+        throw error;
+      }
+      return {
+        items: [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]
+          .filter((v) => v.Key && v.LastModified)
+          .map((v) => ({ key: v.Key!, modifiedAt: v.LastModified! })),
+        next: page.IsTruncated
+          ? JSON.stringify({
+              key: page.NextKeyMarker,
+              version: page.NextVersionIdMarker,
+            })
+          : null,
+      };
+    }, signal);
   }
   async authorizeUpload(
     object: StoredObject,

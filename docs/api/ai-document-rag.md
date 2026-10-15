@@ -36,7 +36,8 @@ invalid modes are rejected. Summarize requires exactly one ID:
 
 The AI HTTP adapter forwards the authenticated Identity access token and correlation
 ID, matching AI → Productivity. Identity comes from the signed token, never tool
-arguments. Document Service performs owner/deletion/READY/active-generation filtering
+arguments. Document Service performs owner/deletion/active-generation filtering under the
+[lifecycle policy](document-lifecycle.md), including the prior complete generation during reindex,
 in its SQL. AI reads only `ai_db`; there are no cross-service database accesses or
 foreign keys. The new document workflow test uses a separate Document process and DB.
 
@@ -205,7 +206,11 @@ the absent fact returned insufficient information, the injection case retained
 Membership validation and manual inspection of these synthetic outputs complement the deterministic tests;
 they are not proof of general factual accuracy.
 
-Deferred: complete Document cleanup/reconciliation (Branch 8), cloud embeddings,
+Historical grounded replies remain in history but are omitted from later provider contexts;
+fresh document evidence must be retrieved through the authorized API. Cleanup and retention
+are documented in [the lifecycle runbook](document-lifecycle.md).
+
+Deferred: Phase 5 release hardening, cloud embeddings,
 voice/vision, additional RAG ranking/evaluation and broader factual entailment checks.
 No notification delivery or analytics scope is added. No new timestamp semantics:
 message/event times remain UTC and generation is an integer, not a timestamp.

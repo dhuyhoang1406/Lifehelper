@@ -55,13 +55,22 @@ export interface DocumentProcessingStages {
 export interface DocumentProcessingRepository {
   loadExtraction(lease: ProcessingLease): Promise<PreparedExtraction | null>;
   claim(owner: string): Promise<ProcessingLease | null>;
-  publish(lease: ProcessingLease, result: PreparedGeneration): Promise<boolean>;
+  publish(
+    lease: ProcessingLease,
+    result: PreparedGeneration,
+    durationMs?: number,
+  ): Promise<boolean>;
   stageExtraction(
     lease: ProcessingLease,
     result: PreparedExtraction,
     continueIndexing?: boolean,
+    durationMs?: number,
   ): Promise<boolean>;
-  fail(lease: ProcessingLease, code: ProcessingFailureCode): Promise<boolean>;
+  fail(
+    lease: ProcessingLease,
+    code: ProcessingFailureCode,
+    durationMs?: number,
+  ): Promise<boolean>;
   retry(
     documentId: string,
     userId: string,

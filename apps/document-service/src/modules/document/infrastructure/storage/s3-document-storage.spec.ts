@@ -61,3 +61,43 @@ it.each([1, 2])(
     });
   },
 );
+
+it("resets deleted inventory markers but preserves the cursor on transient storage errors", async () => {
+  let status = 400;
+  server = createServer((_req, res) => {
+    res.writeHead(status, { "content-type": "application/xml" });
+    res.end(
+      `<Error><Code>${status === 400 ? "InvalidArgument" : "ServiceUnavailable"}</Code><Message>synthetic</Message></Error>`,
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("No test listener");
+  const endpoint = `http://127.0.0.1:${address.port}`;
+  storage = new S3DocumentStorage({
+    endpoint,
+    publicEndpoint: endpoint,
+    region: "ap-southeast-1",
+    accessKeyId: "test",
+    secretAccessKey: "test",
+    timeoutMs: 500,
+    maxAttempts: 1,
+  });
+  const cursor = JSON.stringify({
+    key: "users/old",
+    version: "deleted-version",
+  });
+  expect(
+    await storage.inventory(
+      "private-test",
+      cursor,
+      10,
+      new AbortController().signal,
+    ),
+  ).toEqual({ items: [], next: null });
+  status = 503;
+  await expect(
+    storage.inventory("private-test", cursor, 10, new AbortController().signal),
+  ).rejects.toMatchObject({ code: "DOCUMENT_STORAGE_UNAVAILABLE" });
+});

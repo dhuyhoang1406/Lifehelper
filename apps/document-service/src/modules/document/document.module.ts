@@ -1,3 +1,13 @@
+import { DocumentReprocessUseCase } from "./application/use-cases/document-reprocess.use-case";
+import { DocumentLifecycleMaintenance } from "./application/services/document-lifecycle-maintenance";
+import { DocumentMaintenanceWorker } from "./infrastructure/processing/document-maintenance-worker";
+import { PrismaDocumentLifecycleRepository } from "../../persistence/document-lifecycle.repository";
+import {
+  DOCUMENT_LIFECYCLE_REPOSITORY,
+  DOCUMENT_MAINTENANCE_STORAGE,
+  type DocumentLifecycleRepository,
+  type DocumentMaintenanceStorage,
+} from "./application/ports/document-lifecycle.port";
 import { DocumentRetrievalController } from "./presentation/document-retrieval.controller";
 import { DocumentRetrievalUseCases } from "./application/use-cases/document-retrieval.use-cases";
 import { PrismaDocumentVectorIndex } from "../../persistence/document-vector-index";
@@ -59,6 +69,68 @@ import { DocumentExtractionStages } from "./application/services/document-extrac
   imports: [PrismaModule, JwtModule.register({})],
   controllers: [DocumentController, DocumentRetrievalController],
   providers: [
+    {
+      provide: DOCUMENT_LIFECYCLE_REPOSITORY,
+      useFactory: (db: PrismaService, c: ConfigService) =>
+        new PrismaDocumentLifecycleRepository(db, {
+          leaseMs: c.getOrThrow("DOCUMENT_CLEANUP_LEASE_MS"),
+          maxAttempts: c.getOrThrow("DOCUMENT_CLEANUP_MAX_ATTEMPTS"),
+          retryBaseMs: c.getOrThrow("DOCUMENT_CLEANUP_RETRY_BASE_MS"),
+          retryMaxMs: c.getOrThrow("DOCUMENT_CLEANUP_RETRY_MAX_MS"),
+          resweepMs: c.getOrThrow("DOCUMENT_CLEANUP_RESWEEP_MS"),
+          graceMs: c.getOrThrow("DOCUMENT_CLEANUP_GRACE_MS"),
+          auditDays: c.getOrThrow("DOCUMENT_AUDIT_RETENTION_DAYS"),
+          generationDays: c.getOrThrow("DOCUMENT_GENERATION_RETENTION_DAYS"),
+          outboxDays: c.getOrThrow("DOCUMENT_OUTBOX_RETENTION_DAYS"),
+          retentionBatchSize: c.getOrThrow("DOCUMENT_RETENTION_BATCH_SIZE"),
+          tombstoneDays: c.getOrThrow("DOCUMENT_TOMBSTONE_RETENTION_DAYS"),
+        }),
+      inject: [PrismaService, ConfigService],
+    },
+    { provide: DOCUMENT_MAINTENANCE_STORAGE, useExisting: DOCUMENT_STORAGE },
+    {
+      provide: DocumentReprocessUseCase,
+      useFactory: (repo: DocumentLifecycleRepository) =>
+        new DocumentReprocessUseCase(repo),
+      inject: [DOCUMENT_LIFECYCLE_REPOSITORY],
+    },
+    {
+      provide: DocumentLifecycleMaintenance,
+      useFactory: (
+        repo: DocumentLifecycleRepository,
+        storage: DocumentMaintenanceStorage,
+        c: ConfigService,
+      ) =>
+        new DocumentLifecycleMaintenance(repo, storage, {
+          bucket: c.getOrThrow("DOCUMENT_S3_BUCKET"),
+          inventoryLimit: c.getOrThrow("DOCUMENT_INVENTORY_PAGE_SIZE"),
+          batchSize: c.getOrThrow("DOCUMENT_MAINTENANCE_BATCH_SIZE"),
+          timeoutMs: c.getOrThrow("DOCUMENT_CLEANUP_TIMEOUT_MS"),
+        }),
+      inject: [
+        DOCUMENT_LIFECYCLE_REPOSITORY,
+        DOCUMENT_MAINTENANCE_STORAGE,
+        ConfigService,
+      ],
+    },
+    {
+      provide: DocumentMaintenanceWorker,
+      useFactory: (
+        maintenance: DocumentLifecycleMaintenance,
+        c: ConfigService,
+        logger: PinoLogger,
+      ) =>
+        new DocumentMaintenanceWorker(
+          maintenance,
+          {
+            enabled: c.getOrThrow("DOCUMENT_MAINTENANCE_ENABLED"),
+            pollMs: c.getOrThrow("DOCUMENT_MAINTENANCE_POLL_MS"),
+            shutdownMs: c.getOrThrow("DOCUMENT_WORKER_SHUTDOWN_MS"),
+          },
+          logger,
+        ),
+      inject: [DocumentLifecycleMaintenance, ConfigService, PinoLogger],
+    },
     {
       provide: DocumentRetrievalUseCases,
       useFactory: (
@@ -234,6 +306,7 @@ import { DocumentExtractionStages } from "./application/services/document-extrac
           secretAccessKey: c.getOrThrow("AWS_SECRET_ACCESS_KEY"),
           timeoutMs: c.getOrThrow("DOCUMENT_STORAGE_TIMEOUT_MS"),
           maxAttempts: c.getOrThrow("DOCUMENT_STORAGE_MAX_ATTEMPTS"),
+          cleanupPageSize: c.getOrThrow("DOCUMENT_CLEANUP_VERSION_BATCH_SIZE"),
           maxConcurrentReads: c.getOrThrow(
             "DOCUMENT_STORAGE_MAX_CONCURRENT_READS",
           ),

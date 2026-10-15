@@ -139,8 +139,22 @@ export class AIConversationUseCases {
         this.maxContextMessages,
         userCreatedAt,
       );
-      const requestMessages: AIRequestMessage[] =
-        context.map(toProviderMessage);
+      const requestMessages: AIRequestMessage[] = context
+        .filter(
+          (message) =>
+            message.state.documentCoverage == null &&
+            !message.state.citations?.length,
+        )
+        .map(toProviderMessage)
+        .filter(
+          (message) =>
+            !["search_documents", "summarize_document"].includes(
+              message.toolName ?? "",
+            ) &&
+            !message.toolCalls?.some((call) =>
+              ["search_documents", "summarize_document"].includes(call.name),
+            ),
+        );
       while (requestMessages[0]?.role === MessageRole.TOOL)
         requestMessages.shift();
       const recentActions =
