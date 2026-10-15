@@ -33,6 +33,32 @@ const schema = Joi.object({
     .positive()
     .max(10_000)
     .required(),
+  DOCUMENT_SERVICE_URL: Joi.string()
+    .uri({ scheme: ["http", "https"] })
+    .default("http://localhost:3004"),
+  DOCUMENT_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(60000)
+    .default(30000),
+  AI_RAG_EVIDENCE_CHARS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(64000)
+    .default(12000),
+  AI_RAG_MAX_SOURCES: Joi.number().integer().min(1).max(80).default(40),
+  AI_RAG_MAX_PAGES: Joi.number().integer().min(1).max(20).default(8),
+  AI_RAG_SUMMARY_BATCHES: Joi.number().integer().min(1).max(8).default(4),
+  AI_RAG_MAX_CALLS: Joi.number().integer().min(3).max(16).default(8),
+  AI_RAG_TOOL_ROUNDS: Joi.number().integer().min(0).max(2).default(2),
+  AI_RAG_REPAIR_ATTEMPTS: Joi.number().integer().min(0).max(1).default(1),
+  AI_RAG_OUTPUT_TOKENS: Joi.number().integer().min(128).max(4096).default(1024),
+  AI_RAG_BATCH_OUTPUT_TOKENS: Joi.number()
+    .integer()
+    .min(64)
+    .max(1024)
+    .default(256),
+  AI_RAG_DISABLE_REASONING: Joi.boolean().default(true),
   PRODUCTIVITY_SERVICE_URL: Joi.string()
     .uri({ scheme: ["http", "https"] })
     .required(),
@@ -83,5 +109,20 @@ const schema = Joi.object({
 export function validateEnvironment(config: Record<string, unknown>) {
   const { error, value } = schema.validate(config, { abortEarly: false });
   if (error) throw new Error("Environment validation failed: " + error.message);
+  const documentUrl = new URL(value.DOCUMENT_SERVICE_URL);
+  if (
+    documentUrl.username ||
+    documentUrl.password ||
+    documentUrl.pathname !== "/" ||
+    documentUrl.search ||
+    documentUrl.hash
+  )
+    throw new Error(
+      "Environment validation failed: document URL must be an origin without credentials",
+    );
+  if (value.AI_RAG_SUMMARY_BATCHES + 2 > value.AI_RAG_MAX_CALLS)
+    throw new Error(
+      "Environment validation failed: RAG calls must allow summary batches, synthesis and repair",
+    );
   return value;
 }

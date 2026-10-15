@@ -39,6 +39,8 @@ describe("AI read-tool registry", () => {
       "create_reminder",
       "create_habit",
       "log_habit",
+      "search_documents",
+      "summarize_document",
     ]);
     expect(
       registry.definitions.every(

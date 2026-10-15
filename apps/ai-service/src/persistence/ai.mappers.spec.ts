@@ -39,6 +39,8 @@ describe("AI persistence mappers", () => {
       role: PrismaMessageRole.ASSISTANT,
       content: "Done",
       toolPayload: null,
+      citations: null,
+      documentCoverage: null,
       provider: "ollama",
       model: "llama3.2",
       inputTokens: 12,
@@ -50,6 +52,8 @@ describe("AI persistence mappers", () => {
       {
         ...record,
         toolPayload: Prisma.DbNull,
+        citations: Prisma.DbNull,
+        documentCoverage: Prisma.DbNull,
       },
     );
   });

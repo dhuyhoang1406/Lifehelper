@@ -18,7 +18,8 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
     "test:workflow": "jest --runInBand --config test/jest-workflow.json",
-    "test:ollama-smoke": "jest --runInBand --config test/jest-ollama-smoke.json"
+    "test:ollama-smoke": "jest --runInBand --config test/jest-ollama-smoke.json",
+    "test:document-rag-smoke": "node test/document-rag.smoke.cjs"
   },
   "dependencies": {
     "@lifehelper/logger": "workspace:*",

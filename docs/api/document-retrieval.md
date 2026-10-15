@@ -3,7 +3,7 @@
 ## Scope and trust boundary
 
 Document Service owns embedding/search and reads only its own database. AI Service
-will consume these APIs in Branch 7. Forward the current user's Identity access JWT
+consumes these APIs in [Branch 7 grounded chat](ai-document-rag.md). Forward the current user's Identity access JWT
 as `Authorization: Bearer <accessToken>`, following the existing AI → Productivity
 integration. The guard verifies signature, issuer, audience and access-token claims;
 the owner is the verified `sub`. A user ID header/body cannot establish identity.
@@ -145,6 +145,5 @@ questions, source locators and cross-user isolation. Always drop a newly created
 temporary database in `finally`, on success and failure; never target application DBs.
 
 No migration or event contract change is required. No new timestamp fields are
-introduced; existing UTC persistence remains unchanged. Deferred: AI document tools,
-grounded answers, richer relevance/answerability evaluation, approximate indexes,
+introduced; existing UTC persistence remains unchanged. Deferred: richer relevance/answerability evaluation, approximate indexes,
 cloud embeddings, complete cleanup and expiry reconciliation.

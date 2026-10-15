@@ -78,3 +78,43 @@ describe("Message", () => {
     expect(message.state.model).toBe("llama3.2");
   });
 });
+
+it("validates source locators and assistant-only citation metadata", () => {
+  const citation = {
+    reference: 1,
+    documentId: "00000000-0000-4000-8000-000000000001",
+    chunkId: "00000000-0000-4000-8000-000000000002",
+    generation: 1,
+    filename: "notes.txt",
+    lineStart: 1,
+    lineEnd: 2,
+  };
+  const message = {
+    id: "message",
+    conversationId: "conversation",
+    role: MessageRole.ASSISTANT,
+    content: "Fact [1]",
+  };
+  expect(
+    Message.create({ ...message, citations: [citation] }).state.citations,
+  ).toEqual([citation]);
+  expect(() =>
+    Message.create({
+      ...message,
+      role: MessageRole.USER,
+      citations: [citation],
+    }),
+  ).toThrow();
+  expect(() =>
+    Message.create({ ...message, citations: [{ ...citation, lineEnd: 0 }] }),
+  ).toThrow();
+  expect(() =>
+    Message.create({
+      ...message,
+      citations: [{ ...citation, pageStart: 1, pageEnd: 2 }],
+    }),
+  ).toThrow();
+  expect(() =>
+    Message.create({ ...message, citations: [citation, citation] }),
+  ).toThrow();
+});

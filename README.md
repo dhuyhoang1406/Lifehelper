@@ -117,8 +117,9 @@ complete active embedding generation. See [extraction and chunking](docs/api/doc
 [embedding setup, migration and tests](docs/api/document-embeddings.md), and
 [model selection ADR](docs/architecture/adr/001-document-embedding-space.md).
 Authorized search and generation-safe chunk APIs are available under `/internal/documents`;
-see the [retrieval API and tests](docs/api/document-retrieval.md). AI document tools
-follow in Branch 7; cleanup arrives in Branch 8.
+see the [retrieval API and tests](docs/api/document-retrieval.md). The existing `/ai/chat` now accepts an optional document scope for grounded answers
+and ordered summaries with persisted citations; see [AI document tools and RAG](docs/api/ai-document-rag.md).
+Cleanup arrives in Branch 8.
 
 ## Flutter
 
