@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import { randomUUID } from "node:crypto";
 import {
   S3Client,
+  BucketLocationConstraint,
   CreateBucketCommand,
   PutBucketVersioningCommand,
   PutPublicAccessBlockCommand,
@@ -26,6 +27,12 @@ async function main() {
     !/_test$|_ci$/.test(new URL(process.env.DATABASE_URL!).pathname)
   )
     throw new Error("Dedicated test database required");
+  const region = process.env.AWS_REGION;
+  const location = Object.values(BucketLocationConstraint).find(
+    (value) => value === region,
+  );
+  if (region !== "us-east-1" && !location)
+    throw new Error("A supported AWS_REGION is required");
   const bucket = "lifehelper-rag-workflow-" + randomUUID();
   process.env.DOCUMENT_S3_BUCKET = bucket;
   const s3 = new S3Client({
@@ -102,9 +109,9 @@ async function main() {
     await s3.send(
       new CreateBucketCommand({
         Bucket: bucket,
-        CreateBucketConfiguration: {
-          LocationConstraint: process.env.AWS_REGION,
-        },
+        CreateBucketConfiguration: location
+          ? { LocationConstraint: location }
+          : undefined,
       }),
     );
     bucketCreated = true;
