@@ -4,6 +4,7 @@ import { StructuredLoggerModule } from "@lifehelper/logger";
 import { HealthController } from "./health.controller";
 import { PrismaModule } from "./prisma.module";
 import { validateEnvironment } from "./env.validation";
+import { NotificationModule } from "./modules/notification/notification.module";
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -13,6 +14,7 @@ import { validateEnvironment } from "./env.validation";
     }),
     StructuredLoggerModule,
     PrismaModule,
+    NotificationModule,
   ],
   controllers: [HealthController],
 })

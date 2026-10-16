@@ -49,10 +49,14 @@ This catalog mirrors the Phase 0 V1 system design. It describes domain ownership
 
 ## Notification Service
 
-| Entity                 | Purpose and important fields                                                                     | Relations                                               | Invariants / behavior                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `Notification`         | User notification history: type, title/body, dynamic data, source event and lifecycle timestamps | Owns deliveries; logical `userId`                       | Title/body required; controlled processing/sent/failed behavior                                          |
-| `NotificationDelivery` | Per-device provider delivery attempt and outcome                                                 | Belongs to notification; logical `deviceSessionId` only | Attempt count ≥ 0; records provider message, failure, skip and timestamps; pair is unique in persistence |
+| Entity                 | Purpose and important fields                                                                        | Relations                                               | Invariants / behavior                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `Notification`         | User history, safe resource data, event/occurrence identity, independent readAt and push timestamps | Owns deliveries; logical `userId`                       | Title/body required; controlled processing/sent/failed behavior                                          |
+| `NotificationDelivery` | Per-device provider delivery attempt and outcome                                                    | Belongs to notification; logical `deviceSessionId` only | Attempt count ≥ 0; records provider message, failure, skip and timestamps; pair is unique in persistence |
+
+`NotificationInboxRecord` deduplicates consumer/event intake with a local notification
+FK. `NotificationDispatchWork` owns one notification's durable retry and fenced lease
+before/after target resolution. See [Notification ERD](notification-erd.md).
 
 ## Analytics Service
 

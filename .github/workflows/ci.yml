@@ -103,6 +103,7 @@ jobs:
         run: |
           pnpm typecheck
           pnpm --filter @lifehelper/document-service exec tsc -p test/tsconfig.json
+          pnpm --filter @lifehelper/notification-service exec tsc -p test/tsconfig.json
 
       - name: Verify Gemini review response handling
         run: python3 -m unittest discover -s scripts -p 'test_gemini_review_response.py'

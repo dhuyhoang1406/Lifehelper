@@ -6,7 +6,11 @@ const db = new PrismaService();
 const id = "10000000-0000-4000-8000-000000000005";
 describe("Notification persistence", () => {
   const repo = new PrismaNotificationRepository(db);
-  beforeAll(() => db.$connect());
+  beforeAll(() => {
+    if (!/(_test|_ci)$/.test(new URL(process.env.DATABASE_URL!).pathname))
+      throw new Error("Dedicated test database required");
+    return db.$connect();
+  });
   afterAll(async () => {
     await db.notification.deleteMany({ where: { id } });
     await db.$disconnect();
@@ -19,9 +23,12 @@ describe("Notification persistence", () => {
         type: NotificationType.SYSTEM,
         title: "Integration",
         body: "Body",
-        data: { key: "value" },
+        data: { resourceType: "TASK", resourceId: id },
       }),
     );
-    expect((await repo.findById(id))?.state.data).toEqual({ key: "value" });
+    expect((await repo.findById(id))?.state.data).toEqual({
+      resourceType: "TASK",
+      resourceId: id,
+    });
   });
 });
