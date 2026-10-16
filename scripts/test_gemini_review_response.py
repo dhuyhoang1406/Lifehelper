@@ -1,7 +1,7 @@
 import copy
 import json
 import unittest
-from gemini_review_response import bounded_diff, generation_config, parse_review_response
+from gemini_review_response import generation_config, parse_review_response
 
 
 class GeminiReviewResponseTest(unittest.TestCase):
@@ -73,102 +73,191 @@ class GeminiReviewResponseTest(unittest.TestCase):
             with self.subTest(response=copy.deepcopy(response)), self.assertRaises(ValueError):
                 parse_review_response(response, self.valid)
 
-class GeminiWorkflowRetryTest(unittest.TestCase):
-    """Execute the real workflow's Python step with a fake HTTP transport."""
-    def execute_workflow(self, responses):
-        import contextlib
-        import io
-        import os
+from gemini_review import review_chunks, review_all, request_review, format_result
+from unittest.mock import Mock
+import io
+from urllib.error import HTTPError, URLError
+
+
+class CompleteDiffReviewTest(unittest.TestCase):
+    def diff(self, path='a.ts', text='new code'):
+        return f'diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-old code\n+{text}\n'
+
+    def successful(self, prompt, valid, models, key, deadline):
+        return {'summary': 'Segment reviewed.', 'findings': []}, models[0]
+
+    def test_diff_larger_than_previous_limit_is_fully_partitioned(self):
+        raw = self.diff('first.ts', 'x'*70000) + self.diff('second.ts', 'y'*60000)
+        chunks = review_chunks(raw)
+        self.assertGreater(len(chunks), 2)
+        self.assertEqual(''.join(c['diff'] for c in chunks), raw)
+        self.assertTrue(all(len(c['diff']) <= 45000 for c in chunks))
+        review = Mock(side_effect=self.successful)
+        result = review_all(chunks, 'guidelines', ['fake'], 'not-secret', 999, review=review)
+        self.assertEqual(review.call_count, len(chunks))
+        self.assertTrue(result['coverage']['complete'])
+        self.assertEqual(result['coverage']['reviewedChars'], len(raw))
+        self.assertEqual(result['coverage']['totalChars'], len(raw))
+
+    def test_only_deletions_renames_and_binary_metadata_are_preserved(self):
+        raw = ('diff --git a/old.ts b/old.ts\ndeleted file mode 100644\n--- a/old.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-delete me\n'
+               'diff --git a/a.ts b/b.ts\nsimilarity index 100%\nrename from a.ts\nrename to b.ts\n'
+               'diff --git a/image.png b/image.png\nBinary files a/image.png and b/image.png differ\n')
+        chunks = review_chunks(raw, limit=80)
+        self.assertEqual(''.join(c['diff'] for c in chunks), raw)
+        paths = {p for chunk in chunks for p in chunk['valid']}
+        self.assertTrue({'old.ts', 'b.ts', 'image.png'} <= paths)
+        self.assertTrue(all(not lines for chunk in chunks for lines in chunk['valid'].values()))
+
+    def test_no_change_of_line_numbers_across_hunks(self):
+        raw = self.diff() + '@@ -100,2 +110,2 @@\n context\n-added\n+replacement\n'
+        chunks = review_chunks(raw)
+        self.assertEqual(chunks[0]['valid']['a.ts'], [1, 110, 111])
+
+    def test_one_failed_segment_prevents_full_success_but_keeps_other_findings(self):
+        chunks = review_chunks(self.diff('a.ts') + self.diff('b.ts'), limit=100)
+        finding = GeminiReviewResponseTest().finding()
+        finding['file'], finding['line'] = 'a.ts', 1
+        def review(prompt, valid, models, key, deadline):
+            if 'a.ts' in valid:
+                return {'summary':'Bug', 'findings':[finding]}, models[0]
+            return None, None
+        result = format_result(review_all(chunks, '', ['fake'], 'key', 999, review=review))
+        self.assertFalse(result['coverage']['complete'])
+        self.assertTrue(result['coverage']['failedParts'])
+        self.assertEqual(result['totalFindings'], 1)
+        self.assertEqual(len(result['comments']), 1)
+
+    def test_deduplicates_overlapping_findings(self):
+        chunk = review_chunks(self.diff())[0]
+        finding = GeminiReviewResponseTest().finding()
+        finding['file'], finding['line'] = 'a.ts', 1
+        result = review_all([chunk, chunk], '', ['fake'], 'key', 999,
+                            review=lambda *_: ({'summary':'Bug', 'findings':[finding]}, 'fake'))
+        self.assertEqual(len(result['findings']), 1)
+        self.assertTrue(result['coverage']['complete'])
+
+    def test_no_input_is_not_a_full_clean_review(self):
+        self.assertFalse(review_all([], '', ['fake'], 'key', 0)['coverage']['complete'])
+
+    def test_reuses_successful_fallback_for_next_segment(self):
+        chunk = review_chunks(self.diff())[0]
+        review = Mock(return_value=({'summary':'Reviewed', 'findings':[]}, 'fallback'))
+        review_all([chunk, chunk], '', ['primary', 'fallback'], 'key', 999, review=review)
+        self.assertEqual(review.call_args_list[1].args[2], ['fallback', 'primary'])
+
+    def call_review(self, responses, *, clock=lambda: 0, deadline=999):
+        response = iter(responses)
+        def request(*_, **kwargs):
+            item = next(response)
+            if isinstance(item, Exception):
+                raise item
+            return io.BytesIO(json.dumps(item).encode())
+        request_mock = Mock(side_effect=request)
+        sleep = Mock()
+        result = request_review('prompt', {'apps/example.ts':[10]}, ['primary','fallback'],
+                                'key', deadline, request=request_mock, clock=clock, sleep=sleep)
+        return result, request_mock, sleep
+
+    def test_bad_output_is_retried_and_falls_back(self):
+        fixture = GeminiReviewResponseTest()
+        bad = fixture.response(reason='MAX_TOKENS')
+        (parsed, model), request, _ = self.call_review([bad, bad, fixture.response()])
+        self.assertEqual(model, 'fallback')
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(parsed['findings'], [])
+
+    def test_all_models_exhausted_are_incomplete(self):
+        bad = GeminiReviewResponseTest().response(reason='MAX_TOKENS')
+        result, request, _ = self.call_review([bad]*4)
+        self.assertEqual(result, (None, None))
+        self.assertEqual(request.call_count, 4)
+
+    def test_http_and_network_errors_fall_back_with_bounded_sleep(self):
+        errors = [HTTPError('https://invalid',503,'busy',{'Retry-After':'99999'},None), URLError('network')]
+        (parsed, model), request, sleep = self.call_review([*errors, GeminiReviewResponseTest().response()])
+        self.assertEqual(model, 'fallback')
+        self.assertEqual(request.call_count, 3)
+        sleep.assert_called_once_with(60)
+        self.assertIsNotNone(parsed)
+
+    def test_deadline_prevents_more_requests(self):
+        result, request, _ = self.call_review([], clock=lambda:100, deadline=100)
+        self.assertEqual(result, (None,None))
+        request.assert_not_called()
+
+    def test_auth_failure_does_not_retry_all_models(self):
+        result, request, _ = self.call_review([HTTPError('https://invalid',403,'denied',{},None)])
+        self.assertEqual(result, (None,None))
+        self.assertEqual(request.call_count, 1)
+
+    def test_more_than_thirty_findings_remain_in_summary(self):
+        findings = [{**GeminiReviewResponseTest().finding(), 'line': n} for n in range(1,36)]
+        result = format_result({'summary':'Review', 'coverage':{'complete':True}, 'findings':findings, 'model':'fake'})
+        self.assertEqual(len(result['comments']),30)
+        self.assertEqual(len(result['findings']),5)
+        self.assertEqual(len(result['allFindings']),35)
+
+
+class PublishReviewFormatTest(unittest.TestCase):
+    def publish(self, result, fail_inline=False):
         from pathlib import Path
-        import tempfile
+        import subprocess
         import textwrap
-        from types import SimpleNamespace
-        from unittest.mock import patch
         workflow = Path('.github/workflows/ai-review.yml').read_text()
-        step = workflow.split('      - name: Review changes with Gemini', 1)[1]
-        code = textwrap.dedent(step.split("python3 - <<'PY'\n", 1)[1].split('\n          PY', 1)[0])
-        with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            (base / 'numbered.diff').write_text('apps/example.ts:10:\tchanged code')
-            (base / 'review-coverage.json').write_text(json.dumps({'truncated':False, 'reviewedLines':1, 'totalLines':1}))
-            (base / 'valid-lines.json').write_text(json.dumps({'apps/example.ts': [10]}))
-            code = code.replace('/tmp/', str(base) + '/')
-            response = iter(responses)
-            def urlopen(*_args, **_kwargs):
-                item = next(response)
-                if isinstance(item, Exception):
-                    raise item
-                return io.BytesIO(json.dumps(item).encode())
-            log = io.StringIO()
-            with patch.dict(os.environ, {'GEMINI_API_KEY': 'test-not-a-secret',
-                    'GEMINI_MODELS': 'fake-primary,fake-fallback', 'PR_NUMBER': '1',
-                    'BASE_SHA': 'base', 'HEAD_SHA': 'head'}), \
-                 patch('urllib.request.urlopen', side_effect=urlopen) as request, \
-                 patch('subprocess.run', return_value=SimpleNamespace(stdout='apps/example.ts\n')), \
-                 patch('time.sleep'), contextlib.redirect_stdout(log):
-                try:
-                    exec(compile(code, '<review workflow>', 'exec'), {})
-                except SystemExit as error:
-                    self.assertEqual(error.code, 0)
-            return json.loads((base / 'review.json').read_text()), request.call_count, log.getvalue()
+        code = textwrap.dedent(workflow.split('          script: |\n', 1)[1])
+        harness = r"""
+        const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+        const sent = [];
+        const fakeGithub = { rest: { pulls: {
+          listReviews: async () => ({data: []}),
+          createReview: async payload => {
+            if (input.failInline && payload.comments) throw new Error('inline unavailable');
+            sent.push(payload); return {data:{id:1}};
+          }
+        }}};
+        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+        const run = new AsyncFunction('require', 'github', 'context', 'console', input.code);
+        run(() => ({readFileSync: () => JSON.stringify(input.result)}), fakeGithub,
+            {repo:{owner:'test',repo:'test'},issue:{number:1}}, {log:()=>{}})
+          .then(() => process.stdout.write(JSON.stringify(sent)))
+          .catch(() => {process.exitCode=1;});
+        """
+        result = subprocess.run(['node','-e',harness], input=json.dumps({
+            'code':code,'result':result,'failInline':fail_inline}), text=True, capture_output=True, check=True)
+        return json.loads(result.stdout)
 
-    def test_invalid_outputs_fall_back_without_publishing_raw_reasoning(self):
-        fixture = GeminiReviewResponseTest()
-        broken = fixture.response()
-        broken['candidates'][0]['content']['parts'] = [{'text': 'Wait! raw private reasoning'}]
-        result, calls, logs = self.execute_workflow([broken, broken, fixture.response()])
-        self.assertEqual(calls, 3)
-        self.assertEqual(result['model'], 'fake-fallback')
-        self.assertEqual(result['totalFindings'], 0)
-        self.assertNotIn('raw private reasoning', logs)
+    def result(self, complete=True, finding=False):
+        findings = [GeminiReviewResponseTest().finding()] if finding else []
+        return format_result({'summary':'Summary', 'findings':findings, 'model':'fake', 'coverage':{
+            'complete':complete,'reviewedParts':2 if complete else 1, 'totalParts':2,
+            'reviewedChars':100 if complete else 50,'totalChars':100,
+            'failedParts':[] if complete else [2]}})
 
-    def test_exhaustion_reports_incomplete_rather_than_empty_success(self):
-        broken = GeminiReviewResponseTest().response(reason='MAX_TOKENS')
-        result, calls, _logs = self.execute_workflow([broken] * 4)
-        self.assertEqual(calls, 4)
-        self.assertTrue(result['unavailable'])
-        self.assertNotIn('totalFindings', result)
+    def test_all_parts_are_reported_with_no_raw_json(self):
+        review = self.publish(self.result())[0]
+        self.assertIn('2/2', review['body'])
+        self.assertIn('100/100', review['body'])
+        self.assertIn('toàn bộ diff', review['body'])
+        self.assertNotIn('"findings"', review['body'])
 
-    def test_network_exhaustion_uses_next_model(self):
-        from urllib.error import URLError
-        fixture = GeminiReviewResponseTest()
-        result, calls, _logs = self.execute_workflow([
-            URLError('network failed'), URLError('network failed'), fixture.response()])
-        self.assertEqual(calls, 3)
-        self.assertEqual(result['model'], 'fake-fallback')
+    def test_a_failed_part_never_claims_a_clean_full_review(self):
+        review = self.publish(self.result(complete=False))[0]
+        self.assertIn('Review chưa hoàn tất', review['body'])
+        self.assertNotIn('✅', review['body'])
 
-    def test_http_retry_after_is_bounded_and_errors_do_not_leak_payloads(self):
-        from urllib.error import HTTPError
-        import io
-        from unittest.mock import patch
-        fixture = GeminiReviewResponseTest()
-        errors = [HTTPError('https://example.invalid', 503, 'Unavailable',
-                  {'Retry-After': '99999'}, io.BytesIO(b'provider private payload')) for _ in range(2)]
-        with patch('time.sleep'):
-            result, calls, logs = self.execute_workflow([*errors, fixture.response()])
-        self.assertEqual(calls, 3)
-        self.assertEqual(result['model'], 'fake-fallback')
-        self.assertIn('retry in 60s', logs)
-        self.assertNotIn('provider private payload', logs)
+    def test_findings_keep_copilot_style_inline_comments(self):
+        review = self.publish(self.result(finding=True))[0]
+        self.assertEqual(review['comments'][0]['path'],'apps/example.ts')
+        self.assertEqual(review['comments'][0]['line'],10)
+        self.assertIn('[High]',review['comments'][0]['body'])
+        self.assertIn('Suggestion:',review['comments'][0]['body'])
 
-
-class BoundedDiffTest(unittest.TestCase):
-    def test_full_diff_preserves_locations(self):
-        text, valid, coverage = bounded_diff(['a.ts:1:\tx', 'b.ts:2:\ty'])
-        self.assertEqual(valid, {'a.ts': [1], 'b.ts': [2]})
-        self.assertFalse(coverage['truncated'])
-        self.assertIn('b.ts:2:', text)
-
-    def test_partial_diff_never_splits_lines_or_authorizes_omitted_locations(self):
-        text, valid, coverage = bounded_diff(['a.ts:1:\tx', 'b.ts:2:\ty'], limit=10)
-        self.assertEqual(valid, {'a.ts': [1]})
-        self.assertNotIn('b.ts:2:', text)
-        self.assertEqual(coverage, {'truncated':True, 'reviewedLines':1, 'totalLines':2})
-
-    def test_oversized_first_line_has_no_reviewable_locations(self):
-        _text, valid, coverage = bounded_diff(['a.ts:1:\t' + 'x'*100], limit=10)
-        self.assertEqual(valid, {})
-        self.assertTrue(coverage['truncated'])
+    def test_inline_publish_failure_preserves_the_findings_in_summary(self):
+        review = self.publish(self.result(finding=True),fail_inline=True)[0]
+        self.assertIn('Concrete bug',review['body'])
+        self.assertIn('Failure scenario',review['body'])
+        self.assertIn('Concrete fix',review['body'])
 
 
 if __name__ == '__main__':
