@@ -1,3 +1,4 @@
+import { estimateTokens } from "../../domain/text-chunking";
 import type {
   EmbeddingRequest,
   EmbeddingResult,
@@ -48,4 +49,25 @@ export function validateEmbeddingResult(
     )
   )
     throw new DocumentProcessingFailure("DOCUMENT_EMBEDDING_RESULT_INVALID");
+}
+
+export function validateEmbeddingRequest(
+  request: EmbeddingRequest,
+  limits: { space: EmbeddingSpace; batchSize: number; maxInputTokens: number },
+): void {
+  if (!sameEmbeddingSpace(request.space, limits.space))
+    throw new DocumentProcessingFailure("DOCUMENT_EMBEDDING_MODEL_MISMATCH");
+  if (
+    !request.items.length ||
+    request.items.length > limits.batchSize ||
+    new Set(request.items.map((item) => item.id)).size !==
+      request.items.length ||
+    request.items.some(
+      (item) =>
+        !item.id ||
+        !item.text.trim() ||
+        estimateTokens(item.text) > limits.maxInputTokens,
+    )
+  )
+    throw new DocumentProcessingFailure("DOCUMENT_EMBEDDING_INPUT_LIMIT");
 }

@@ -23,7 +23,7 @@ export class DocumentSearchDto {
   @IsNotEmpty()
   @MaxLength(1000)
   query!: string;
-  @ApiPropertyOptional({ default: 5, minimum: 1, maximum: 20 })
+  @ApiPropertyOptional({ type: Number, default: 5, minimum: 1, maximum: 20 })
   @IsInt()
   @Min(1)
   @Max(20)
@@ -44,13 +44,13 @@ export class DocumentChunksDto {
   @Min(1)
   @Max(2147483647)
   generation?: number;
-  @ApiPropertyOptional({ default: -1 })
+  @ApiPropertyOptional({ type: Number, default: -1 })
   @Type(() => Number)
   @IsInt()
   @Min(-1)
   @Max(2147483647)
   after = -1;
-  @ApiPropertyOptional({ default: 10, maximum: 20 })
+  @ApiPropertyOptional({ type: Number, default: 10, maximum: 20 })
   @Type(() => Number)
   @IsInt()
   @Min(1)

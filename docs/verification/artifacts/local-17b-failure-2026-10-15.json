@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-15T09:01:39.281307+00:00",
+  "mode": "real",
+  "workingTreeChangesSha256": "a0bff087ecbfdab5a88dc8fcad28e87b2a6bd27f1e6c9ebc42db240fe56c2dfa",
+  "baseCommit": "ccbdfe38142fea52238b9191f90ec30d0b54c3b2",
+  "platform": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "logicalCpus": 16,
+  "passed": false,
+  "limitations": [
+    "Tiny synthetic corpus; not production accuracy.",
+    "p95 uses nearest rank and small samples; no universal SLA.",
+    "Anchor checks are not factual entailment; review synthetic outputs manually."
+  ],
+  "generationManifestDigest": "8f68893c685c3ddff2aa3fffce2aa60a30bb2da65ca488b61fff134a4d1730e7",
+  "configuration": {
+    "EMBEDDING_PROVIDER": "ollama",
+    "EMBEDDING_MODEL": "bge-m3:567m",
+    "EMBEDDING_MODEL_VERSION": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    "EMBEDDING_DIMENSIONS": "1024",
+    "EMBEDDING_BATCH_SIZE": "8",
+    "DOCUMENT_RETRIEVAL_MIN_SIMILARITY": "0.55",
+    "DOCUMENT_CHUNK_TARGET_TOKENS": "512",
+    "generationProvider": "ollama",
+    "generationModel": "qwen3:1.7b",
+    "ragOutputTokens": "1024",
+    "corpusDocuments": 9,
+    "additionalRecoveryDocuments": 1,
+    "warmupExcluded": false
+  },
+  "embeddingOfflineRecovery": "controlled 503 then READY after recovery",
+  "retrieval": {
+    "sampleSize": 11,
+    "topK": 3,
+    "hitCount": 11,
+    "lexicalHitCount": 11,
+    "unknownSampleSize": 4,
+    "emptyUnknownCount": 4,
+    "cases": [
+      {
+        "expected": "exam",
+        "actual": ["exam"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "leave",
+        "actual": ["leave", "delivery", "travel"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "refund",
+        "actual": ["refund", "travel"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "backup",
+        "actual": ["backup"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "library",
+        "actual": ["library"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "travel",
+        "actual": ["travel", "leave", "delivery"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "account",
+        "actual": ["account"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "delivery",
+        "actual": ["delivery", "refund"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "leave",
+        "actual": ["leave"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "backup",
+        "actual": ["backup"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "library",
+        "actual": ["library"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      }
+    ]
+  },
+  "groundingCases": [
+    {
+      "id": "leave-fact",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Nhân viên có 12 ngày phép năm.[1]",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "exam-paraphrase",
+      "pass": false,
+      "controlledError": "/ai/chat: expected HTTP 200, got 502 code=AI_GROUNDING_INVALID_RESPONSE",
+      "manualEntailment": "not applicable"
+    },
+    {
+      "id": "backup-fact",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Bản sao lưu được giữ trong 14 ngày [1]",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "unknown-related",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 0,
+      "insufficient": true,
+      "anchorCheck": true,
+      "content": "Không đủ thông tin trong tài liệu để trả lời câu hỏi này.",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "injection",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Theo quy định, nhân viên có 12 ngày phép năm.[1]",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "ordered-summary",
+      "pass": false,
+      "controlledError": "/ai/chat: expected HTTP 200, got 502 code=AI_GROUNDING_INVALID_RESPONSE",
+      "manualEntailment": "not applicable"
+    }
+  ],
+  "outboxUtcCorrelationRedaction": {
+    "eventsChecked": 57,
+    "passed": true
+  },
+  "httpSecurityLifecycle": "passed",
+  "latency": {
+    "upload_completion_http": {
+      "n": 10,
+      "p50Ms": 15.92,
+      "p95Ms": 45.14
+    },
+    "processing_to_ready_wall": {
+      "n": 11,
+      "p50Ms": 512.06,
+      "p95Ms": 2281.59
+    },
+    "retrieval_http": {
+      "n": 15,
+      "p50Ms": 184.71,
+      "p95Ms": 256.18
+    },
+    "chat_http_total": {
+      "n": 6,
+      "p50Ms": 6341.68,
+      "p95Ms": 10533.84
+    },
+    "extraction_call": {
+      "n": 11,
+      "p50Ms": 0.06,
+      "p95Ms": 324.44
+    },
+    "embedding_call": {
+      "n": 31,
+      "p50Ms": 186.16,
+      "p95Ms": 284.86
+    },
+    "generation_call": {
+      "n": 8,
+      "p50Ms": 4463.75,
+      "p95Ms": 6558.64
+    }
+  },
+  "failure": "RuntimeError: Evaluation recorded failed relevance/grounding cases",
+  "cleanup": "all owned resources removed",
+  "finishedAt": "2026-10-15T09:02:52.607221+00:00"
+}

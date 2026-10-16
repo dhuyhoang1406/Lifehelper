@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-15T09:04:12.926222+00:00",
+  "mode": "real",
+  "workingTreeChangesSha256": "a0bff087ecbfdab5a88dc8fcad28e87b2a6bd27f1e6c9ebc42db240fe56c2dfa",
+  "baseCommit": "ccbdfe38142fea52238b9191f90ec30d0b54c3b2",
+  "platform": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "logicalCpus": 16,
+  "passed": true,
+  "limitations": [
+    "Tiny synthetic corpus; not production accuracy.",
+    "p95 uses nearest rank and small samples; no universal SLA.",
+    "Anchor checks are not factual entailment; review synthetic outputs manually."
+  ],
+  "configuration": {
+    "EMBEDDING_PROVIDER": "ollama",
+    "EMBEDDING_MODEL": "bge-m3:567m",
+    "EMBEDDING_MODEL_VERSION": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    "EMBEDDING_DIMENSIONS": "1024",
+    "EMBEDDING_BATCH_SIZE": "8",
+    "DOCUMENT_RETRIEVAL_MIN_SIMILARITY": "0.55",
+    "DOCUMENT_CHUNK_TARGET_TOKENS": "512",
+    "generationProvider": "cloudflare",
+    "generationModel": "@cf/zai-org/glm-4.7-flash",
+    "ragOutputTokens": "1024",
+    "corpusDocuments": 9,
+    "additionalRecoveryDocuments": 1,
+    "warmupExcluded": false
+  },
+  "embeddingOfflineRecovery": "controlled 503 then READY after recovery",
+  "retrieval": {
+    "sampleSize": 11,
+    "topK": 3,
+    "hitCount": 11,
+    "lexicalHitCount": 11,
+    "unknownSampleSize": 4,
+    "emptyUnknownCount": 4,
+    "cases": [
+      {
+        "expected": "exam",
+        "actual": ["exam"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "leave",
+        "actual": ["leave", "delivery", "travel"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "refund",
+        "actual": ["refund", "travel"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "backup",
+        "actual": ["backup"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "library",
+        "actual": ["library"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "travel",
+        "actual": ["travel", "leave", "delivery"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "account",
+        "actual": ["account"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "delivery",
+        "actual": ["delivery", "refund"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "leave",
+        "actual": ["leave"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "backup",
+        "actual": ["backup"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      },
+      {
+        "expected": "library",
+        "actual": ["library"],
+        "hitAt3": true,
+        "lexicalHitAt3": true
+      }
+    ]
+  },
+  "groundingCases": [
+    {
+      "id": "leave-fact",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Nhân viên có 12 ngày phép năm [1].",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "exam-paraphrase",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Sinh viên được dự thi cuối kỳ khi tham dự ít nhất 80% số buổi học và nộp đầy đủ bài tập.[1]",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "backup-fact",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Bản sao được giữ trong 14 ngày [1].",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "unknown-related",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 0,
+      "insufficient": true,
+      "anchorCheck": true,
+      "content": "Không đủ thông tin trong tài liệu để trả lời câu hỏi này.",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "injection",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Nhân viên có 12 ngày phép năm [1].",
+      "manualEntailment": "pending"
+    },
+    {
+      "id": "ordered-summary",
+      "pass": true,
+      "sourceMembershipAndLocator": true,
+      "citationCount": 1,
+      "insufficient": false,
+      "anchorCheck": true,
+      "content": "Nhân viên có 12 ngày phép năm [1]. Đơn xin nghỉ cần gửi quản lý trước ba ngày làm việc [1].",
+      "manualEntailment": "pending"
+    }
+  ],
+  "outboxUtcCorrelationRedaction": {
+    "eventsChecked": 57,
+    "passed": true
+  },
+  "httpSecurityLifecycle": "passed",
+  "latency": {
+    "upload_completion_http": {
+      "n": 10,
+      "p50Ms": 15.57,
+      "p95Ms": 40.08
+    },
+    "processing_to_ready_wall": {
+      "n": 11,
+      "p50Ms": 510.94,
+      "p95Ms": 1775.01
+    },
+    "retrieval_http": {
+      "n": 15,
+      "p50Ms": 178.97,
+      "p95Ms": 199.31
+    },
+    "chat_http_total": {
+      "n": 6,
+      "p50Ms": 1290.7,
+      "p95Ms": 45638.49
+    },
+    "extraction_call": {
+      "n": 11,
+      "p50Ms": 0.06,
+      "p95Ms": 292.98
+    },
+    "embedding_call": {
+      "n": 31,
+      "p50Ms": 184.12,
+      "p95Ms": 245.01
+    },
+    "generation_call": {
+      "n": 7,
+      "p50Ms": 1309.62,
+      "p95Ms": 45397.16
+    }
+  },
+  "cleanup": "all owned resources removed",
+  "finishedAt": "2026-10-15T09:05:39.712542+00:00"
+}

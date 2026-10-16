@@ -172,7 +172,23 @@ const schema = Joi.object({
     .min(0)
     .max(8191)
     .default(64),
-  EMBEDDING_PROVIDER: Joi.string().valid("ollama", "fake").default("ollama"),
+  EMBEDDING_PROVIDER: Joi.string()
+    .valid("ollama", "cloudflare", "fake")
+    .default("ollama"),
+  CLOUDFLARE_ACCOUNT_ID: Joi.when("EMBEDDING_PROVIDER", {
+    is: "cloudflare",
+    then: Joi.string()
+      .pattern(/^[a-f0-9]{32}$/)
+      .required(),
+    otherwise: Joi.any().strip(),
+  }),
+  CLOUDFLARE_API_TOKEN: Joi.when("EMBEDDING_PROVIDER", {
+    is: "cloudflare",
+    then: Joi.string()
+      .pattern(/^[^\s]+$/)
+      .required(),
+    otherwise: Joi.any().strip(),
+  }),
   EMBEDDING_MODEL: Joi.string().trim().min(1).max(100).default("bge-m3:567m"),
   EMBEDDING_MODEL_VERSION: Joi.string()
     .trim()
@@ -296,6 +312,18 @@ export function validateEnvironment(config: Record<string, unknown>) {
   )
     throw new Error(
       "Environment validation failed: Ollama model version must be the full manifest digest",
+    );
+  if (
+    value.EMBEDDING_PROVIDER === "cloudflare" &&
+    (value.EMBEDDING_MODEL !== "@cf/baai/bge-m3" ||
+      value.EMBEDDING_DIMENSIONS !== 1024 ||
+      !/^cloudflare-bge-m3-[a-z0-9][a-z0-9._-]*$/.test(
+        value.EMBEDDING_MODEL_VERSION,
+      ) ||
+      value.EMBEDDING_BASE_URL !== "https://api.cloudflare.com")
+  )
+    throw new Error(
+      "Environment validation failed: Cloudflare requires its HTTPS API origin, BGE-M3 1024 dimensions and a separate cloudflare-bge-m3 revision",
     );
   const embeddingUrl = new URL(value.EMBEDDING_BASE_URL);
   if (

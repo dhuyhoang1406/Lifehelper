@@ -1,3 +1,4 @@
+import { CloudflareEmbeddingProvider } from "./infrastructure/embedding/cloudflare-embedding.provider";
 import { DocumentReprocessUseCase } from "./application/use-cases/document-reprocess.use-case";
 import { DocumentLifecycleMaintenance } from "./application/services/document-lifecycle-maintenance";
 import { DocumentMaintenanceWorker } from "./infrastructure/processing/document-maintenance-worker";
@@ -219,21 +220,29 @@ import { DocumentExtractionStages } from "./application/services/document-extrac
     },
     {
       provide: EMBEDDING_PROVIDER,
-      useFactory: (c: ConfigService) =>
-        c.getOrThrow("EMBEDDING_PROVIDER") === "fake"
-          ? new FakeEmbeddingProvider()
-          : new OllamaEmbeddingProvider({
-              baseUrl: c.getOrThrow("EMBEDDING_BASE_URL"),
-              space: {
-                model: c.getOrThrow("EMBEDDING_MODEL"),
-                version: c.getOrThrow("EMBEDDING_MODEL_VERSION"),
-                dimensions: c.getOrThrow("EMBEDDING_DIMENSIONS"),
-              },
-              batchSize: c.getOrThrow("EMBEDDING_BATCH_SIZE"),
-              maxInputTokens: c.getOrThrow("EMBEDDING_MAX_INPUT_TOKENS"),
-              timeoutMs: c.getOrThrow("EMBEDDING_TIMEOUT_MS"),
-              maxAttempts: c.getOrThrow("EMBEDDING_MAX_ATTEMPTS"),
-            }),
+      useFactory: (c: ConfigService) => {
+        const provider = c.getOrThrow<string>("EMBEDDING_PROVIDER");
+        if (provider === "fake") return new FakeEmbeddingProvider();
+        const config = {
+          baseUrl: c.getOrThrow<string>("EMBEDDING_BASE_URL"),
+          space: {
+            model: c.getOrThrow<string>("EMBEDDING_MODEL"),
+            version: c.getOrThrow<string>("EMBEDDING_MODEL_VERSION"),
+            dimensions: c.getOrThrow<number>("EMBEDDING_DIMENSIONS"),
+          },
+          batchSize: c.getOrThrow<number>("EMBEDDING_BATCH_SIZE"),
+          maxInputTokens: c.getOrThrow<number>("EMBEDDING_MAX_INPUT_TOKENS"),
+          timeoutMs: c.getOrThrow<number>("EMBEDDING_TIMEOUT_MS"),
+          maxAttempts: c.getOrThrow<number>("EMBEDDING_MAX_ATTEMPTS"),
+        };
+        if (provider === "cloudflare")
+          return new CloudflareEmbeddingProvider({
+            ...config,
+            accountId: c.getOrThrow<string>("CLOUDFLARE_ACCOUNT_ID"),
+            apiToken: c.getOrThrow<string>("CLOUDFLARE_API_TOKEN"),
+          });
+        return new OllamaEmbeddingProvider(config);
+      },
       inject: [ConfigService],
     },
     {

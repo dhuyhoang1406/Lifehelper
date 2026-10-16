@@ -65,3 +65,31 @@ it.each([
     "Environment validation failed",
   );
 });
+
+const cloud = {
+  EMBEDDING_PROVIDER: "cloudflare",
+  EMBEDDING_MODEL: "@cf/baai/bge-m3",
+  EMBEDDING_MODEL_VERSION: "cloudflare-bge-m3-v1",
+  EMBEDDING_BASE_URL: "https://api.cloudflare.com",
+  CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+  CLOUDFLARE_API_TOKEN: "private-token",
+};
+it("validates a separate Cloudflare embedding space and required credentials", () => {
+  expect(validateEnvironment({ ...config, ...cloud })).toMatchObject({
+    EMBEDDING_PROVIDER: "cloudflare",
+    EMBEDDING_DIMENSIONS: 1024,
+  });
+});
+it.each([
+  { CLOUDFLARE_API_TOKEN: undefined },
+  { CLOUDFLARE_ACCOUNT_ID: undefined },
+  { EMBEDDING_MODEL: "bge-m3:567m" },
+  { EMBEDDING_MODEL_VERSION: "a".repeat(64) },
+  { EMBEDDING_DIMENSIONS: 768 },
+  { EMBEDDING_BASE_URL: "http://api.cloudflare.com" },
+  { EMBEDDING_BASE_URL: "https://attacker.example" },
+])("rejects incompatible cloud configuration %p", (invalid) => {
+  expect(() =>
+    validateEnvironment({ ...config, ...cloud, ...invalid }),
+  ).toThrow("Environment validation failed");
+});

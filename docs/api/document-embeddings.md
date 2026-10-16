@@ -1,5 +1,10 @@
 # Document embeddings and vector indexing — Phase 5 Branch 5
 
+Cloudflare embeddings are now also supported at the project owner's request. See
+[ADR 002](../architecture/adr/002-cloudflare-document-embeddings.md) for configuration,
+provider-switch/reindex steps and hosted-version/quota limits. The original local setup
+below remains available; there is no automatic provider fallback.
+
 Supported uploads now progress through extraction and real local embeddings to READY.
 READY means every staged chunk has a valid vector in one recorded embedding space;
 activation, job success and `document.processing.completed` commit atomically. Existing
