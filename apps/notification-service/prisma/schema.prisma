@@ -36,22 +36,33 @@ enum NotificationProvider {
 }
 
 model Notification {
-  id            String                 @id @db.Uuid
-  userId        String                 @map("user_id") @db.Uuid
-  type          NotificationType
-  title         String                 @db.VarChar(255)
-  body          String
-  data          Json?
-  sourceEventId String?                @map("source_event_id") @db.Uuid
-  status        NotificationStatus
-  createdAt     DateTime               @map("created_at") @db.Timestamptz(6)
-  sentAt        DateTime?              @map("sent_at") @db.Timestamptz(6)
-  failedAt      DateTime?              @map("failed_at") @db.Timestamptz(6)
-  deliveries    NotificationDelivery[]
+  id                String                    @id @db.Uuid
+  userId            String                    @map("user_id") @db.Uuid
+  type              NotificationType
+  title             String                    @db.VarChar(255)
+  body              String
+  data              Json?
+  sourceEventId     String?                   @unique @map("source_event_id") @db.Uuid
+  sourceReminderId  String?                   @map("source_reminder_id") @db.Uuid
+  dispatchVersion   Int?                      @map("dispatch_version")
+  readAt            DateTime?                 @map("read_at") @db.Timestamptz(6)
+  eligibleAt        DateTime                  @default(now()) @map("eligible_at") @db.Timestamptz(6)
+  expiresAt         DateTime?                 @map("expires_at") @db.Timestamptz(6)
+  suppressedAt      DateTime?                 @map("suppressed_at") @db.Timestamptz(6)
+  suppressionReason String?                   @map("suppression_reason") @db.VarChar(100)
+  failureReason     String?                   @map("failure_reason") @db.VarChar(100)
+  status            NotificationStatus
+  createdAt         DateTime                  @map("created_at") @db.Timestamptz(6)
+  sentAt            DateTime?                 @map("sent_at") @db.Timestamptz(6)
+  failedAt          DateTime?                 @map("failed_at") @db.Timestamptz(6)
+  deliveries        NotificationDelivery[]
+  inboxRecords      NotificationInboxRecord[]
+  work              NotificationDispatchWork?
 
+  @@unique([sourceReminderId, dispatchVersion])
   @@index([userId, createdAt])
   @@index([status, createdAt])
-  @@index([sourceEventId])
+  @@index([userId, createdAt, id])
   @@map("notifications")
 }
 
@@ -65,6 +76,9 @@ model NotificationDelivery {
   attemptCount      Int                  @default(0) @map("attempt_count")
   lastError         String?              @map("last_error")
   sentAt            DateTime?            @map("sent_at") @db.Timestamptz(6)
+  failedAt          DateTime?            @map("failed_at") @db.Timestamptz(6)
+  skippedAt         DateTime?            @map("skipped_at") @db.Timestamptz(6)
+  nextAttemptAt     DateTime             @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
   createdAt         DateTime             @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime             @map("updated_at") @db.Timestamptz(6)
   notification      Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
@@ -87,4 +101,33 @@ model OutboxEvent {
 
   @@index([processedAt, occurredAt])
   @@map("outbox_events")
+}
+
+model NotificationInboxRecord {
+  consumer       String       @db.VarChar(120)
+  eventId        String       @map("event_id") @db.Uuid
+  notificationId String       @map("notification_id") @db.Uuid
+  processedAt    DateTime     @default(now()) @map("processed_at") @db.Timestamptz(6)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+
+  @@id([consumer, eventId])
+  @@index([notificationId])
+  @@map("notification_inbox_records")
+}
+
+model NotificationDispatchWork {
+  notificationId    String       @id @map("notification_id") @db.Uuid
+  nextAttemptAt     DateTime     @map("next_attempt_at") @db.Timestamptz(6)
+  attemptCount      Int          @default(0) @map("attempt_count")
+  leaseOwner        String?      @map("lease_owner") @db.VarChar(120)
+  leaseToken        Int          @default(0) @map("lease_token")
+  leaseExpiresAt    DateTime?    @map("lease_expires_at") @db.Timestamptz(6)
+  targetsResolvedAt DateTime?    @map("targets_resolved_at") @db.Timestamptz(6)
+  completedAt       DateTime?    @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastError         String?      @map("last_error") @db.VarChar(100)
+  notification      Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+
+  @@index([completedAt, nextAttemptAt, notificationId], map: "notification_dispatch_work_due_idx")
+  @@map("notification_dispatch_work")
 }

@@ -75,25 +75,3 @@ def parse_review_response(data, valid_lines):
         if line is not None and (type(line) is not int or line not in valid_lines[finding['file']]):
             raise ValueError('Finding references a line outside the supplied diff')
     return review
-
-
-def bounded_diff(numbered_lines, limit=60000):
-    """Keep whole numbered lines and validate only locations actually supplied."""
-    shown = []
-    used = 0
-    valid = {}
-    for line in numbered_lines:
-        cost = len(line) + (1 if shown else 0)
-        if used + cost > limit:
-            break
-        prefix = line.split('\t', 1)[0]
-        path, number, _empty = prefix.rsplit(':', 2)
-        valid.setdefault(path, []).append(int(number))
-        shown.append(line)
-        used += cost
-    coverage = {'truncated': len(shown) != len(numbered_lines),
-                'reviewedLines': len(shown), 'totalLines': len(numbered_lines)}
-    text = '\n'.join(shown)
-    if coverage['truncated']:
-        text += '\n... (numbered diff truncated; review coverage is partial)'
-    return text, valid, coverage

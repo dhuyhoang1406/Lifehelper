@@ -21,6 +21,12 @@ export const NotificationMapper = {
   toDomain: (r: NotificationRecord) =>
     Notification.restore({
       ...r,
+      suppressionReason: r.suppressionReason as
+        | import("../modules/notification/domain/notification-policy").SuppressionReason
+        | null,
+      failureReason: r.failureReason as
+        | import("../modules/notification/domain/notification-policy").DeliveryReason
+        | null,
       type: r.type as NotificationType,
       status: r.status as NotificationStatus,
       data: r.data as JsonValue | null,
@@ -48,20 +54,54 @@ export class PrismaNotificationRepository implements NotificationRepository {
     const r = await this.db.notification.findUnique({ where: { id } });
     return r ? NotificationMapper.toDomain(r) : null;
   }
-  async findByUserId(userId: string) {
+  async findByIdAndUserId(id: string, userId: string) {
+    const r = await this.db.notification.findFirst({ where: { id, userId } });
+    return r ? NotificationMapper.toDomain(r) : null;
+  }
+  async markRead(id: string, userId: string) {
+    return this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE notifications SET read_at = COALESCE(read_at, clock_timestamp()) WHERE id = ${id}::uuid AND user_id = ${userId}::uuid`;
+      return (await tx.notification.count({ where: { id, userId } })) === 1;
+    });
+  }
+  async findByUserId(
+    userId: string,
+    limit = 20,
+    before?: { createdAt: Date; id: string },
+  ) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+      throw new Error("Invalid notification page size");
     return (
       await this.db.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
+        where: {
+          userId,
+          ...(before
+            ? {
+                OR: [
+                  { createdAt: { lt: before.createdAt } },
+                  { createdAt: before.createdAt, id: { lt: before.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit,
       })
     ).map(NotificationMapper.toDomain);
   }
   async save(e: Notification) {
     const data = NotificationMapper.toPersistence(e);
-    await this.db.notification.upsert({
-      where: { id: e.state.id },
-      create: data,
-      update: data,
+    await this.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM notifications WHERE id = ${e.state.id}::uuid FOR UPDATE`;
+      const existing = await tx.notification.findUnique({
+        where: { id: e.state.id },
+        include: { work: true },
+      });
+      if (existing?.work || (existing && existing.userId !== e.state.userId))
+        throw new Error("Managed notification or immutable owner");
+      if (existing)
+        await tx.notification.update({ where: { id: e.state.id }, data });
+      else await tx.notification.create({ data });
     });
   }
 }
@@ -77,10 +117,27 @@ export class PrismaNotificationDeliveryRepository implements NotificationDeliver
   }
   async save(e: NotificationDelivery) {
     const data = NotificationDeliveryMapper.toPersistence(e);
-    await this.db.notificationDelivery.upsert({
-      where: { id: e.state.id },
-      create: data,
-      update: data,
+    await this.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM notifications WHERE id = ${e.state.notificationId}::uuid FOR UPDATE`;
+      const managed = await tx.notificationDispatchWork.count({
+        where: { notificationId: e.state.notificationId },
+      });
+      const existing = await tx.notificationDelivery.findUnique({
+        where: { id: e.state.id },
+      });
+      if (
+        managed ||
+        (existing &&
+          (existing.notificationId !== e.state.notificationId ||
+            existing.deviceSessionId !== e.state.deviceSessionId))
+      )
+        throw new Error("Managed delivery or immutable target");
+      if (existing)
+        await tx.notificationDelivery.update({
+          where: { id: e.state.id },
+          data,
+        });
+      else await tx.notificationDelivery.create({ data });
     });
   }
 }
